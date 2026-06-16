@@ -94,13 +94,13 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
       })
 
       if (!res.ok) {
-        throw new Error("Tải lên ảnh bìa thất bại")
+        throw new Error("Cover image upload failed")
       }
 
       await fetchDetails()
       if (onUpdate) onUpdate()
     } catch (err: any) {
-      alert(err.message || "Lỗi tải ảnh bìa")
+      alert(err.message || "Error uploading cover image")
     } finally {
       setUploading(false)
     }
@@ -117,15 +117,15 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
       case "active":
       case "proposal":
       case "ongoing":
-        return "Đang tiến hành"
+        return "In Progress"
       case "completed":
-        return "Hoàn thành"
+        return "Completed"
       case "hiatus":
-        return "Tạm ngưng"
+        return "Hiatus"
       case "cancelled":
-        return "Đã hủy"
+        return "Cancelled"
       default:
-        return status || "Đang tiến hành"
+        return status || "In Progress"
     }
   }
 
@@ -142,26 +142,26 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden bg-[#18181b] text-white border-zinc-800 p-6 scrollbar-thin">
         <DialogTitle className="sr-only">
-          Chi tiết truyện {series?.title || "Manga Details"}
+          Manga Details: {series?.title || ""}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          {series?.synopsis || "Tóm tắt nội dung truyện tranh"}
+          {series?.synopsis || "Manga synopsis summary"}
         </DialogDescription>
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-10 h-10 animate-spin text-primary mb-3" />
-            <p className="text-zinc-400 text-sm">Đang tải thông tin truyện...</p>
+            <p className="text-zinc-400 text-sm">Loading series details...</p>
           </div>
         ) : error ? (
           <div className="text-center py-10 text-red-400">
-            <p>Có lỗi xảy ra: {error}</p>
-            <Button variant="outline" className="mt-4" onClick={fetchDetails}>Thử lại</Button>
+            <p>An error occurred: {error}</p>
+            <Button variant="outline" className="mt-4" onClick={fetchDetails}>Try again</Button>
           </div>
         ) : series ? (
           <div className="space-y-6">
             {/* Breadcrumb */}
             <div className="text-xs text-zinc-400 flex items-center gap-1.5">
-              <span>Trang chủ</span>
+              <span>Home</span>
               <span>/</span>
               <span className="text-primary font-medium">{series.title}</span>
             </div>
@@ -180,7 +180,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   ) : (
                     <div className="text-center p-4">
                       <BookOpen className="w-12 h-12 text-zinc-600 mx-auto mb-2" />
-                      <span className="text-xs text-zinc-500">Chưa có ảnh bìa</span>
+                      <span className="text-xs text-zinc-500">No cover image</span>
                     </div>
                   )}
 
@@ -195,7 +195,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                       ) : (
                         <Upload className="w-6 h-6 text-white mb-2" />
                       )}
-                      <span>Tải ảnh bìa lên</span>
+                      <span>Upload cover</span>
                     </label>
                   )}
                 </div>
@@ -225,28 +225,28 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   {series.mangakaName && (
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <span className="text-zinc-400 min-w-24">Tác giả:</span>
+                      <span className="text-zinc-400 min-w-24">Author:</span>
                       <span className="text-zinc-200 font-medium">{series.mangakaName}</span>
                     </div>
                   )}
                   {series.createdAt && (
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <span className="text-zinc-400 min-w-24">Ngày tạo:</span>
-                      <span className="text-zinc-200">{new Date(series.createdAt).toLocaleDateString("vi-VN")}</span>
+                      <span className="text-zinc-400 min-w-24">Created Date:</span>
+                      <span className="text-zinc-200">{new Date(series.createdAt).toLocaleDateString("en-US")}</span>
                     </div>
                   )}
                   {chapters && chapters.length > 0 && (
                     <div className="flex items-center gap-2">
                       <BookOpen className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <span className="text-zinc-400 min-w-24">Tổng số chap:</span>
+                      <span className="text-zinc-400 min-w-24">Total Chapters:</span>
                       <span className="text-zinc-200 font-medium">{chapters.length}</span>
                     </div>
                   )}
                   {series.status && (
                     <div className="flex items-center gap-2">
                       <Info className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <span className="text-zinc-400 min-w-24">Tình trạng:</span>
+                      <span className="text-zinc-400 min-w-24">Status:</span>
                       <Badge variant="outline" className={getStatusColor(series.status)}>
                         {formatStatus(series.status)}
                       </Badge>
@@ -255,7 +255,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   {series.readerCount !== undefined && series.readerCount !== null && (
                     <div className="flex items-center gap-2">
                       <Eye className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <span className="text-zinc-400 min-w-24">Lượt xem:</span>
+                      <span className="text-zinc-400 min-w-24">Views:</span>
                       <span className="text-zinc-200 font-medium">{(series.readerCount || 0).toLocaleString()}</span>
                     </div>
                   )}
@@ -270,7 +270,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   ))}
                   {(!series.genres || series.genres.length === 0) && (
                     <Badge variant="secondary" className="bg-zinc-800 text-zinc-400 border-none text-[11px]">
-                      Chưa phân loại
+                      Uncategorized
                     </Badge>
                   )}
                 </div>
@@ -282,13 +282,13 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                     className="bg-green-600 hover:bg-green-500 text-white font-medium"
                     onClick={() => {
                       if (chapters.length > 0) {
-                        alert(`Bắt đầu đọc Chương 1: ${chapters[chapters.length - 1].title || "Không có tiêu đề"}`)
+                        alert(`Start reading Chapter 1: ${chapters[chapters.length - 1].title || "Untitled"}`)
                       } else {
-                        alert("Bộ truyện chưa cập nhật chương nào.")
+                        alert("No chapters uploaded yet.")
                       }
                     }}
                   >
-                    Đọc từ đầu
+                    Read First Chapter
                   </Button>
                 </div>
               </div>
@@ -298,10 +298,10 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
             <div className="space-y-2 border-t border-zinc-800 pt-4">
               <h3 className="text-base font-semibold text-white flex items-center gap-2">
                 <Info className="w-4 h-4 text-primary" />
-                Giới Thiệu
+                Synopsis
               </h3>
               <p className="text-sm text-zinc-300 leading-relaxed bg-[#202023] p-4 rounded-lg border border-zinc-800/40">
-                {series.synopsis || "Chưa có tóm tắt giới thiệu cho bộ truyện này."}
+                {series.synopsis || "No synopsis available for this series."}
               </p>
             </div>
 
@@ -309,12 +309,12 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
             <div className="space-y-3 border-t border-zinc-800 pt-4">
               <h3 className="text-base font-semibold text-white flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-primary" />
-                Danh Sách Chương
+                Chapter List
               </h3>
               <div className="border border-zinc-800 rounded-lg overflow-hidden max-h-[300px] overflow-y-auto scrollbar-thin bg-[#1e1e21]">
                 {chapters.length === 0 ? (
                   <div className="text-center py-12 text-zinc-500 text-sm">
-                    Chưa có chương nào được cập nhật.
+                    No chapters available.
                   </div>
                 ) : (
                   <div className="divide-y divide-zinc-800/80">
@@ -324,10 +324,10 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                         className="flex items-center justify-between p-3.5 hover:bg-zinc-800/50 transition-colors text-sm cursor-pointer group"
                       >
                         <span className="text-zinc-200 group-hover:text-primary transition-colors font-medium">
-                          Chương {ch.chapterNumber}{ch.title ? `: ${ch.title}` : ""}
+                          Chapter {ch.chapterNumber}{ch.title ? `: ${ch.title}` : ""}
                         </span>
                         <span className="text-xs text-zinc-500 shrink-0">
-                          {new Date(ch.createdAt).toLocaleDateString("vi-VN")}
+                          {new Date(ch.createdAt).toLocaleDateString("en-US")}
                         </span>
                       </div>
                     ))}

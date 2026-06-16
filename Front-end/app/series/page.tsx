@@ -109,7 +109,7 @@ export default function SeriesPage() {
           setLoading(false)
         })
         .catch((err) => {
-          console.error("Lỗi lấy danh sách bộ truyện:", err)
+          console.error("Error fetching series list:", err)
           setLoading(false)
         })
     }
@@ -147,11 +147,11 @@ export default function SeriesPage() {
         fetchSeries()
       } else {
         const errorData = await res.json()
-        alert(errorData.message || "Lỗi tạo bộ truyện")
+        alert(errorData.message || "Error creating series")
       }
     } catch (err) {
       console.error(err)
-      alert("Lỗi kết nối server")
+      alert("Server connection error")
     }
   }
 
@@ -317,9 +317,9 @@ export default function SeriesPage() {
 
       {/* Series Grid in Manga Card Layout */}
       {loading ? (
-        <div className="text-center py-12 text-zinc-400">Đang tải danh sách bộ truyện từ CSDL...</div>
+        <div className="text-center py-12 text-zinc-400">Loading series list from database...</div>
       ) : series.length === 0 ? (
-        <div className="text-center py-12 text-zinc-500">Không có bộ truyện nào trong cơ sở dữ liệu.</div>
+        <div className="text-center py-12 text-zinc-500">No series in the database.</div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
           {series.map((s) => {
@@ -341,7 +341,7 @@ export default function SeriesPage() {
                   ) : (
                     <div className="text-center p-4">
                       <BookOpen className="w-8 h-8 text-zinc-700 mx-auto mb-1" />
-                      <span className="text-[10px] text-zinc-500">Chưa có ảnh</span>
+                      <span className="text-[10px] text-zinc-500">No cover</span>
                     </div>
                   )}
 
@@ -357,7 +357,7 @@ export default function SeriesPage() {
                     {s.title}
                   </h4>
                   <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span>Chương {s.chapters}</span>
+                    <span>Chapter {s.chapters}</span>
                     <Badge variant="outline" className={`${statusColors[s.status] || "bg-secondary text-secondary-foreground border-none"} text-[10px] px-1 py-0`}>
                       {s.status}
                     </Badge>

@@ -31,7 +31,7 @@ const ROLE_INFO: Record<string, { name: string; desc: string; metrics: { title: 
     ]
   },
   tantou: {
-    name: 'Minh Nguyễn (Tantou Editor)',
+    name: 'Minh Nguyen (Tantou Editor)',
     desc: 'Quality Control / Publishing Manager',
     metrics: [
       { title: "Studio Progress", val: "85%", change: "Chapter 45 in review", icon: "📉" },
@@ -40,7 +40,7 @@ const ROLE_INFO: Record<string, { name: string; desc: string; metrics: { title: 
     ]
   },
   editorial: {
-    name: 'Tuấn Đinh (Editorial Board)',
+    name: 'Tuan Dinh (Editorial Board)',
     desc: 'High-Level Publishing Authority',
     metrics: [
       { title: "New Proposals", val: "2 pending", change: "1 Action, 1 Romance", icon: "⚖️" },
@@ -139,10 +139,12 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Frontend Dashboard</h1>
-          <p className="text-sm text-purple-400 mt-1">
-            Welcome back, <span className="font-semibold text-white">{displayName}</span> —{" "}
-            <span className="text-gray-400 text-xs italic">{currentRole.desc}</span>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 animate-gradient">{displayName}</span>
+          </h1>
+          <p className="text-sm text-zinc-400 mt-2 flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
+            <span className="italic">{currentRole.desc}</span>
           </p>
         </div>
       </div>
@@ -150,7 +152,7 @@ export default function Dashboard() {
       {/* hàng "Truyện Top" - Tự động kéo trái mỗi 2s */}
       <div className="space-y-3">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          🔥 Truyện Top
+          🔥 Top Series
         </h2>
         <div
           ref={scrollRef}
@@ -180,7 +182,7 @@ export default function Dashboard() {
                   ) : (
                     <div className="text-center p-4">
                       <BookOpen className="w-8 h-8 text-zinc-700 mx-auto mb-1" />
-                      <span className="text-[10px] text-zinc-500">Chưa có ảnh</span>
+                      <span className="text-[10px] text-zinc-500">No cover</span>
                     </div>
                   )}
 
@@ -196,7 +198,7 @@ export default function Dashboard() {
                     {project.title}
                   </h4>
                   <div className="flex justify-between items-center text-[11px] text-zinc-400">
-                    <span>Chương {project.chapters}</span>
+                    <span>Chapter {project.chapters}</span>
                     <span className="text-zinc-500 font-medium">
                       ${(project.revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
@@ -206,7 +208,7 @@ export default function Dashboard() {
             )
           })}
           {topSeries.length === 0 && (
-            <div className="text-center py-6 text-zinc-400 text-sm w-full">Đang tải các truyện hàng đầu...</div>
+            <div className="text-center py-6 text-zinc-400 text-sm w-full">Loading top series...</div>
           )}
         </div>
       </div>

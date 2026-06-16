@@ -11,10 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 
 const demoUsers = [
-  { role: "mangaka", name: "Yuki Tanaka (Tác giả)", email: "yuki@mangaflow.com", color: "border-primary text-primary" },
-  { role: "assistant", name: "Kenji Yamamoto (Trợ lý)", email: "kenji@mangaflow.com", color: "border-chart-3 text-chart-3" },
-  { role: "tantou", name: "Sakura Ito (Biên tập viên)", email: "sakura@mangaflow.com", color: "border-chart-2 text-chart-2" },
-  { role: "editorial", name: "Takeshi Sato (Ban biên tập)", email: "takeshi@mangaflow.com", color: "border-chart-5 text-chart-5" },
+  { role: "mangaka", name: "Yuki Tanaka (Mangaka)", email: "yuki@mangaflow.com", color: "border-primary text-primary" },
+  { role: "assistant", name: "Kenji Yamamoto (Assistant)", email: "kenji@mangaflow.com", color: "border-chart-3 text-chart-3" },
+  { role: "tantou", name: "Sakura Ito (Tantou Editor)", email: "sakura@mangaflow.com", color: "border-chart-2 text-chart-2" },
+  { role: "editorial", name: "Takeshi Sato (Editorial Board)", email: "takeshi@mangaflow.com", color: "border-chart-5 text-chart-5" },
 ]
 
 export default function LoginPage() {
@@ -34,7 +34,7 @@ export default function LoginPage() {
     if (success) {
       router.push("/")
     } else {
-      setError("Email hoặc mật khẩu không chính xác. Vui lòng thử lại.")
+      setError("Incorrect email or password. Please try again.")
       setLoading(false)
     }
   }
@@ -58,15 +58,15 @@ export default function LoginPage() {
             <BookOpen className="w-6 h-6 text-primary-foreground" />
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-white mt-3">MangaFlow</h2>
-          <p className="text-muted-foreground text-sm">Hệ thống quản lý quy trình sản xuất truyện tranh chuyên nghiệp</p>
+          <p className="text-muted-foreground text-sm">Professional Manga Production Workflow Management System</p>
         </div>
 
         {/* Login Card */}
         <Card className="bg-zinc-900/60 border-zinc-800 backdrop-blur-xl shadow-2xl">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl font-semibold text-white">Đăng nhập</CardTitle>
+            <CardTitle className="text-xl font-semibold text-white">Sign In</CardTitle>
             <CardDescription className="text-zinc-400">
-              Nhập email và mật khẩu của bạn để truy cập hệ thống
+              Enter your email and password to access the system
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -95,7 +95,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-zinc-300">Mật khẩu</Label>
+                <Label htmlFor="password" className="text-zinc-300">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
                   <Input
@@ -119,7 +119,7 @@ export default function LoginPage() {
                   <div className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    <span>Đăng nhập hệ thống</span>
+                    <span>Sign In</span>
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </>
                 )}
@@ -128,7 +128,7 @@ export default function LoginPage() {
 
             <div className="relative flex py-2 items-center">
               <div className="flex-grow border-t border-zinc-800"></div>
-              <span className="flex-shrink mx-4 text-xs text-zinc-500 uppercase tracking-widest font-mono">Tài khoản Demo</span>
+              <span className="flex-shrink mx-4 text-xs text-zinc-500 uppercase tracking-widest font-mono">Demo Accounts</span>
               <div className="flex-grow border-t border-zinc-800"></div>
             </div>
 
@@ -146,7 +146,7 @@ export default function LoginPage() {
                     <span className="text-zinc-500">{user.email}</span>
                   </div>
                   <Badge variant="outline" className={`text-[10px] uppercase font-mono px-2 py-0.5 ${user.color}`}>
-                    Chọn nhanh
+                    Quick Select
                   </Badge>
                 </button>
               ))}

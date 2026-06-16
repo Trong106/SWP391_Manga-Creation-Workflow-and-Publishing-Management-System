@@ -20,7 +20,7 @@ export default function LogoutPage() {
     <div className="flex h-screen w-screen items-center justify-center bg-[#09090b] text-white">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-muted-foreground text-sm font-medium animate-pulse">Đang đăng xuất khỏi hệ thống MangaFlow...</p>
+        <p className="text-muted-foreground text-sm font-medium animate-pulse">Logging out of MangaFlow system...</p>
       </div>
     </div>
   );

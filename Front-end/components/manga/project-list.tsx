@@ -54,23 +54,23 @@ export function ProjectList() {
     const diffHours = Math.floor(diffMins / 60)
     const diffDays = Math.floor(diffHours / 24)
 
-    if (diffMins < 60) return `${diffMins || 1} phút trước`
-    if (diffHours < 24) return `${diffHours} giờ trước`
-    return `${diffDays} ngày trước`
+    if (diffMins < 60) return `${diffMins || 1} minutes ago`
+    if (diffHours < 24) return `${diffHours} hours ago`
+    return `${diffDays} days ago`
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          📖 Danh Sách Truyện Tranh Mới
+          📖 New Series List
         </h2>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-zinc-400 text-sm">Đang tải danh sách truyện tranh mới...</div>
+        <div className="text-center py-12 text-zinc-400 text-sm">Loading new series...</div>
       ) : projects.length === 0 ? (
-        <div className="text-center py-12 text-zinc-400 text-sm">Không tìm thấy truyện tranh mới nào.</div>
+        <div className="text-center py-12 text-zinc-400 text-sm">No new series found.</div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
           {projects.map((project) => {
@@ -93,7 +93,7 @@ export function ProjectList() {
                   ) : (
                     <div className="text-center p-4">
                       <BookOpen className="w-8 h-8 text-zinc-700 mx-auto mb-1" />
-                      <span className="text-[10px] text-zinc-500">Chưa có ảnh</span>
+                      <span className="text-[10px] text-zinc-500">No cover</span>
                     </div>
                   )}
 
@@ -114,7 +114,7 @@ export function ProjectList() {
                     {project.title}
                   </h4>
                   <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span>Chương {project.chapters ?? 0}</span>
+                    <span>Chapter {project.chapters ?? 0}</span>
                     <span className="flex items-center gap-0.5 text-[10px] text-zinc-500">
                       <Eye className="w-3 h-3" />
                       {project.readerCount >= 1000 ? `${(project.readerCount / 1000).toFixed(1)}k` : project.readerCount}
