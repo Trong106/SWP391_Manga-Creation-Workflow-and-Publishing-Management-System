@@ -34,7 +34,6 @@ import {
 
 interface VoteEntry {
   id: string
-  seriesId: string
   series: string
   votes: number
   previousVotes: number
@@ -44,16 +43,16 @@ interface VoteEntry {
 }
 
 const mockVotes: VoteEntry[] = [
-  { id: "1", seriesId: "1", series: "One Step Beyond", votes: 2450, previousVotes: 2380, change: 70, rank: 1, previousRank: 1 },
-  { id: "2", seriesId: "2", series: "Heart of Steel", votes: 2380, previousVotes: 2290, change: 90, rank: 2, previousRank: 3 },
-  { id: "3", seriesId: "3", series: "Dragon Hunters", votes: 2250, previousVotes: 2100, change: 150, rank: 3, previousRank: 5 },
-  { id: "4", seriesId: "4", series: "Midnight Sun", votes: 2100, previousVotes: 2350, change: -250, rank: 4, previousRank: 2 },
-  { id: "5", seriesId: "5", series: "Garden of Shadows", votes: 1980, previousVotes: 1980, change: 0, rank: 5, previousRank: 5 },
-  { id: "6", seriesId: "6", series: "Night Bloom", votes: 1850, previousVotes: 1720, change: 130, rank: 6, previousRank: 7 },
-  { id: "7", seriesId: "7", series: "Cyber Knights", votes: 1720, previousVotes: 1850, change: -130, rank: 7, previousRank: 6 },
-  { id: "8", seriesId: "8", series: "Silent Whispers", votes: 1450, previousVotes: 1620, change: -170, rank: 8, previousRank: 8 },
-  { id: "9", seriesId: "9", series: "Fading Light", votes: 1200, previousVotes: 1200, change: 0, rank: 9, previousRank: 9 },
-  { id: "10", seriesId: "10", series: "Broken Dreams", votes: 980, previousVotes: 1150, change: -170, rank: 10, previousRank: 10 },
+  { id: "1", series: "One Step Beyond", votes: 2450, previousVotes: 2380, change: 70, rank: 1, previousRank: 1 },
+  { id: "2", series: "Heart of Steel", votes: 2380, previousVotes: 2290, change: 90, rank: 2, previousRank: 3 },
+  { id: "3", series: "Dragon Hunters", votes: 2250, previousVotes: 2100, change: 150, rank: 3, previousRank: 5 },
+  { id: "4", series: "Midnight Sun", votes: 2100, previousVotes: 2350, change: -250, rank: 4, previousRank: 2 },
+  { id: "5", series: "Garden of Shadows", votes: 1980, previousVotes: 1980, change: 0, rank: 5, previousRank: 5 },
+  { id: "6", series: "Night Bloom", votes: 1850, previousVotes: 1720, change: 130, rank: 6, previousRank: 7 },
+  { id: "7", series: "Cyber Knights", votes: 1720, previousVotes: 1850, change: -130, rank: 7, previousRank: 6 },
+  { id: "8", series: "Silent Whispers", votes: 1450, previousVotes: 1620, change: -170, rank: 8, previousRank: 8 },
+  { id: "9", series: "Fading Light", votes: 1200, previousVotes: 1200, change: 0, rank: 9, previousRank: 9 },
+  { id: "10", series: "Broken Dreams", votes: 980, previousVotes: 1150, change: -170, rank: 10, previousRank: 10 },
 ]
 
 const weekHistory = [
@@ -71,10 +70,16 @@ export default function VotesPage() {
   const [votes, setVotes] = useState<Record<string, string>>({})
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [voteEntries, setVoteEntries] = useState<VoteEntry[]>([])
+  const [seriesList, setSeriesList] = useState<any[]>([])
+  const [availableWeeks, setAvailableWeeks] = useState<string[]>(["20", "19", "18", "17"])
+  const [inputWeek, setInputWeek] = useState("21")
+  const [inputYear, setInputYear] = useState("2026")
   const [loading, setLoading] = useState(true)
 
+  // Fetch votes for the selected week
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/reader-votes`)
+    setLoading(true)
+    fetch(`${API_BASE_URL}/api/data/reader-votes?week=${selectedWeek}&year=2026`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -86,6 +91,18 @@ export default function VotesPage() {
         console.error("Error fetching reader votes:", err)
         setLoading(false)
       })
+  }, [selectedWeek])
+
+  // Fetch all series for input dropdown/list
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/data/series`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSeriesList(data)
+        }
+      })
+      .catch((err) => console.error("Error fetching series:", err))
   }, [])
 
   const handleVoteChange = (seriesId: string, value: string) => {
@@ -93,13 +110,26 @@ export default function VotesPage() {
   }
 
   const handleSaveVotes = async () => {
-    const votesList = Object.entries(votes).map(([id, val]) => ({
-      seriesId: id,
-      votes: parseInt(val) || 0
-    }))
+    const weekNum = parseInt(inputWeek)
+    const yearNum = parseInt(inputYear)
+    if (isNaN(weekNum) || weekNum < 1 || weekNum > 53) {
+      alert("Please enter a valid week number (1-53).")
+      return
+    }
+    if (isNaN(yearNum) || yearNum < 2000) {
+      alert("Please enter a valid year.")
+      return
+    }
 
-    if (votesList.length === 0) {
-      setIsDialogOpen(false)
+    const votesPayload = Object.entries(votes)
+      .map(([seriesId, voteVal]) => ({
+        seriesId,
+        votes: parseInt(voteVal) || 0
+      }))
+      .filter(v => v.votes >= 0)
+
+    if (votesPayload.length === 0) {
+      alert("Please enter votes for at least one series.")
       return
     }
 
@@ -110,25 +140,29 @@ export default function VotesPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          weekNumber: parseInt(selectedWeek),
-          yearNumber: 2026,
-          votes: votesList
+          weekNumber: weekNum,
+          yearNumber: yearNum,
+          votes: votesPayload
         })
       })
 
-      if (response.ok) {
-        const updatedData = await fetch(`${API_BASE_URL}/api/data/reader-votes`).then(res => res.json())
-        if (Array.isArray(updatedData)) {
-          setVoteEntries(updatedData)
-        }
-        setIsDialogOpen(false)
-        setVotes({})
-      } else {
-        alert("Failed to save votes.")
+      if (!response.ok) {
+        throw new Error("Failed to save votes")
       }
+
+      alert("Votes saved successfully!")
+      setIsDialogOpen(false)
+      setVotes({})
+      
+      // Update available weeks if this is a new one
+      const weekStr = weekNum.toString()
+      if (!availableWeeks.includes(weekStr)) {
+        setAvailableWeeks(prev => [...prev, weekStr].sort((a, b) => parseInt(b) - parseInt(a)))
+      }
+      setSelectedWeek(weekStr)
     } catch (err) {
       console.error("Error saving votes:", err)
-      alert("Error saving votes.")
+      alert("Failed to save votes. Please try again.")
     }
   }
 
@@ -154,9 +188,9 @@ export default function VotesPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="20">Week 20, 2026</SelectItem>
-              <SelectItem value="19">Week 19, 2026</SelectItem>
-              <SelectItem value="18">Week 18, 2026</SelectItem>
+              {availableWeeks.map((wk) => (
+                <SelectItem key={wk} value={wk}>Week {wk}, 2026</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -171,19 +205,46 @@ export default function VotesPage() {
                 <DialogTitle>Input Weekly Votes</DialogTitle>
                 <DialogDescription>Enter the reader votes for each series this week</DialogDescription>
               </DialogHeader>
+              <div className="grid grid-cols-2 gap-4 pb-4 border-b border-border mb-4">
+                <div>
+                  <Label htmlFor="input-week">Week Number</Label>
+                  <Input
+                    id="input-week"
+                    type="number"
+                    min="1"
+                    max="53"
+                    value={inputWeek}
+                    onChange={(e) => setInputWeek(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="input-year">Year</Label>
+                  <Input
+                    id="input-year"
+                    type="number"
+                    min="2000"
+                    value={inputYear}
+                    onChange={(e) => setInputYear(e.target.value)}
+                  />
+                </div>
+              </div>
               <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
-                {voteEntries.map((entry) => (
-                  <div key={entry.seriesId} className="flex items-center gap-4">
-                    <Label className="w-48">{entry.series}</Label>
-                    <Input
-                      type="number"
-                      placeholder="Enter votes"
-                      value={votes[entry.seriesId] || ""}
-                      onChange={(e) => handleVoteChange(entry.seriesId, e.target.value)}
-                      className="flex-1"
-                    />
-                  </div>
-                ))}
+                {seriesList.length === 0 ? (
+                  <p className="text-sm text-zinc-400">Loading series...</p>
+                ) : (
+                  seriesList.map((series) => (
+                    <div key={series.id} className="flex items-center gap-4">
+                      <Label className="w-48 text-sm">{series.title}</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter votes"
+                        value={votes[series.id] || ""}
+                        onChange={(e) => handleVoteChange(series.id, e.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+                  ))
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
