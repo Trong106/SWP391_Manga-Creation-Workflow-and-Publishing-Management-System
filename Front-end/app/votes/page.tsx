@@ -70,10 +70,16 @@ export default function VotesPage() {
   const [votes, setVotes] = useState<Record<string, string>>({})
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [voteEntries, setVoteEntries] = useState<VoteEntry[]>([])
+  const [seriesList, setSeriesList] = useState<any[]>([])
+  const [availableWeeks, setAvailableWeeks] = useState<string[]>(["20", "19", "18", "17"])
+  const [inputWeek, setInputWeek] = useState("21")
+  const [inputYear, setInputYear] = useState("2026")
   const [loading, setLoading] = useState(true)
 
+  // Fetch votes for the selected week
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/reader-votes`)
+    setLoading(true)
+    fetch(`${API_BASE_URL}/api/data/reader-votes?week=${selectedWeek}&year=2026`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -85,10 +91,79 @@ export default function VotesPage() {
         console.error("Error fetching reader votes:", err)
         setLoading(false)
       })
+  }, [selectedWeek])
+
+  // Fetch all series for input dropdown/list
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/data/series`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSeriesList(data)
+        }
+      })
+      .catch((err) => console.error("Error fetching series:", err))
   }, [])
 
   const handleVoteChange = (seriesId: string, value: string) => {
     setVotes({ ...votes, [seriesId]: value })
+  }
+
+  const handleSaveVotes = async () => {
+    const weekNum = parseInt(inputWeek)
+    const yearNum = parseInt(inputYear)
+    if (isNaN(weekNum) || weekNum < 1 || weekNum > 53) {
+      alert("Please enter a valid week number (1-53).")
+      return
+    }
+    if (isNaN(yearNum) || yearNum < 2000) {
+      alert("Please enter a valid year.")
+      return
+    }
+
+    const votesPayload = Object.entries(votes)
+      .map(([seriesId, voteVal]) => ({
+        seriesId,
+        votes: parseInt(voteVal) || 0
+      }))
+      .filter(v => v.votes >= 0)
+
+    if (votesPayload.length === 0) {
+      alert("Please enter votes for at least one series.")
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/data/reader-votes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          weekNumber: weekNum,
+          yearNumber: yearNum,
+          votes: votesPayload
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to save votes")
+      }
+
+      alert("Votes saved successfully!")
+      setIsDialogOpen(false)
+      setVotes({})
+      
+      // Update available weeks if this is a new one
+      const weekStr = weekNum.toString()
+      if (!availableWeeks.includes(weekStr)) {
+        setAvailableWeeks(prev => [...prev, weekStr].sort((a, b) => parseInt(b) - parseInt(a)))
+      }
+      setSelectedWeek(weekStr)
+    } catch (err) {
+      console.error("Error saving votes:", err)
+      alert("Failed to save votes. Please try again.")
+    }
   }
 
   const totalVotes = voteEntries.reduce((sum, v) => sum + v.votes, 0)
@@ -113,9 +188,9 @@ export default function VotesPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="20">Week 20, 2026</SelectItem>
-              <SelectItem value="19">Week 19, 2026</SelectItem>
-              <SelectItem value="18">Week 18, 2026</SelectItem>
+              {availableWeeks.map((wk) => (
+                <SelectItem key={wk} value={wk}>Week {wk}, 2026</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -130,25 +205,52 @@ export default function VotesPage() {
                 <DialogTitle>Input Weekly Votes</DialogTitle>
                 <DialogDescription>Enter the reader votes for each series this week</DialogDescription>
               </DialogHeader>
+              <div className="grid grid-cols-2 gap-4 pb-4 border-b border-border mb-4">
+                <div>
+                  <Label htmlFor="input-week">Week Number</Label>
+                  <Input
+                    id="input-week"
+                    type="number"
+                    min="1"
+                    max="53"
+                    value={inputWeek}
+                    onChange={(e) => setInputWeek(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="input-year">Year</Label>
+                  <Input
+                    id="input-year"
+                    type="number"
+                    min="2000"
+                    value={inputYear}
+                    onChange={(e) => setInputYear(e.target.value)}
+                  />
+                </div>
+              </div>
               <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
-                {voteEntries.map((entry) => (
-                  <div key={entry.id} className="flex items-center gap-4">
-                    <Label className="w-48">{entry.series}</Label>
-                    <Input
-                      type="number"
-                      placeholder="Enter votes"
-                      value={votes[entry.id] || ""}
-                      onChange={(e) => handleVoteChange(entry.id, e.target.value)}
-                      className="flex-1"
-                    />
-                  </div>
-                ))}
+                {seriesList.length === 0 ? (
+                  <p className="text-sm text-zinc-400">Loading series...</p>
+                ) : (
+                  seriesList.map((series) => (
+                    <div key={series.id} className="flex items-center gap-4">
+                      <Label className="w-48 text-sm">{series.title}</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter votes"
+                        value={votes[series.id] || ""}
+                        onChange={(e) => handleVoteChange(series.id, e.target.value)}
+                        className="flex-1"
+                      />
+                    </div>
+                  ))
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button className="bg-primary text-primary-foreground" onClick={() => setIsDialogOpen(false)}>
+                <Button className="bg-primary text-primary-foreground" onClick={handleSaveVotes}>
                   <Save className="w-4 h-4 mr-2" />
                   Save Votes
                 </Button>

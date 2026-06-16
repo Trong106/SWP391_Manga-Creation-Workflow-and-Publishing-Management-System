@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
+using MangaStudio.Backend.Models.DTOs;
 
 namespace MangaStudio.Backend.Controllers;
 
@@ -231,11 +232,11 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/reader-votes
     [HttpGet("reader-votes")]
-    public async Task<IActionResult> GetReaderVotes()
+    public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
     {
         // Get current week votes
-        var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
-        var currentYear = DateTime.UtcNow.Year;
+        var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
+        var currentYear = year ?? DateTime.UtcNow.Year;
         var previousWeek = currentWeek > 1 ? currentWeek - 1 : 52;
         var previousYear = currentWeek > 1 ? currentYear : currentYear - 1;
 
@@ -256,6 +257,7 @@ public class MangaStudioDataController : ControllerBase
             return new
             {
                 id            = v.ReaderVoteId.ToString(),
+                seriesId      = v.SeriesId.ToString(),
                 series        = v.Series.Title,
                 votes         = v.Votes,
                 previousVotes = prev?.votes ?? 0,
@@ -266,6 +268,63 @@ public class MangaStudioDataController : ControllerBase
         });
 
         return Ok(result);
+    }
+
+    // POST api/data/reader-votes
+    [HttpPost("reader-votes")]
+    public async Task<IActionResult> SaveWeeklyVotes([FromBody] SaveVotesDto dto)
+    {
+        if (dto == null || dto.WeekNumber < 1 || dto.WeekNumber > 53 || dto.YearNumber < 2000)
+            return BadRequest("Invalid week or year number.");
+
+        if (dto.Votes == null || !dto.Votes.Any())
+            return BadRequest("Votes list cannot be empty.");
+
+        // Remove existing votes for this week and year
+        var existingVotes = await _dbContext.ReaderVotes
+            .Where(v => v.WeekNumber == dto.WeekNumber && v.YearNumber == dto.YearNumber)
+            .ToListAsync();
+
+        if (existingVotes.Any())
+        {
+            _dbContext.ReaderVotes.RemoveRange(existingVotes);
+        }
+
+        // Order input votes by votes descending to assign rank numbers
+        var sortedVotes = dto.Votes.OrderByDescending(v => v.Votes).ToList();
+
+        var newVotesList = new List<ReaderVote>();
+        for (int i = 0; i < sortedVotes.Count; i++)
+        {
+            var item = sortedVotes[i];
+            newVotesList.Add(new ReaderVote
+            {
+                ReaderVoteId = Guid.NewGuid(),
+                SeriesId = item.SeriesId,
+                WeekNumber = dto.WeekNumber,
+                YearNumber = dto.YearNumber,
+                Votes = item.Votes,
+                RankNumber = i + 1,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _dbContext.ReaderVotes.AddRangeAsync(newVotesList);
+
+        // Update the corresponding Series rankings in the Series table to stay in sync
+        var seriesList = await _dbContext.Series.ToListAsync();
+        foreach (var vote in newVotesList)
+        {
+            var series = seriesList.FirstOrDefault(s => s.SeriesId == vote.SeriesId);
+            if (series != null)
+            {
+                series.Ranking = vote.RankNumber;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new { message = "Weekly votes saved successfully." });
     }
 
     // GET api/data/publish-schedule
