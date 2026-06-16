@@ -52,7 +52,7 @@ export default function ReviewPage() {
         setLoadingQueue(false)
       })
       .catch((err) => {
-        console.error("Lỗi lấy danh sách review queue:", err)
+        console.error("Error fetching review queue:", err)
         setLoadingQueue(false)
       })
   }
@@ -86,7 +86,7 @@ export default function ReviewPage() {
           setLoadingPages(false)
         })
         .catch((err) => {
-          console.error("Lỗi lấy trang review:", err)
+          console.error("Error fetching review pages:", err)
           setLoadingPages(false)
         })
     }
@@ -113,9 +113,9 @@ export default function ReviewPage() {
     const diffHours = Math.floor(diffMins / 60)
     const diffDays = Math.floor(diffHours / 24)
 
-    if (diffMins < 60) return `${diffMins || 1} phút trước`
-    if (diffHours < 24) return `${diffHours} giờ trước`
-    return `${diffDays} ngày trước`
+    if (diffMins < 60) return `${diffMins || 1} minutes ago`
+    if (diffHours < 24) return `${diffHours} hours ago`
+    return `${diffDays} days ago`
   }
 
   // Handle page approval
@@ -131,16 +131,16 @@ export default function ReviewPage() {
         body: JSON.stringify({ status: "approved" })
       })
       if (res.ok) {
-        alert("Đã duyệt trang thành công!")
+        alert("Page approved successfully!")
         // Refresh pages
         const updated = pages.map((p) => p.id === activePage.id ? { ...p, status: "approved" } : p)
         setPages(updated)
       } else {
-        alert("Duyệt trang thất bại")
+        alert("Failed to approve page")
       }
     } catch (err) {
       console.error(err)
-      alert("Lỗi kết nối server")
+      alert("Server connection error")
     }
   }
 
@@ -157,15 +157,15 @@ export default function ReviewPage() {
         body: JSON.stringify({ status: "revision" })
       })
       if (res.ok) {
-        alert("Đã yêu cầu chỉnh sửa thành công!")
+        alert("Revision requested successfully!")
         const updated = pages.map((p) => p.id === activePage.id ? { ...p, status: "revision" } : p)
         setPages(updated)
       } else {
-        alert("Thất bại")
+        alert("Failed")
       }
     } catch (err) {
       console.error(err)
-      alert("Lỗi kết nối")
+      alert("Connection error")
     }
   }
 
@@ -176,7 +176,7 @@ export default function ReviewPage() {
     const x = ((e.clientX - rect.left) / rect.width) * 100
     const y = ((e.clientY - rect.top) / rect.height) * 100
 
-    const body = prompt("Nhập nội dung ghi chú chỉnh sửa:")
+    const body = prompt("Enter revision note content:")
     if (!body) return
 
     try {
@@ -251,14 +251,14 @@ export default function ReviewPage() {
               Review Pages Queue
             </h1>
             <p className="text-muted-foreground mt-1">
-              Danh sách truyện có trang vẽ hoàn thành chờ duyệt (Được xếp theo thời gian hoàn thành sớm nhất).
+              List of series with completed drawings waiting for review (Sorted by earliest completion time).
             </p>
           </div>
 
           {loadingQueue ? (
-            <div className="text-center py-12 text-zinc-400 text-sm">Đang tải hàng đợi duyệt bài...</div>
+            <div className="text-center py-12 text-zinc-400 text-sm">Loading review queue...</div>
           ) : reviewSeries.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 text-sm">Không có trang truyện nào cần duyệt hiện tại. 🎉</div>
+            <div className="text-center py-12 text-zinc-500 text-sm">No manga pages currently need review. 🎉</div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
               {reviewSeries.map((s) => {
@@ -284,7 +284,7 @@ export default function ReviewPage() {
                       ) : (
                         <div className="text-center p-4">
                           <BookOpen className="w-8 h-8 text-zinc-700 mx-auto mb-1" />
-                          <span className="text-[10px] text-zinc-500">Chưa có ảnh</span>
+                          <span className="text-[10px] text-zinc-500">No cover</span>
                         </div>
                       )}
 
@@ -325,7 +325,7 @@ export default function ReviewPage() {
               className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Quay lại danh sách duyệt
+              Back to review list
             </Button>
             <div className="text-right">
               <h2 className="text-xl font-bold text-white leading-none">{activeSeriesTitle}</h2>
@@ -340,7 +340,7 @@ export default function ReviewPage() {
               <Card className="bg-zinc-900 border-zinc-800 text-white">
                 <CardContent className="p-4 flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-zinc-400">Lọc Chương:</span>
+                    <span className="text-xs text-zinc-400">Filter Chapter:</span>
                     <Select value={selectedChapter} onValueChange={(v) => {
                       setSelectedChapter(v)
                       setCurrentPageIndex(0)
@@ -349,9 +349,9 @@ export default function ReviewPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
-                        <SelectItem value="all">Tất cả chương</SelectItem>
+                        <SelectItem value="all">All chapters</SelectItem>
                         {chapters.map((ch) => (
-                          <SelectItem key={ch} value={ch}>Chương {ch}</SelectItem>
+                          <SelectItem key={ch} value={ch}>Chapter {ch}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -365,7 +365,7 @@ export default function ReviewPage() {
                       className={annotationMode ? "bg-primary text-primary-foreground font-semibold" : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"}
                     >
                       <Pencil className="w-4 h-4 mr-2" />
-                      {annotationMode ? "Đang vẽ Note..." : "Vẽ Note sửa bài"}
+                      {annotationMode ? "Drawing Note..." : "Draw Revision Note"}
                     </Button>
                   </div>
                 </CardContent>
@@ -376,11 +376,11 @@ export default function ReviewPage() {
                 <CardContent className="p-6">
                   {loadingPages ? (
                     <div className="aspect-[3/4] bg-zinc-950 rounded-lg flex items-center justify-center text-zinc-400">
-                      Đang tải trang vẽ...
+                      Loading pages...
                     </div>
                   ) : displayedPages.length === 0 ? (
                     <div className="aspect-[3/4] bg-zinc-950 rounded-lg flex items-center justify-center text-zinc-500 text-sm">
-                      Không có trang vẽ nào đang chờ duyệt trong bộ lọc này.
+                      No pages waiting for review in this filter.
                     </div>
                   ) : (
                     <div
@@ -397,8 +397,8 @@ export default function ReviewPage() {
                         />
                       ) : (
                         <div className="text-center p-4">
-                          <p className="text-4xl font-bold text-zinc-700 mb-2">Trang {activePage?.number}</p>
-                          <p className="text-zinc-500 text-xs">Ảnh chưa tải lên</p>
+                          <p className="text-4xl font-bold text-zinc-700 mb-2">Page {activePage?.number}</p>
+                          <p className="text-zinc-500 text-xs">Image not uploaded yet</p>
                         </div>
                       )}
 
@@ -430,10 +430,10 @@ export default function ReviewPage() {
                         className="border-zinc-800 text-zinc-300 hover:bg-zinc-800"
                       >
                         <ChevronLeft className="w-4 h-4 mr-1.5" />
-                        Trang trước
+                        Previous
                       </Button>
                       <span className="text-zinc-400 text-xs">
-                        Trang <strong>{activePage?.number}</strong> trên {displayedPages.length} (Chương {activePage?.chapterNumber})
+                        Page <strong>{activePage?.number}</strong> of {displayedPages.length} (Chapter {activePage?.chapterNumber})
                       </span>
                       <Button
                         variant="outline"
@@ -455,7 +455,7 @@ export default function ReviewPage() {
                 <Card className="bg-zinc-900 border-zinc-800 text-white">
                   <CardContent className="p-4 flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-400">Trạng thái hiện tại:</span>
+                      <span className="text-xs text-zinc-400">Current Status:</span>
                       <Badge className={statusColors[activePage.status as keyof typeof statusColors] || "bg-zinc-800 text-zinc-300"}>
                         {activePage.status}
                       </Badge>
@@ -468,7 +468,7 @@ export default function ReviewPage() {
                         onClick={handleRequestRevision}
                       >
                         <X className="w-4 h-4 mr-1.5" />
-                        Yêu cầu sửa lại
+                        Request Revision
                       </Button>
                       <Button
                         size="sm"
@@ -476,7 +476,7 @@ export default function ReviewPage() {
                         onClick={handleApprovePage}
                       >
                         <Check className="w-4 h-4 mr-1.5" />
-                        Duyệt thông qua
+                        Approve Page
                       </Button>
                     </div>
                   </CardContent>
@@ -489,7 +489,7 @@ export default function ReviewPage() {
               {/* Grid Thumbnail trang */}
               <Card className="bg-zinc-900 border-zinc-800 text-white">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold text-zinc-300">Tổng quan trang</CardTitle>
+                  <CardTitle className="text-sm font-semibold text-zinc-300">Page Overview</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-4 gap-2">
@@ -521,7 +521,7 @@ export default function ReviewPage() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-primary" />
-                    Bình Luận / Thảo Luận
+                    Comments / Discussions
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -543,7 +543,7 @@ export default function ReviewPage() {
                       </div>
                     ))}
                     {(!activePage?.comments || activePage.comments.length === 0) && (
-                      <div className="text-center py-6 text-zinc-600 text-xs">Chưa có bình luận nào cho trang này.</div>
+                      <div className="text-center py-6 text-zinc-600 text-xs">No comments yet for this page.</div>
                     )}
                   </div>
 
@@ -551,7 +551,7 @@ export default function ReviewPage() {
                   {activePage && (
                     <div className="space-y-2 pt-2 border-t border-zinc-850">
                       <Textarea
-                        placeholder="Thêm ý kiến thảo luận..."
+                        placeholder="Add discussion comment..."
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
                         className="bg-zinc-950 border-zinc-850 text-xs text-white min-h-[60px]"
@@ -561,7 +561,7 @@ export default function ReviewPage() {
                         onClick={handlePostComment}
                         className="w-full bg-primary hover:bg-primary/95 text-white font-medium text-xs py-1.5"
                       >
-                        Gửi bình luận
+                        Post Comment
                       </Button>
                     </div>
                   )}

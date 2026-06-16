@@ -97,7 +97,7 @@ export default function UploadPage() {
       })
 
       if (!response.ok) {
-        throw new Error("Lỗi tải lên")
+        throw new Error("Upload failed")
       }
 
       const fileUrl = await response.text()
@@ -111,7 +111,7 @@ export default function UploadPage() {
         )
       )
     } catch (err) {
-      console.error("Lỗi khi tải ảnh lên API:", err)
+      console.error("Error uploading image to API:", err)
       setUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, status: "error", progress: 0 } : f
