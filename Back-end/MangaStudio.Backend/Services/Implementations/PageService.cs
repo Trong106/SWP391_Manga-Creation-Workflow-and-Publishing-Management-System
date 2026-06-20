@@ -227,4 +227,40 @@ public class PageService : IPageService
             CreatedAt = review.CreatedAt
         };
     }
+<<<<<<< HEAD
+
+    /// <summary>
+    /// Tạo bình luận mới cho trang.
+    /// </summary>
+    public async Task<CommentDto> CreatePageComment(Guid pageId, Guid userId, CreateCommentDto dto)
+    {
+        var page = await _context.MangaPages.FindAsync(pageId)
+            ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
+
+        var comment = new ReviewComment
+        {
+            CommentId = Guid.NewGuid(),
+            PageId = pageId,
+            UserId = userId,
+            Body = dto.Body,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.ReviewComments.Add(comment);
+        await _context.SaveChangesAsync();
+
+        var user = await _context.Users.FindAsync(userId);
+
+        return new CommentDto
+        {
+            Id = comment.CommentId,
+            UserId = comment.UserId,
+            UserName = user?.FullName ?? "Unknown",
+            Avatar = user?.Avatar,
+            Body = comment.Body,
+            CreatedAt = "Just now"
+        };
+    }
+=======
+>>>>>>> 3d6fedf03c94b7676b90d8c3b01a274079313408
 }
