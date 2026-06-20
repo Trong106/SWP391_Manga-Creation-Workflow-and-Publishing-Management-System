@@ -338,6 +338,8 @@ export default function SubmitWorkPage() {
                     ? "bg-emerald-900/30 text-emerald-400 border border-emerald-800/30"
                     : selectedTask.status === "submitted"
                     ? "bg-cyan-900/30 text-cyan-400 border border-cyan-800/30"
+                    : selectedTask.status === "revision"
+                    ? "bg-red-900/30 text-red-400 border border-red-800/30"
                     : "bg-zinc-900 text-zinc-400 border border-zinc-800"
                 }`}>
                   {selectedTask.status.replace("_", " ")}
