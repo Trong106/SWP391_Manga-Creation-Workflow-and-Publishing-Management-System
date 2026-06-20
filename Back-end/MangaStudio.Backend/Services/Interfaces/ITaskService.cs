@@ -28,4 +28,7 @@ public interface ITaskService
 
     /// <summary>Lấy danh sách tất cả trợ lý đang hoạt động.</summary>
     Task<List<AssistantDto>> GetAllAssistants();
+
+    /// <summary>Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).</summary>
+    Task<TaskDto> StartTask(Guid taskId, Guid assistantId);
 }

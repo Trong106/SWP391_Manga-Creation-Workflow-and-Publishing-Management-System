@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
+import { toast } from "sonner"
 import {
   Select,
   SelectContent,
@@ -38,8 +39,13 @@ interface UploadedFile {
 export default function UploadPage() {
   const { user, token } = useAuth()
   const [selectedSeries, setSelectedSeries] = useState("")
-  const [chapterNumber, setChapterNumber] = useState("45") // Mặc định chapter 45 để dễ test với dữ liệu mẫu
   const [seriesList, setSeriesList] = useState<any[]>([])
+  const [chapters, setChapters] = useState<any[]>([])
+  const [selectedChapterId, setSelectedChapterId] = useState<string>("")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [newChapterNumber, setNewChapterNumber] = useState("")
+  const [newChapterTitle, setNewChapterTitle] = useState("")
+  const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
@@ -65,30 +71,130 @@ export default function UploadPage() {
         })
         .catch((err) => console.error("Lỗi lấy danh sách bộ truyện:", err))
     }
-  }, [user?.id])
+  }, [user?.id, token])
 
-  // Hàm hỗ trợ map số chapter nhập vào sang ID Chapter mẫu tương ứng
-  const getChapterId = () => {
-    // Nếu là Dragon Hunters (ID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa) và chapter 45
-    if (selectedSeries === "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" && chapterNumber === "45") {
-      return "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  // Lấy danh sách chương của bộ truyện được chọn
+  useEffect(() => {
+    if (selectedSeries && token) {
+      fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch chapters")
+          return res.json()
+        })
+        .then((data) => {
+          setChapters(data)
+          if (data.length > 0) {
+            // Keep selection if it's still in the new list, otherwise pick the first one
+            const exists = data.some((c: any) => c.chapterId === selectedChapterId)
+            if (!exists) {
+              setSelectedChapterId(data[0].chapterId)
+            }
+          } else {
+            setSelectedChapterId("")
+          }
+        })
+        .catch((err) => {
+          console.error("Lỗi lấy danh sách chương:", err)
+          setChapters([])
+          setSelectedChapterId("")
+        })
+    } else {
+      setChapters([])
+      setSelectedChapterId("")
     }
-    // Nếu là Night Bloom (ID: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb) và chapter 1
-    if (selectedSeries === "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" && chapterNumber === "1") {
-      return "dddddddd-dddd-dddd-dddd-dddddddddddd"
+  }, [selectedSeries, token])
+
+  // Hàm tạo chương mới qua API
+  const handleCreateChapter = async () => {
+    if (!selectedSeries) {
+      toast.error("Vui lòng chọn bộ truyện trước.")
+      return
     }
-    // Mặc định fallback về Chapter 45 của Dragon Hunters để luôn upload thành công khi chạy thử
-    return "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    if (!newChapterNumber) {
+      toast.error("Vui lòng nhập số chương.")
+      return
+    }
+    const num = parseInt(newChapterNumber)
+    if (isNaN(num) || num < 1 || num > 9999) {
+      toast.error("Số chương phải là số nguyên từ 1 đến 9999.")
+      return
+    }
+
+    setIsCreatingChapter(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          chapterNumber: num,
+          title: newChapterTitle.trim() || undefined
+        })
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.message || "Tạo chương mới thất bại.")
+      }
+
+      const createdChapter = await response.json()
+      toast.success(`Đã tạo thành công chương ${createdChapter.chapterNumber}`)
+      
+      // Refresh list of chapters and auto select the new one
+      const updatedRes = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+      
+      if (updatedRes.ok) {
+        const data = await updatedRes.json()
+        setChapters(data)
+        const found = data.find((c: any) => c.chapterNumber === num)
+        if (found) {
+          setSelectedChapterId(found.chapterId)
+        } else {
+          setSelectedChapterId(createdChapter.chapterId)
+        }
+      } else {
+        setChapters(prev => [...prev, createdChapter])
+        setSelectedChapterId(createdChapter.chapterId)
+      }
+
+      setNewChapterNumber("")
+      setNewChapterTitle("")
+      setIsDialogOpen(false)
+    } catch (err: any) {
+      console.error("Lỗi tạo chương:", err)
+      toast.error(err.message || "Đã xảy ra lỗi khi tạo chương.")
+    } finally {
+      setIsCreatingChapter(false)
+    }
   }
 
   // Hàm thực hiện gọi API Upload File lên Backend
   const uploadFile = async (file: File, fileId: string) => {
-    const chapterId = getChapterId()
+    if (!selectedChapterId) {
+      toast.error("Vui lòng chọn hoặc tạo chương truyện trước khi tải lên.")
+      setUploadedFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileId ? { ...f, status: "error", progress: 0 } : f
+        )
+      )
+      return
+    }
+
     const formData = new FormData()
     formData.append("file", file)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/mangaka/chapters/${chapterId}/upload-pages`, {
+      const response = await fetch(`${API_BASE_URL}/api/mangaka/chapters/${selectedChapterId}/upload-pages`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -199,16 +305,26 @@ export default function UploadPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Chapter Number</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 45"
-                    value={chapterNumber}
-                    onChange={(e) => setChapterNumber(e.target.value)}
-                  />
+                  <Label>Chapter</Label>
+                  <Select value={selectedChapterId} onValueChange={setSelectedChapterId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select chapter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chapters.length === 0 ? (
+                        <SelectItem value="none" disabled>No chapters available</SelectItem>
+                      ) : (
+                        chapters.map((ch) => (
+                          <SelectItem key={ch.chapterId} value={ch.chapterId}>
+                            Ch. {ch.chapterNumber} {ch.title ? `- ${ch.title}` : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <Dialog>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Plus className="w-4 h-4 mr-2" />
@@ -223,14 +339,29 @@ export default function UploadPage() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Chapter Title</Label>
-                      <Input placeholder="e.g., The Final Battle" />
+                      <Input
+                        placeholder="e.g., The Final Battle"
+                        value={newChapterTitle}
+                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Chapter Number</Label>
-                      <Input type="number" placeholder="e.g., 46" />
+                      <Input
+                        type="number"
+                        placeholder="e.g., 46"
+                        value={newChapterNumber}
+                        onChange={(e) => setNewChapterNumber(e.target.value)}
+                      />
                     </div>
                   </div>
-                  <Button className="w-full bg-primary text-primary-foreground">Create Chapter</Button>
+                  <Button
+                    className="w-full bg-primary text-primary-foreground"
+                    onClick={handleCreateChapter}
+                    disabled={isCreatingChapter}
+                  >
+                    {isCreatingChapter ? "Creating..." : "Create Chapter"}
+                  </Button>
                 </DialogContent>
               </Dialog>
             </CardContent>
@@ -346,7 +477,11 @@ export default function UploadPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Chapter</span>
-                <span className="font-medium">{chapterNumber || "Not specified"}</span>
+                <span className="font-medium">
+                  {selectedChapterId
+                    ? `Ch. ${chapters.find((c) => c.chapterId === selectedChapterId)?.chapterNumber || ""}`
+                    : "Not selected"}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Pages</span>
@@ -357,7 +492,7 @@ export default function UploadPage() {
                 <Badge className="bg-warning/20 text-warning">Draft</Badge>
               </div>
               <div className="pt-4 border-t border-border">
-                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || uploadedFiles.length === 0}>
+                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || !selectedChapterId || uploadedFiles.length === 0}>
                   <ChevronRight className="w-4 h-4 mr-2" />
                   Continue to Region Selection
                 </Button>
