@@ -122,13 +122,13 @@ export default function ReviewPage() {
   const handleApprovePage = async () => {
     if (!activePage || !token) return
     try {
-      const res = await fetch(`${API_BASE_URL}/api/mangaka/pages/${activePage.id}/status`, {
-        method: "PUT",
+      const res = await fetch(`${API_BASE_URL}/api/pages/${activePage.id}/reviews`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ status: "approved" })
+        body: JSON.stringify({ decision: "approved", note: "Page approved" })
       })
       if (res.ok) {
         alert("Page approved successfully!")
@@ -148,13 +148,13 @@ export default function ReviewPage() {
   const handleRequestRevision = async () => {
     if (!activePage || !token) return
     try {
-      const res = await fetch(`${API_BASE_URL}/api/mangaka/pages/${activePage.id}/status`, {
-        method: "PUT",
+      const res = await fetch(`${API_BASE_URL}/api/pages/${activePage.id}/reviews`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ status: "revision" })
+        body: JSON.stringify({ decision: "revision_requested", note: "Revision requested" })
       })
       if (res.ok) {
         alert("Revision requested successfully!")
@@ -180,7 +180,7 @@ export default function ReviewPage() {
     if (!body) return
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/mangaka/pages/${activePage.id}/annotations`, {
+      const res = await fetch(`${API_BASE_URL}/api/pages/${activePage.id}/annotations`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -207,7 +207,7 @@ export default function ReviewPage() {
   const handlePostComment = async () => {
     if (!activePage || !comment.trim() || !token) return
     try {
-      const res = await fetch(`${API_BASE_URL}/api/mangaka/pages/${activePage.id}/comments`, {
+      const res = await fetch(`${API_BASE_URL}/api/pages/${activePage.id}/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -405,7 +405,7 @@ export default function ReviewPage() {
                       {/* Render annotations overlay */}
                       {activePage?.annotations?.map((ann: any, index: number) => (
                         <div
-                          key={ann.id}
+                          key={ann.id || ann.annotationId || index}
                           style={{
                             left: `${ann.x}%`,
                             top: `${ann.y}%`,
