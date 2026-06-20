@@ -8,7 +8,7 @@
 * Deployment: Docker
 * Code Management: GitHub
 ### Screen-shorts
-![Trang chủ](Back-end/MangaStudio.Backend/Uploads/Screenshot%202026-06-08%20114415.png)
+![Trang chủ](Back-end/MangaStudio.Backend/Screenshorts/Screenshot%202026-06-08%20114415.png)
 ### Requirement
 #### 1. Common Functions 
 - Log in 

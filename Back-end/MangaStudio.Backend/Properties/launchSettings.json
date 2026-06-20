@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "MangaStudio.Backend": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:64111;http://localhost:64112"
+    }
+  }
+}

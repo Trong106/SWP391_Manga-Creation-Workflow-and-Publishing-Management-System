@@ -22,7 +22,10 @@ public interface IPageService
 
     /// <summary>Tạo nhận xét review cho trang (Tantou/Mangaka).</summary>
     Task<PageReviewDto> CreatePageReview(Guid pageId, Guid reviewerId, CreatePageReviewDto dto);
+<<<<<<< HEAD
 
     /// <summary>Tạo bình luận mới cho trang.</summary>
     Task<CommentDto> CreatePageComment(Guid pageId, Guid userId, CreateCommentDto dto);
+=======
+>>>>>>> 3d6fedf03c94b7676b90d8c3b01a274079313408
 }

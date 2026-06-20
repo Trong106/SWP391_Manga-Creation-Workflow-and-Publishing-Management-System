@@ -227,6 +227,7 @@ public class PageService : IPageService
             CreatedAt = review.CreatedAt
         };
     }
+<<<<<<< HEAD
 
     /// <summary>
     /// Tạo bình luận mới cho trang.
@@ -260,4 +261,6 @@ public class PageService : IPageService
             CreatedAt = "Just now"
         };
     }
+=======
+>>>>>>> 3d6fedf03c94b7676b90d8c3b01a274079313408
 }
