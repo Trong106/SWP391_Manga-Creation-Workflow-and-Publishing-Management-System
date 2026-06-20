@@ -159,7 +159,14 @@ public class WorkflowService : IWorkflowService
             ?? throw new KeyNotFoundException($"Không tìm thấy lịch xuất bản với ID {scheduleId}");
 
         schedule.ApprovedById = tantouId;
-        // status is either kept as scheduled or approved in terms of business. Since DB only accepts 'scheduled','published','cancelled', we keep it as 'scheduled' or we can mark it 'published' if appropriate, but generally it remains 'scheduled' and ApprovedById != null represents approval.
+        schedule.Status = "published";
+        schedule.PublishedAt = DateTime.UtcNow;
+        if (schedule.Chapter != null)
+        {
+            schedule.Chapter.Status = "published";
+            schedule.Chapter.SubmittedForPublishingAt ??= DateTime.UtcNow;
+            schedule.Chapter.UpdatedAt = DateTime.UtcNow;
+        }
         
         await _context.SaveChangesAsync();
 

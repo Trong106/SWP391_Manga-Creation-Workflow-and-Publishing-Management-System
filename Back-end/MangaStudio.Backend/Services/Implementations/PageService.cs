@@ -181,8 +181,17 @@ public class PageService : IPageService
     /// </summary>
     public async Task<PageReviewDto> CreatePageReview(Guid pageId, Guid reviewerId, CreatePageReviewDto dto)
     {
-        var page = await _context.MangaPages.FindAsync(pageId)
+        var page = await _context.MangaPages
+            .Include(p => p.Chapter)
+                .ThenInclude(c => c.Series)
+            .FirstOrDefaultAsync(p => p.PageId == pageId)
             ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
+
+        // Check permission: Phải là Mangaka hoặc Tantou của bộ truyện này
+        if (page.Chapter.Series.MangakaId != reviewerId && page.Chapter.Series.TantouId != reviewerId)
+        {
+            throw new UnauthorizedAccessException("Bạn không có quyền đánh giá trang truyện của bộ truyện này.");
+        }
 
         var decision = dto.Decision.ToLower();
         if (decision == "needs_revision")
@@ -202,14 +211,36 @@ public class PageService : IPageService
 
         _context.PageReviews.Add(review);
 
-        // Cập nhật trạng thái trang dựa trên đánh giá
+        // Cập nhật trạng thái trang và các task tương ứng dựa trên đánh giá
         if (decision == "approved")
         {
             page.Status = "approved";
+
+            // Cập nhật tất cả tasks chưa hoàn thành của trang này thành approved
+            var pageTasks = await _context.Tasks.Where(t => t.PageId == pageId).ToListAsync();
+            foreach (var task in pageTasks)
+            {
+                if (task.Status != "approved")
+                {
+                    task.Status = "approved";
+                    task.UpdatedAt = DateTime.UtcNow;
+                }
+            }
         }
         else if (decision == "revision_requested" || decision == "rejected")
         {
             page.Status = "revision";
+
+            // Cập nhật tất cả tasks đang hoạt động hoặc đã nộp thành revision
+            var pageTasks = await _context.Tasks.Where(t => t.PageId == pageId).ToListAsync();
+            foreach (var task in pageTasks)
+            {
+                if (task.Status == "submitted" || task.Status == "in_progress")
+                {
+                    task.Status = "revision";
+                    task.UpdatedAt = DateTime.UtcNow;
+                }
+            }
         }
 
         await _context.SaveChangesAsync();
@@ -225,6 +256,39 @@ public class PageService : IPageService
             Decision = review.Decision,
             Note = review.Comment,
             CreatedAt = review.CreatedAt
+        };
+    }
+
+    /// <summary>
+    /// Tạo bình luận mới cho trang.
+    /// </summary>
+    public async Task<CommentDto> CreatePageComment(Guid pageId, Guid userId, CreateCommentDto dto)
+    {
+        var page = await _context.MangaPages.FindAsync(pageId)
+            ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
+
+        var comment = new ReviewComment
+        {
+            CommentId = Guid.NewGuid(),
+            PageId = pageId,
+            UserId = userId,
+            Body = dto.Body,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.ReviewComments.Add(comment);
+        await _context.SaveChangesAsync();
+
+        var user = await _context.Users.FindAsync(userId);
+
+        return new CommentDto
+        {
+            Id = comment.CommentId,
+            UserId = comment.UserId,
+            UserName = user?.FullName ?? "Unknown",
+            Avatar = user?.Avatar,
+            Body = comment.Body,
+            CreatedAt = "Just now"
         };
     }
 }

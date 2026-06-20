@@ -117,6 +117,37 @@ public class TaskController : ControllerBase
     }
 
     /// <summary>
+    /// POST /api/tasks/{id}/start — Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).
+    /// </summary>
+    [HttpPost("tasks/{id:guid}/start")]
+    [Authorize(Roles = "assistant")]
+    public async Task<IActionResult> StartTask(Guid id)
+    {
+        try
+        {
+            var assistantId = GetCurrentUserId();
+            var result = await _taskService.StartTask(id, assistantId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// PUT /api/tasks/{id} — Cập nhật thông tin công việc.
     /// </summary>
     [HttpPut("tasks/{id:guid}")]

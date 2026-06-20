@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using MangaStudio.Backend.Services.Interfaces;
 using MangaStudio.Backend.Models.DTOs;
+using MangaStudio.Backend.Models.Entities;
+using MangaStudio.Backend.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -142,6 +143,29 @@ public class PageController : ControllerBase
         {
             var reviewerId = GetCurrentUserId();
             var result = await _pageService.CreatePageReview(id, reviewerId, dto);
+            return StatusCode(201, result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/pages/{id}/comments — Thêm bình luận mới cho trang.
+    /// </summary>
+    [HttpPost("{id:guid}/comments")]
+    public async Task<IActionResult> CreatePageComment(Guid id, [FromBody] CreateCommentDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _pageService.CreatePageComment(id, userId, dto);
             return StatusCode(201, result);
         }
         catch (KeyNotFoundException ex)

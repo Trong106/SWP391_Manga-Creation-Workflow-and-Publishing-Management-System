@@ -91,6 +91,7 @@ public class TaskService : ITaskService
             .Include(t => t.Assigner)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
             .OrderByDescending(t => t.CreatedAt)
             .Select(t => MapTaskToDto(t))
             .ToListAsync();
@@ -107,6 +108,7 @@ public class TaskService : ITaskService
             .Include(t => t.Assigner)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
             .OrderByDescending(t => t.UpdatedAt)
             .Select(t => MapTaskToDto(t))
             .ToListAsync();
@@ -345,6 +347,7 @@ public class TaskService : ITaskService
             .Include(t => t.Assigner)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId)
             ?? throw new KeyNotFoundException();
         return MapTaskToDto(t);
@@ -384,6 +387,8 @@ public class TaskService : ITaskService
             PageId = t.PageId,
             PageNumber = t.Page != null ? t.Page.PageNumber : 0,
             ChapterTitle = t.Page?.Chapter?.Title,
+            ChapterNumber = t.Page?.Chapter?.ChapterNumber ?? 0,
+            SeriesTitle = t.Page?.Chapter?.Series?.Title,
             RegionId = t.RegionId,
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? t.Assignee.FullName : null,
@@ -395,5 +400,38 @@ public class TaskService : ITaskService
             CreatedAt = t.CreatedAt,
             UpdatedAt = t.UpdatedAt
         };
+    }
+
+    /// <summary>
+    /// Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).
+    /// </summary>
+    public async Task<TaskDto> StartTask(Guid taskId, Guid assistantId)
+    {
+        var task = await _context.Tasks
+            .Include(t => t.Page)
+            .FirstOrDefaultAsync(t => t.TaskId == taskId)
+            ?? throw new KeyNotFoundException($"Công việc với ID {taskId} không tồn tại.");
+
+        if (task.AssigneeId != assistantId)
+        {
+            throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
+        }
+
+        if (task.Status != "pending" && task.Status != "revision")
+        {
+            throw new InvalidOperationException("Chỉ có thể bắt đầu công việc đang ở trạng thái Todo (pending) hoặc Sửa đổi (revision).");
+        }
+
+        task.Status = "in_progress";
+        
+        if (task.Page != null && (task.Page.Status == "pending" || task.Page.Status == "revision" || task.Page.Status == "assigned"))
+        {
+            task.Page.Status = "in_progress";
+        }
+
+        task.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return await GetTaskById(task.TaskId);
     }
 }

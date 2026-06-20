@@ -21,6 +21,8 @@ public class TaskDto
     public string Status { get; set; } = null!;
     public DateOnly? DueDate { get; set; }
     public decimal PaymentAmount { get; set; }
+    public int ChapterNumber { get; set; }
+    public string? SeriesTitle { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
