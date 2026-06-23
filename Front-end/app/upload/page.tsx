@@ -48,6 +48,8 @@ export default function UploadPage() {
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [pageSelectionMode, setPageSelectionMode] = useState<"auto" | "specific">("auto")
+  const [specificPageNumber, setSpecificPageNumber] = useState<string>("")
 
   // Lấy danh sách bộ truyện thật từ database (gửi kèm JWT Token để xác thực)
   useEffect(() => {
@@ -193,8 +195,13 @@ export default function UploadPage() {
     const formData = new FormData()
     formData.append("file", file)
 
+    let url = `${API_BASE_URL}/api/mangaka/chapters/${selectedChapterId}/upload-pages`
+    if (pageSelectionMode === "specific" && specificPageNumber) {
+      url += `?pageNumber=${specificPageNumber}`
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/mangaka/chapters/${selectedChapterId}/upload-pages`, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -212,7 +219,7 @@ export default function UploadPage() {
       setUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId
-            ? { ...f, status: "complete", progress: 100, preview: `${API_BASE_URL}${fileUrl}` }
+            ? { ...f, status: "complete", progress: 100, preview: fileUrl.startsWith("http") ? fileUrl : `${API_BASE_URL}${fileUrl}` }
             : f
         )
       )
@@ -323,6 +330,34 @@ export default function UploadPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Upload Mode</Label>
+                  <Select value={pageSelectionMode} onValueChange={(val: any) => setPageSelectionMode(val)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select upload mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto Increment (New Page)</SelectItem>
+                      <SelectItem value="specific">Upload to Specific Page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {pageSelectionMode === "specific" && (
+                  <div className="space-y-2 animate-in fade-in duration-200">
+                    <Label>Target Page Number</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="e.g. 3"
+                      value={specificPageNumber}
+                      onChange={(e) => setSpecificPageNumber(e.target.value)}
+                      className="bg-background border-border text-white text-sm"
+                    />
+                  </div>
+                )}
               </div>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>

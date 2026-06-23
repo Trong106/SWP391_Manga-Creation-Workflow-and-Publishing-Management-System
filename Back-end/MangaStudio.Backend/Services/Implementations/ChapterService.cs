@@ -19,11 +19,13 @@ namespace MangaStudio.Backend.Services.Implementations;
 public class ChapterService : IChapterService
 {
     private readonly AppDbContext _context;
+    private readonly IStorageService _storageService;
     private static readonly SemaphoreSlim _uploadLock = new SemaphoreSlim(1, 1);
 
-    public ChapterService(AppDbContext context)
+    public ChapterService(AppDbContext context, IStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
 
     /// <summary>
@@ -183,23 +185,15 @@ public class ChapterService : IChapterService
             {
                 maxPageNumber++;
 
-                var ext = Path.GetExtension(file.FileName).ToLower();
-                var uniqueFileName = $"{Guid.NewGuid()}{ext}";
-                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                var imageUrl = $"/Uploads/{uniqueFileName}";
+                // Tải hình vẽ trang truyện lên Cloudinary
+                var imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
                 var page = new MangaPage
                 {
                     PageId = Guid.NewGuid(),
                     ChapterId = chapterId,
                     PageNumber = maxPageNumber,
-                    CurrentImageUrl = imageUrl,
+                    CurrentImageUrl = imageUrl, // URL tuyệt đối của Cloudinary
                     Status = "pending",
                     UploadedById = uploadedById,
                     UploadedAt = DateTime.UtcNow
@@ -211,7 +205,7 @@ public class ChapterService : IChapterService
                     PageVersionId = Guid.NewGuid(),
                     PageId = page.PageId,
                     VersionNumber = 1,
-                    FileUrl = imageUrl,
+                    FileUrl = imageUrl, // URL tuyệt đối của Cloudinary
                     FileName = file.FileName,
                     FileSizeBytes = file.Length,
                     MimeType = file.ContentType,

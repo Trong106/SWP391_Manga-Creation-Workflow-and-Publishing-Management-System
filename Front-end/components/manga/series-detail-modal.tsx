@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import {
@@ -23,6 +24,7 @@ interface SeriesDetailModalProps {
 
 export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: SeriesDetailModalProps) {
   const { token, role, logout } = useAuth()
+  const router = useRouter()
   const [series, setSeries] = useState<any>(null)
   const [chapters, setChapters] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -282,7 +284,8 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                     className="bg-green-600 hover:bg-green-500 text-white font-medium"
                     onClick={() => {
                       if (chapters.length > 0) {
-                        alert(`Start reading Chapter 1: ${chapters[chapters.length - 1].title || "Untitled"}`)
+                        router.push(`/chapters/${chapters[chapters.length - 1].chapterId}`)
+                        onClose()
                       } else {
                         alert("No chapters uploaded yet.")
                       }
@@ -321,6 +324,10 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                     {chapters.map((ch) => (
                       <div
                         key={ch.chapterId}
+                        onClick={() => {
+                          router.push(`/chapters/${ch.chapterId}`)
+                          onClose()
+                        }}
                         className="flex items-center justify-between p-3.5 hover:bg-zinc-800/50 transition-colors text-sm cursor-pointer group"
                       >
                         <span className="text-zinc-200 group-hover:text-primary transition-colors font-medium">

@@ -93,6 +93,19 @@ interface Task {
 export default function SubmitToPublishPage() {
   const { role, token } = useAuth()
 
+  const formatDueDate = (dateStr?: string | null) => {
+    if (!dateStr) return "N/A"
+    try {
+      return new Date(dateStr).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    } catch {
+      return dateStr
+    }
+  }
+
   // Navigation and Selection state
   const [activeView, setActiveView] = useState<"select_series" | "submit_publish">("select_series")
   const [seriesList, setSeriesList] = useState<Series[]>([])
@@ -339,15 +352,10 @@ export default function SubmitToPublishPage() {
     return val.toString()
   }
 
-  const formatDueDate = (dateStr?: string | null) => {
-    if (!dateStr) return "TBD"
-    try {
-      const date = new Date(dateStr)
-      if (isNaN(date.getTime())) return dateStr
-      return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    } catch {
-      return dateStr
-    }
+  const getFullCoverUrl = (path?: string | null) => {
+    if (!path) return ""
+    if (path.startsWith("http")) return path
+    return `${API_BASE_URL}${path}`
   }
 
   // Get unique genres list across all series
@@ -466,7 +474,7 @@ export default function SubmitToPublishPage() {
                   <div className="relative aspect-[3/4] overflow-hidden bg-zinc-900 flex items-center justify-center">
                     {series.coverImageUrl ? (
                       <img 
-                        src={`${API_BASE_URL}${series.coverImageUrl}`} 
+                        src={getFullCoverUrl(series.coverImageUrl)} 
                         alt={series.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
@@ -625,7 +633,7 @@ export default function SubmitToPublishPage() {
                   <div className="w-full md:w-44 aspect-[3/4] bg-zinc-900 rounded-lg border border-zinc-800 shadow-lg overflow-hidden shrink-0 flex items-center justify-center">
                     {selectedSeries.coverImageUrl ? (
                       <img 
-                        src={`${API_BASE_URL}${selectedSeries.coverImageUrl}`} 
+                        src={getFullCoverUrl(selectedSeries.coverImageUrl)} 
                         alt={selectedSeries.title} 
                         className="w-full h-full object-cover"
                       />
@@ -800,7 +808,7 @@ export default function SubmitToPublishPage() {
                           >
                             {page.currentImageUrl ? (
                               <img 
-                                src={`${API_BASE_URL}${page.currentImageUrl}`} 
+                                src={getFullCoverUrl(page.currentImageUrl)} 
                                 alt={`Page ${page.pageNumber}`} 
                                 className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
                               />

@@ -1,4 +1,4 @@
-﻿using MangaStudio.Backend.Models.DTOs;
+using MangaStudio.Backend.Models.DTOs;
 
 namespace MangaStudio.Backend.Services.Interfaces;
 
@@ -8,5 +8,5 @@ public interface IMangakaService
 
     Task<List<MangaSeriesDto>> GetSeries(Guid mangakaId);
 
-    Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById);
+    Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById, int? pageNumber = null);
 }

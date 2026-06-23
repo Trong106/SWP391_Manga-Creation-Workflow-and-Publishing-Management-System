@@ -41,6 +41,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     return <main className="w-full min-h-screen bg-background">{children}</main>
   }
 
+  // Khi đang ở trang đọc truyện, hiển thị giao diện đọc truyện thuần (không có Sidebar/Header)
+  if (pathname?.startsWith("/chapters")) {
+    return <main className="w-full min-h-screen bg-[#0B0C0D]">{children}</main>
+  }
+
   // Khi đã đăng nhập, hiển thị giao diện Dashboard hoàn chỉnh kèm Sidebar & TopHeader
   return (
     <div className="flex min-h-screen">
