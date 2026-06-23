@@ -19,4 +19,8 @@ public interface ISeriesService
 
     /// <summary>Lấy danh sách chương của bộ truyện.</summary>
     Task<List<ChapterDto>> GetChaptersBySeries(Guid seriesId, Guid requestUserId);
+
+    /// <summary>Lấy bảng xếp hạng bộ truyện.</summary>
+    Task<SeriesRankingContainerDto> GetSeriesRanking(string? genre, string? sortBy, string? timeframe);
 }
+

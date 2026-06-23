@@ -1,9 +1,13 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Search, Bell, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/lib/auth-context"
+import { API_BASE_URL } from "@/lib/api-config"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,32 +23,109 @@ import {
 } from "@/components/ui/sheet"
 import { AppSidebar } from "./app-sidebar"
 
-const mockNotifications = [
-  {
-    id: "1",
-    title: "New task assigned",
-    message: "Chapter 45 - Background art needs completion",
-    time: "5 min ago",
-    unread: true,
-  },
-  {
-    id: "2",
-    title: "Review requested",
-    message: "Kenji submitted pages for Chapter 44",
-    time: "1 hour ago",
-    unread: true,
-  },
-  {
-    id: "3",
-    title: "Payment processed",
-    message: "Your payment of $350 has been sent",
-    time: "2 hours ago",
-    unread: false,
-  },
-]
+interface Notification {
+  id: string
+  userId: string
+  type: string
+  title: string
+  message: string
+  isRead: boolean
+  link?: string
+  createdAt: string
+}
 
 export function TopHeader() {
-  const unreadCount = mockNotifications.filter((n) => n.unread).length
+  const { token, logout } = useAuth()
+  const router = useRouter()
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const fetchNotifications = () => {
+    if (!token) return
+    fetch(`${API_BASE_URL}/api/notifications`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          logout()
+          return null
+        }
+        if (!res.ok) throw new Error("Failed to load notifications")
+        return res.json()
+      })
+      .then((data) => {
+        if (data && Array.isArray(data)) {
+          setNotifications(data)
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching notifications:", err)
+      })
+  }
+
+  useEffect(() => {
+    fetchNotifications()
+    // Poll for notifications every 15 seconds
+    const interval = setInterval(fetchNotifications, 15000)
+    return () => clearInterval(interval)
+  }, [token])
+
+  const handleMarkAsRead = async (id: string, link?: string) => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        )
+      }
+    } catch (err) {
+      console.error("Error marking notification as read:", err)
+    }
+    if (link) {
+      router.push(link)
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((n) => ({ ...n, isRead: true }))
+        )
+      }
+    } catch (err) {
+      console.error("Error marking all notifications as read:", err)
+    }
+  }
+
+  const getRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const span = Date.now() - date.getTime()
+    const minutes = Math.floor(span / 60000)
+    if (minutes < 1) return "just now"
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-sm border-b border-border">
@@ -92,32 +173,39 @@ export function TopHeader() {
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel className="flex items-center justify-between">
               Notifications
-              <Button variant="ghost" size="sm" className="text-xs text-primary">
-                Mark all read
-              </Button>
+              {unreadCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={handleMarkAllAsRead} className="text-xs text-primary hover:text-primary/80">
+                  Mark all read
+                </Button>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {mockNotifications.map((notification) => (
-              <DropdownMenuItem
-                key={notification.id}
-                className="flex flex-col items-start gap-1 p-3 cursor-pointer"
-              >
-                <div className="flex items-center gap-2 w-full">
-                  {notification.unread && (
-                    <span className="w-2 h-2 bg-primary rounded-full" />
-                  )}
-                  <span className="font-medium text-sm">{notification.title}</span>
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">
+                  No notifications
                 </div>
-                <p className="text-xs text-muted-foreground line-clamp-1">
-                  {notification.message}
-                </p>
-                <span className="text-xs text-muted-foreground">{notification.time}</span>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="justify-center text-primary">
-              View all notifications
-            </DropdownMenuItem>
+              ) : (
+                notifications.map((notification) => (
+                  <DropdownMenuItem
+                    key={notification.id}
+                    onClick={() => handleMarkAsRead(notification.id, notification.link)}
+                    className="flex flex-col items-start gap-1 p-3 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      {!notification.isRead && (
+                        <span className="w-2 h-2 bg-[#00dfc0] rounded-full" />
+                      )}
+                      <span className="font-semibold text-sm text-white">{notification.title}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {notification.message}
+                    </p>
+                    <span className="text-[10px] text-zinc-500">{getRelativeTime(notification.createdAt)}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

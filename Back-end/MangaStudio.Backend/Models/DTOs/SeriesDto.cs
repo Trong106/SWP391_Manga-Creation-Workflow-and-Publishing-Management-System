@@ -53,3 +53,31 @@ public class UpdateSeriesDto
     public string? CoverImageUrl { get; set; }
     public List<string>? Genres { get; set; }
 }
+
+public class SeriesRankingDto
+{
+    public Guid SeriesId { get; set; }
+    public string Title { get; set; } = null!;
+    public string? CoverImageUrl { get; set; }
+    public string AuthorName { get; set; } = null!;
+    public int Rank { get; set; }
+    public int? PreviousRank { get; set; }
+    public decimal Score { get; set; }
+    public int ReaderVotes { get; set; }
+    public int Views { get; set; }
+    public decimal GrowthRate { get; set; }
+    public string Status { get; set; } = null!;
+    public List<string> Genres { get; set; } = new();
+}
+
+
+public class SeriesRankingContainerDto
+{
+    public int TotalSeriesRanked { get; set; }
+    public string TopTrendingTitle { get; set; } = null!;
+    public long TotalReaderVotes { get; set; }
+    public long TotalViews { get; set; }
+    public List<SeriesRankingDto> Rankings { get; set; } = new();
+}
+
+

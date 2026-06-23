@@ -221,4 +221,21 @@ public class SeriesController : ControllerBase
             return StatusCode(500, new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// GET /api/series/ranking — Lấy bảng xếp hạng bộ truyện.
+    /// </summary>
+    [HttpGet("ranking")]
+    public async Task<IActionResult> GetSeriesRanking([FromQuery] string? genre, [FromQuery] string? sortBy, [FromQuery] string? timeframe)
+    {
+        try
+        {
+            var result = await _seriesService.GetSeriesRanking(genre, sortBy, timeframe);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
 }
