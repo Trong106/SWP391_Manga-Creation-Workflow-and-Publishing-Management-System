@@ -34,4 +34,9 @@ public interface IWorkflowService
 
     /// <summary>Đánh dấu đã thanh toán lương cho trợ lý.</summary>
     Task<PayrollDto> MarkPayrollAsPaid(Guid payrollRecordId, Guid mangakaId);
+
+    // === Notifications ===
+    Task<List<NotificationDto>> GetNotifications(Guid userId);
+    Task<bool> MarkAsRead(Guid id, Guid userId);
+    Task<bool> MarkAllAsRead(Guid userId);
 }

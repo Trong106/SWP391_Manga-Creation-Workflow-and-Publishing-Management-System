@@ -18,10 +18,12 @@ namespace MangaStudio.Backend.Services.Implementations;
 public class TaskService : ITaskService
 {
     private readonly AppDbContext _context;
+    private readonly IStorageService _storageService;
 
-    public TaskService(AppDbContext context)
+    public TaskService(AppDbContext context, IStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
 
     /// <summary>
@@ -176,21 +178,8 @@ public class TaskService : ITaskService
                 throw new ArgumentException("Kích thước file tối đa 50MB.");
             }
 
-            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
-            if (!Directory.Exists(uploadsFolder))
-            {
-                Directory.CreateDirectory(uploadsFolder);
-            }
-
-            var uniqueFileName = $"{Guid.NewGuid()}{ext}";
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            var fileUrl = $"/Uploads/{uniqueFileName}";
+            // Tải file lên Cloudinary
+            var fileUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Submissions");
 
             var maxVer = await _context.PageVersions
                 .Where(v => v.PageId == task.PageId)

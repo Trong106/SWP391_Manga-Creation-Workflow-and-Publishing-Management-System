@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -11,12 +11,10 @@ import {
   Users,
   DollarSign,
   FileCheck,
-  MessageSquare,
   Calendar,
   BarChart3,
   Settings,
   Bell,
-  Sparkles,
   FileText,
   Eye,
   CheckCircle,
@@ -25,10 +23,10 @@ import {
   PanelLeftClose,
   PanelLeft,
   LogOut,
-  ChevronDown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
+import { API_BASE_URL } from "@/lib/api-config"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -36,7 +34,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -52,10 +49,11 @@ interface NavItem {
   title: string
   href: string
   icon: React.ElementType
-  badge?: number
+  badgeKey?: string   // dynamic badge key
   roles: UserRole[]
 }
 
+// Badge keys map to fetched counts from API
 const navItems: NavItem[] = [
   {
     title: "Dashboard",
@@ -85,7 +83,7 @@ const navItems: NavItem[] = [
     title: "My Tasks",
     href: "/tasks",
     icon: ListTodo,
-    badge: 5,
+    badgeKey: "myPendingTasks",
     roles: ["assistant"],
   },
   {
@@ -110,7 +108,7 @@ const navItems: NavItem[] = [
     title: "Review Pages",
     href: "/review",
     icon: Eye,
-    badge: 3,
+    badgeKey: "reviewPages",
     roles: ["mangaka", "tantou"],
   },
   {
@@ -135,14 +133,14 @@ const navItems: NavItem[] = [
     title: "Series Proposals",
     href: "/proposals",
     icon: FileText,
-    badge: 2,
+    badgeKey: "pendingProposals",
     roles: ["editorial"],
   },
   {
     title: "Approve Publishing",
     href: "/publish/approve",
     icon: CheckCircle,
-    badge: 4,
+    badgeKey: "pendingPublish",
     roles: ["editorial"],
   },
   {
@@ -178,19 +176,77 @@ const roleLabels: Record<UserRole, string> = {
   editorial: "Editorial Board",
 }
 
-const roleColors: Record<UserRole, string> = {
-  mangaka: "bg-primary/20 text-primary",
-  assistant: "bg-chart-3/20 text-chart-3",
-  tantou: "bg-chart-2/20 text-chart-2",
-  editorial: "bg-chart-5/20 text-chart-5",
-}
-
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  const { user, role, setRole, logout } = useAuth()
+  const { user, role, setRole, logout, token } = useAuth()
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(role))
+  // Dynamic badge counts from real API data
+  const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
+
+  const fetchBadgeCounts = useCallback(async () => {
+    if (!token || !user?.id) return
+
+    const authHeader = { Authorization: `Bearer ${token}` }
+
+    try {
+      if (role === "assistant") {
+        // Fetch assistant's pending + in_progress tasks
+        const res = await fetch(`${API_BASE_URL}/api/tasks/my-tasks`, { headers: authHeader })
+        if (res.ok) {
+          const tasks: any[] = await res.json()
+          const pending = tasks.filter(t =>
+            t.status === "pending" || t.status === "in_progress"
+          ).length
+          setBadgeCounts(prev => ({ ...prev, myPendingTasks: pending || 0 }))
+        }
+      }
+
+      if (role === "mangaka" || role === "tantou") {
+        // Fetch pages in review status
+        const res = await fetch(`${API_BASE_URL}/api/data/review-pages`, { headers: authHeader })
+        if (res.ok) {
+          const pages: any[] = await res.json()
+          setBadgeCounts(prev => ({ ...prev, reviewPages: pages.length || 0 }))
+        }
+      }
+
+      if (role === "editorial") {
+        // Fetch pending series proposals
+        const [proposalsRes, publishRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/workflow/proposals`, { headers: authHeader }),
+          fetch(`${API_BASE_URL}/api/workflow/publish-schedules`, { headers: authHeader }),
+        ])
+
+        if (proposalsRes.ok) {
+          const proposals: any[] = await proposalsRes.json()
+          const pendingProposals = proposals.filter((p: any) =>
+            p.status === "submitted" || p.status === "pending"
+          ).length
+          setBadgeCounts(prev => ({ ...prev, pendingProposals: pendingProposals || 0 }))
+        }
+
+        if (publishRes.ok) {
+          const schedules: any[] = await publishRes.json()
+          const pendingPublish = schedules.filter((s: any) =>
+            s.status === "scheduled" || s.status === "pending"
+          ).length
+          setBadgeCounts(prev => ({ ...prev, pendingPublish: pendingPublish || 0 }))
+        }
+      }
+    } catch (err) {
+      // Silently fail — badges are informational only
+    }
+  }, [token, user?.id, role])
+
+  useEffect(() => {
+    fetchBadgeCounts()
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchBadgeCounts, 60000)
+    return () => clearInterval(interval)
+  }, [fetchBadgeCounts])
+
+  const filteredNavItems = navItems.filter(item => item.roles.includes(role))
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -236,6 +292,7 @@ export function AppSidebar() {
               {filteredNavItems.map((item) => {
                 const isActive = pathname === item.href
                 const NavIcon = item.icon
+                const badgeCount = item.badgeKey ? (badgeCounts[item.badgeKey] ?? 0) : 0
 
                 const linkContent = (
                   <Link
@@ -251,9 +308,9 @@ export function AppSidebar() {
                     {!collapsed && (
                       <>
                         <span className="flex-1 text-sm font-medium">{item.title}</span>
-                        {item.badge && (
+                        {badgeCount > 0 && (
                           <Badge variant="secondary" className="bg-primary/20 text-primary text-xs">
-                            {item.badge}
+                            {badgeCount}
                           </Badge>
                         )}
                       </>
@@ -268,9 +325,9 @@ export function AppSidebar() {
                         <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
                         <TooltipContent side="right" className="flex items-center gap-2">
                           {item.title}
-                          {item.badge && (
+                          {badgeCount > 0 && (
                             <Badge variant="secondary" className="bg-primary/20 text-primary text-xs">
-                              {item.badge}
+                              {badgeCount}
                             </Badge>
                           )}
                         </TooltipContent>

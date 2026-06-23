@@ -30,7 +30,6 @@ public class WorkflowService : IWorkflowService
     public async Task<List<ProposalDto>> GetPendingProposals()
     {
         return await _context.SeriesProposals
-            .Where(p => p.Status == "submitted")
             .Include(p => p.Series)
                 .ThenInclude(s => s.SeriesGenres)
             .Include(p => p.SubmittedBy)
@@ -274,7 +273,11 @@ public class WorkflowService : IWorkflowService
             Status = p.Status,
             Feedback = p.ReviewNote, // mapped from ReviewNote in DB
             SubmittedAt = p.SubmittedAt,
-            ReviewedAt = p.ReviewedAt
+            ReviewedAt = p.ReviewedAt,
+            CoverImageUrl = p.Series?.CoverImageUrl,
+            Ranking = p.Series?.Ranking,
+            ReaderCount = p.Series?.ReaderCount ?? 0,
+            Rating = p.Series?.Rating
         };
     }
 
@@ -292,7 +295,62 @@ public class WorkflowService : IWorkflowService
             ApprovedById = s.ApprovedById,
             ApprovedByName = s.ApprovedBy?.FullName,
             PublishedAt = s.PublishedAt,
-            CreatedAt = s.CreatedAt
+            CreatedAt = s.CreatedAt,
+            CoverImageUrl = s.Chapter?.Series?.CoverImageUrl,
+            AuthorName = s.Chapter?.Series?.Mangaka?.FullName,
+            Rating = s.Chapter?.Series?.Rating,
+            ReaderCount = s.Chapter?.Series?.ReaderCount ?? 0,
+            ChapterStatus = s.Chapter?.Status
         };
+    }
+
+    // === Notifications ===
+
+    public async Task<List<NotificationDto>> GetNotifications(Guid userId)
+    {
+        return await _context.Notifications
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Select(n => new NotificationDto
+            {
+                Id = n.NotificationId,
+                UserId = n.UserId,
+                Type = n.Type,
+                Title = n.Title,
+                Message = n.Message,
+                IsRead = n.IsRead,
+                Link = n.Link,
+                CreatedAt = n.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<bool> MarkAsRead(Guid id, Guid userId)
+    {
+        var notification = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.NotificationId == id && n.UserId == userId);
+
+        if (notification == null) return false;
+
+        notification.IsRead = true;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> MarkAllAsRead(Guid userId)
+    {
+        var unread = await _context.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+
+        if (!unread.Any()) return true;
+
+        foreach (var n in unread)
+        {
+            n.IsRead = true;
+        }
+
+        await _context.SaveChangesAsync();
+        return true;
     }
 }
