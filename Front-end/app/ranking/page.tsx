@@ -103,12 +103,6 @@ export default function SeriesRankingPage() {
     return num.toString()
   }
 
-  const getFullCoverUrl = (coverPath?: string | null) => {
-    if (!coverPath) return ""
-    if (coverPath.startsWith("http")) return coverPath
-    return `${API_BASE_URL}${coverPath}`
-  }
-
   // Filter rankings based on search query in the client side as well
   const filteredRankings = rankingData?.rankings.filter((item) => {
     const matchesSearch = 
@@ -337,7 +331,7 @@ export default function SeriesRankingPage() {
                           <div className="flex items-center gap-4">
                             {item.coverImageUrl ? (
                               <img 
-                                src={getFullCoverUrl(item.coverImageUrl)} 
+                                src={`${API_BASE_URL}${item.coverImageUrl}`} 
                                 alt={item.title} 
                                 className="w-12 h-16 rounded object-cover border border-[#1A1D1F]"
                               />
