@@ -434,4 +434,31 @@ public class TaskService : ITaskService
 
         return await GetTaskById(task.TaskId);
     }
+
+    /// <summary>
+    /// Lấy thông tin tài nguyên (ảnh trang gốc) của công việc.
+    /// </summary>
+    public async Task<TaskResourceDto?> GetTaskResource(Guid taskId)
+    {
+        var task = await _context.Tasks
+            .Include(t => t.Page)
+                .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
+            .FirstOrDefaultAsync(t => t.TaskId == taskId);
+
+        if (task == null || task.Page == null)
+        {
+            return null;
+        }
+
+        return new TaskResourceDto
+        {
+            TaskId = task.TaskId,
+            PageId = task.PageId,
+            PageNumber = task.Page.PageNumber,
+            ImageUrl = task.Page.CurrentImageUrl ?? "",
+            SeriesTitle = task.Page.Chapter?.Series?.Title,
+            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0
+        };
+    }
 }
