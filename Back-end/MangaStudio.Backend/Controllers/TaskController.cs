@@ -117,6 +117,28 @@ public class TaskController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/tasks/{id:guid}/resources — Lấy link ảnh và thông tin tài nguyên của Task.
+    /// </summary>
+    [HttpGet("tasks/{id:guid}/resources")]
+    [Authorize(Roles = "assistant,mangaka")]
+    public async Task<IActionResult> GetTaskResource(Guid id)
+    {
+        try
+        {
+            var result = await _taskService.GetTaskResource(id);
+            if (result == null)
+            {
+                return NotFound(new { message = "Không tìm thấy tài nguyên cho công việc này." });
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// POST /api/tasks/{id}/start — Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).
     /// </summary>
     [HttpPost("tasks/{id:guid}/start")]

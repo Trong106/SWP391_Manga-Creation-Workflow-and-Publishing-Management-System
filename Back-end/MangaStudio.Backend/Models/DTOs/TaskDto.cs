@@ -86,3 +86,14 @@ public class AssistantDto
     public decimal HourlyRate { get; set; }
     public decimal Rating { get; set; }
 }
+
+/// <summary>DTO hiển thị tài nguyên của một công việc.</summary>
+public class TaskResourceDto
+{
+    public Guid TaskId { get; set; }
+    public Guid PageId { get; set; }
+    public int PageNumber { get; set; }
+    public string ImageUrl { get; set; } = null!;
+    public string? SeriesTitle { get; set; }
+    public int ChapterNumber { get; set; }
+}

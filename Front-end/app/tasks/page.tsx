@@ -29,10 +29,21 @@ import {
   Coins,
   ChevronRight,
   Eye,
-  FileCheck
+  FileCheck,
+  Download,
+  BookOpen
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
+import { AspectRatio } from "@/components/ui/aspect-ratio"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface Task {
   taskId: string
@@ -64,6 +75,64 @@ export default function AssistantTasksPage() {
   const [activeFilter, setActiveFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("dueDate")
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null)
+
+  // State for Resource Modal
+  const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
+  const [selectedTaskResource, setSelectedTaskResource] = useState<any | null>(null)
+  const [loadingResource, setLoadingResource] = useState(false)
+  const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
+
+  const handleOpenResources = async (taskId: string) => {
+    try {
+      setLoadingResource(true)
+      setLoadingTaskId(taskId)
+      
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/resources`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch task resources from backend")
+      }
+
+      const data = await res.json()
+      setSelectedTaskResource(data)
+      setIsResourceModalOpen(true)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "Failed to load task resources.")
+    } finally {
+      setLoadingResource(false)
+      setLoadingTaskId(null)
+    }
+  }
+
+  const handleDownloadImage = async (imageUrl: string, fileName: string) => {
+    try {
+      const fullUrl = imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`
+      const res = await fetch(fullUrl, { mode: 'cors' })
+      if (!res.ok) throw new Error("CORS or network error")
+      const blob = await res.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      
+      const a = document.createElement("a")
+      a.href = blobUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      
+      window.URL.revokeObjectURL(blobUrl)
+      toast.success("Download started successfully!")
+    } catch (err) {
+      console.error("Fetch blob download failed, falling back to open in tab:", err)
+      const fullUrl = imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`
+      window.open(fullUrl, "_blank")
+      toast.info("Opening image in a new tab. Save it using Ctrl+S.")
+    }
+  }
 
   const fetchTasks = async () => {
     if (!token) return
@@ -333,58 +402,76 @@ export default function AssistantTasksPage() {
                       </div>
 
                       {/* Action buttons based on task state */}
-                      {(s === "pending" || s === "revision") && (
-                        <Button
-                          id={`start-task-btn-${task.taskId}`}
-                          onClick={() => handleStartTask(task.taskId)}
-                          disabled={startingTaskId === task.taskId}
-                          className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all"
-                        >
-                          {startingTaskId === task.taskId ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <>
-                              <Play className="w-3.5 h-3.5 mr-1" />
-                              Start Task
-                            </>
-                          )}
-                        </Button>
-                      )}
-
-                      {s === "in_progress" && (
-                        <Link href={`/submit?taskId=${task.taskId}`} passHref>
+                      <div className="flex items-center gap-2">
+                        {s !== "cancelled" && (
                           <Button
-                            id={`open-files-btn-${task.taskId}`}
-                            className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all"
-                          >
-                            Open Files
-                          </Button>
-                        </Link>
-                      )}
-
-                      {(s === "submitted" || s === "approved") && (
-                        <Link href={`/submit?taskId=${task.taskId}`} passHref>
-                          <Button
-                            id={`view-submission-btn-${task.taskId}`}
                             variant="outline"
-                            className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-bold text-xs h-8 px-4 rounded-lg transition-all"
+                            onClick={() => handleOpenResources(task.taskId)}
+                            disabled={loadingResource && loadingTaskId === task.taskId}
+                            className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-semibold text-xs h-8 px-3 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
                           >
-                            <Eye className="w-3.5 h-3.5 mr-1" />
-                            View Submission
+                            {loadingResource && loadingTaskId === task.taskId ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5" />
+                            )}
+                            Resources
                           </Button>
-                        </Link>
-                      )}
+                        )}
 
-                      {s === "cancelled" && (
-                        <Button
-                          disabled
-                          variant="ghost"
-                          className="text-zinc-500 cursor-default opacity-50 font-bold text-xs h-8 px-4"
-                        >
-                          <Lock className="w-3.5 h-3.5 mr-1" />
-                          Cancelled
-                        </Button>
-                      )}
+                        {(s === "pending" || s === "revision") && (
+                          <Button
+                            id={`start-task-btn-${task.taskId}`}
+                            onClick={() => handleStartTask(task.taskId)}
+                            disabled={startingTaskId === task.taskId}
+                            className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all cursor-pointer"
+                          >
+                            {startingTaskId === task.taskId ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5 mr-1" />
+                                Start Task
+                              </>
+                            )}
+                          </Button>
+                        )}
+
+                        {s === "in_progress" && (
+                          <Link href={`/submit?taskId=${task.taskId}`} passHref>
+                            <Button
+                              id={`open-files-btn-${task.taskId}`}
+                              className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all cursor-pointer"
+                            >
+                              Open Files
+                            </Button>
+                          </Link>
+                        )}
+
+                        {(s === "submitted" || s === "approved") && (
+                          <Link href={`/submit?taskId=${task.taskId}`} passHref>
+                            <Button
+                              id={`view-submission-btn-${task.taskId}`}
+                              variant="outline"
+                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-bold text-xs h-8 px-4 rounded-lg transition-all cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 mr-1" />
+                              View Submission
+                            </Button>
+                          </Link>
+                        )}
+
+                        {s === "cancelled" && (
+                          <Button
+                            disabled
+                            variant="ghost"
+                            className="text-zinc-500 cursor-default opacity-50 font-bold text-xs h-8 px-4"
+                          >
+                            <Lock className="w-3.5 h-3.5 mr-1" />
+                            Cancelled
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 )
@@ -486,6 +573,86 @@ export default function AssistantTasksPage() {
           </Card>
         </aside>
       </div>
+
+      {/* Confirmation and Preview Modal */}
+      <Dialog open={isResourceModalOpen} onOpenChange={setIsResourceModalOpen}>
+        <DialogContent className="max-w-md bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="space-y-1.5 pb-2">
+            <DialogTitle className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 flex items-center gap-2">
+              <Download className="w-5 h-5 text-purple-400 animate-bounce" />
+              Task Resources & Download Confirmation
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 text-xs">
+              Preview the original manga page and download the resource.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedTaskResource && (
+            <div className="space-y-4">
+              <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 flex items-center justify-center p-2 group">
+                <AspectRatio ratio={3 / 4} className="w-full relative overflow-hidden rounded-lg">
+                  {selectedTaskResource.imageUrl ? (
+                    <img
+                      src={selectedTaskResource.imageUrl.startsWith("http") ? selectedTaskResource.imageUrl : `${API_BASE_URL}${selectedTaskResource.imageUrl}`}
+                      alt="Manga Page Original Preview"
+                      className="w-full h-full object-contain rounded-lg transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-zinc-650">
+                      <BookOpen className="w-12 h-12 mb-2 opacity-55 animate-pulse" />
+                      <span className="text-xs">No preview image available</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
+                    <span className="text-[10px] text-zinc-350 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-xs border border-zinc-800">
+                      Hover to zoom image
+                    </span>
+                  </div>
+                </AspectRatio>
+              </div>
+
+              <div className="p-4 bg-zinc-900/40 rounded-xl border border-zinc-850 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-zinc-500">Series Title</span>
+                  <span className="font-semibold text-zinc-200">{selectedTaskResource.seriesTitle || "N/A"}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-zinc-500">Chapter</span>
+                  <span className="font-semibold text-zinc-200">Ch. {selectedTaskResource.chapterNumber ?? "N/A"}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-zinc-500">Page Number</span>
+                  <span className="font-semibold text-primary">Page {selectedTaskResource.pageNumber ?? "N/A"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-4 flex gap-2 sm:gap-0 border-t border-zinc-800/50">
+            <Button
+              variant="ghost"
+              onClick={() => setIsResourceModalOpen(false)}
+              className="text-zinc-400 hover:text-white hover:bg-zinc-800/60 rounded-xl font-semibold text-xs py-2 px-4 border border-transparent hover:border-zinc-800 transition-all cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedTaskResource) {
+                  const ext = selectedTaskResource.imageUrl ? selectedTaskResource.imageUrl.split('.').pop() || 'png' : 'png';
+                  const title = selectedTaskResource.seriesTitle?.replace(/\s+/g, "_") || "manga_page";
+                  const fileName = `${title}_Ch${selectedTaskResource.chapterNumber}_Page${selectedTaskResource.pageNumber}.${ext}`;
+                  handleDownloadImage(selectedTaskResource.imageUrl, fileName);
+                }
+              }}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold text-xs py-2 px-5 rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
