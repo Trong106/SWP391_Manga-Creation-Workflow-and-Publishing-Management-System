@@ -71,10 +71,10 @@ public class MangakaService : IMangakaService
     /// <returns>Đường dẫn URL của trang vẽ đã upload.</returns>
     public async Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById)
     {
-        // 1. Xác định thư mục lưu trữ file tải lên (Thư mục Uploads nằm tại thư mục gốc ứng dụng)
-        string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+        // 1. Xác định thư mục lưu trữ file tải lên (Thư mục uploads nằm tại thư mục gốc ứng dụng)
+        string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
 
-        // Nếu thư mục Uploads chưa tồn tại thì tạo mới
+        // Nếu thư mục uploads chưa tồn tại thì tạo mới
         if (!Directory.Exists(uploadsFolder))
         {
             Directory.CreateDirectory(uploadsFolder);
@@ -103,7 +103,7 @@ public class MangakaService : IMangakaService
         {
             PageId = Guid.NewGuid(),
             ChapterId = chapterId,
-            CurrentImageUrl = "/Uploads/" + fileName, // URL tương đối phục vụ hiển thị ở frontend
+            CurrentImageUrl = "/uploads/" + fileName, // URL tương đối phục vụ hiển thị ở frontend
             UploadedAt = DateTime.UtcNow,
             Status = "pending", // Thay đổi từ "Active" thành "pending" để thỏa mãn Check Constraint trong Database
             PageNumber = nextPageNumber, // Sử dụng số trang đã tính toán động

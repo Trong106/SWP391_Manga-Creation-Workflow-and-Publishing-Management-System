@@ -162,7 +162,7 @@ public class ChapterService : IChapterService
             }
         }
 
-        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
         if (!Directory.Exists(uploadsFolder))
         {
             Directory.CreateDirectory(uploadsFolder);
@@ -192,7 +192,7 @@ public class ChapterService : IChapterService
                     await file.CopyToAsync(stream);
                 }
 
-                var imageUrl = $"/Uploads/{uniqueFileName}";
+                var imageUrl = $"/uploads/{uniqueFileName}";
 
                 var page = new MangaPage
                 {

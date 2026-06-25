@@ -187,8 +187,8 @@ public class SeriesController : ControllerBase
         {
             var mangakaId = GetCurrentUserId();
             
-            // Lưu file vào thư mục Uploads
-            string uploadsFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Uploads");
+            // Lưu file vào thư mục uploads
+            string uploadsFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "uploads");
             if (!System.IO.Directory.Exists(uploadsFolder))
                 System.IO.Directory.CreateDirectory(uploadsFolder);
 
@@ -200,7 +200,7 @@ public class SeriesController : ControllerBase
                 await file.CopyToAsync(fileStream);
             }
 
-            var coverUrl = "/Uploads/" + fileName;
+            var coverUrl = "/uploads/" + fileName;
 
             // Cập nhật CoverImageUrl thông qua service
             var dto = new UpdateSeriesDto { CoverImageUrl = coverUrl };

@@ -172,5 +172,5 @@ dist
 *.sln.docstates
 
 # App uploads
-Back-end/MangaStudio.Backend/Uploads/*
-!Back-end/MangaStudio.Backend/Uploads/.gitkeep
+Back-end/MangaStudio.Backend/uploads/*
+!Back-end/MangaStudio.Backend/uploads/.gitkeep

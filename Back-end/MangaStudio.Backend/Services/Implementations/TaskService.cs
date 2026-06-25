@@ -176,7 +176,7 @@ public class TaskService : ITaskService
                 throw new ArgumentException("Kích thước file tối đa 50MB.");
             }
 
-            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
             if (!Directory.Exists(uploadsFolder))
             {
                 Directory.CreateDirectory(uploadsFolder);
@@ -190,7 +190,7 @@ public class TaskService : ITaskService
                 await file.CopyToAsync(stream);
             }
 
-            var fileUrl = $"/Uploads/{uniqueFileName}";
+            var fileUrl = $"/uploads/{uniqueFileName}";
 
             var maxVer = await _context.PageVersions
                 .Where(v => v.PageId == task.PageId)
