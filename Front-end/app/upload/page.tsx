@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Upload, X, ImageIcon, Folder, ChevronRight, Check, Plus } from "lucide-react"
+import { Upload, X, ImageIcon, Folder, ChevronRight, Check, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -235,7 +235,8 @@ export default function UploadPage() {
 
   // Hàm xử lý khi kéo thả hoặc chọn file từ máy tính
   const handleFiles = (files: File[]) => {
-    const newFiles: UploadedFile[] = files.map((file, index) => {
+    const orderedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+    const newFiles: UploadedFile[] = orderedFiles.map((file, index) => {
       const fileId = `new-${Date.now()}-${index}`
       
       // Gọi API tải lên ngầm
@@ -245,7 +246,7 @@ export default function UploadPage() {
         id: fileId,
         name: file.name,
         size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        preview: "",
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
         status: "uploading",
         progress: 50, // Thanh hiển thị ban đầu đang upload
       }
@@ -272,6 +273,17 @@ export default function UploadPage() {
 
   const removeFile = (id: string) => {
     setUploadedFiles(uploadedFiles.filter((f) => f.id !== id))
+  }
+
+  const moveFile = (index: number, direction: -1 | 1) => {
+    setUploadedFiles((current) => {
+      const next = [...current]
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= next.length) return current
+      const [item] = next.splice(index, 1)
+      next.splice(targetIndex, 0, item)
+      return next
+    })
   }
 
   return (
@@ -452,17 +464,26 @@ export default function UploadPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {uploadedFiles.map((file) => (
+                  {uploadedFiles.map((file, index) => (
                     <div
                       key={file.id}
                       className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg"
                     >
-                      <div className="w-12 h-16 bg-muted rounded flex items-center justify-center">
-                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                      <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                        <GripVertical className="h-4 w-4" />
+                        <span className="text-[10px] font-semibold">#{index + 1}</span>
+                      </div>
+                      <div className="w-16 h-20 bg-muted rounded flex items-center justify-center overflow-hidden border border-border">
+                        {file.preview ? (
+                          <img src={file.preview} alt={file.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{file.name}</p>
                         <p className="text-sm text-muted-foreground">{file.size}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">Preview order: page slot {index + 1}</p>
                         {file.status === "uploading" && (
                           <div className="mt-2">
                             <Progress value={file.progress} className="h-1.5" />
@@ -470,6 +491,26 @@ export default function UploadPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveFile(index, -1)}
+                            disabled={index === 0}
+                            title="Move earlier"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveFile(index, 1)}
+                            disabled={index === uploadedFiles.length - 1}
+                            title="Move later"
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                        </div>
                         {file.status === "complete" && (
                           <Badge className="bg-success/20 text-success">
                             <Check className="w-3 h-3 mr-1" />

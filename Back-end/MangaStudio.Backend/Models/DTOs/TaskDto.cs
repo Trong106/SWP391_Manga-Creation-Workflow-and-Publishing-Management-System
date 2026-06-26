@@ -97,3 +97,9 @@ public class TaskResourceDto
     public string? SeriesTitle { get; set; }
     public int ChapterNumber { get; set; }
 }
+
+public class AskClarificationDto
+{
+    [MaxLength(1000)]
+    public string? Message { get; set; }
+}

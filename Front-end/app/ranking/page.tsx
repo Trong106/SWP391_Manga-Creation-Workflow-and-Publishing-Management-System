@@ -12,7 +12,11 @@ import {
   Download, 
   BarChart3, 
   Activity, 
-  Users 
+  Users,
+  AlertTriangle,
+  RotateCcw,
+  PauseCircle,
+  XCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +42,10 @@ interface SeriesRankingDto {
   views: number
   growthRate: number
   status: string
+  seriesStatus: string
+  riskLevel: string
+  riskReason: string | null
+  cancellationReason: string | null
   genres: string[]
 }
 
@@ -51,15 +59,16 @@ interface SeriesRankingContainerDto {
 
 
 export default function SeriesRankingPage() {
-  const { token, logout } = useAuth()
+  const { token, role, logout } = useAuth()
   const [rankingData, setRankingData] = useState<SeriesRankingContainerDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedGenre, setSelectedGenre] = useState("All Genres")
   const [selectedSort, setSelectedSort] = useState("rank")
   const [selectedTimeframe, setSelectedTimeframe] = useState("weekly")
+  const [decidingSeriesId, setDecidingSeriesId] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchRanking = () => {
     if (!token) return
     setLoading(true)
     fetch(`${API_BASE_URL}/api/series/ranking?genre=${selectedGenre}&sortBy=${selectedSort}&timeframe=${selectedTimeframe}`, {
@@ -85,7 +94,55 @@ export default function SeriesRankingPage() {
         console.error("Error fetching ranking data:", err)
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchRanking()
   }, [token, selectedGenre, selectedSort, selectedTimeframe])
+
+  const handleEditorialDecision = async (
+    item: SeriesRankingDto,
+    decision: "cancelled" | "hiatus" | "active"
+  ) => {
+    if (!token) return
+
+    let reason = ""
+    if (decision !== "active") {
+      const defaultReason = item.riskReason || "Based on low ranking / weak reader votes."
+      reason = window.prompt(
+        decision === "cancelled"
+          ? "Reason for cancelling this series:"
+          : "Reason for moving this series to publication review / hiatus:",
+        defaultReason
+      ) || ""
+      if (!reason.trim()) return
+    } else if (!window.confirm("Reactivate this series for normal publication?")) {
+      return
+    }
+
+    setDecidingSeriesId(item.seriesId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/series/${item.seriesId}/editorial-decision`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ decision, reason })
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.message || "Failed to apply editorial decision")
+      }
+
+      fetchRanking()
+    } catch (err: any) {
+      alert(err.message || "Server connection error")
+    } finally {
+      setDecidingSeriesId(null)
+    }
+  }
 
   const formatNumber = (num?: number | null) => {
     if (num === undefined || num === null) return "0"
@@ -309,6 +366,10 @@ export default function SeriesRankingPage() {
                       statusBadgeStyle = "bg-[#00dfc0]/15 text-[#00dfc0] border-[#00dfc0]/20"
                     } else if (item.status === "Declining") {
                       statusBadgeStyle = "bg-red-400/15 text-red-400 border-red-400/20"
+                    } else if (item.status === "At Risk" || item.status === "Cancelled") {
+                      statusBadgeStyle = "bg-red-500/15 text-red-300 border-red-500/25"
+                    } else if (item.status === "Watch" || item.status === "Publication Review") {
+                      statusBadgeStyle = "bg-amber-500/15 text-amber-300 border-amber-500/25"
                     }
 
                     return (
@@ -341,12 +402,24 @@ export default function SeriesRankingPage() {
                               </div>
                             )}
                             <div>
-                              <p className="font-semibold text-white group-hover:text-[#00dfc0] transition-colors text-sm">
-                                {item.title}
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-white group-hover:text-[#00dfc0] transition-colors text-sm">
+                                  {item.title}
+                                </p>
+                                {item.riskLevel !== "normal" && (
+                                  <span title={item.riskReason || item.cancellationReason || "Needs editorial attention"}>
+                                    <AlertTriangle className={`w-4 h-4 ${item.riskLevel === "danger" || item.riskLevel === "cancelled" ? "text-red-400" : "text-amber-300"}`} />
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs text-zinc-500 mt-0.5">
                                 {item.authorName}
                               </p>
+                              {(item.riskReason || item.cancellationReason) && (
+                                <p className="text-[11px] text-amber-200/90 mt-1 max-w-[320px] line-clamp-2">
+                                  {item.cancellationReason || item.riskReason}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -396,6 +469,42 @@ export default function SeriesRankingPage() {
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
+                            {role === "editorial" && item.seriesStatus !== "cancelled" && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/40"
+                                  title="Move to publication review / hiatus"
+                                  disabled={decidingSeriesId === item.seriesId}
+                                  onClick={() => handleEditorialDecision(item, "hiatus")}
+                                >
+                                  <PauseCircle className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-zinc-400 hover:text-red-300 hover:bg-zinc-800/40"
+                                  title="Cancel series"
+                                  disabled={decidingSeriesId === item.seriesId}
+                                  onClick={() => handleEditorialDecision(item, "cancelled")}
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
+                            {role === "editorial" && item.seriesStatus === "cancelled" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40"
+                                title="Reactivate series"
+                                disabled={decidingSeriesId === item.seriesId}
+                                onClick={() => handleEditorialDecision(item, "active")}
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

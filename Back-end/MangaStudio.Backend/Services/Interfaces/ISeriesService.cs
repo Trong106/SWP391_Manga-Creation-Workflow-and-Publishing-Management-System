@@ -17,10 +17,11 @@ public interface ISeriesService
     /// <summary>Cập nhật thông tin bộ truyện.</summary>
     Task<SeriesDto> UpdateSeries(Guid seriesId, Guid mangakaId, UpdateSeriesDto dto);
 
+    Task<SeriesDto> ApplyEditorialDecision(Guid seriesId, Guid editorialId, EditorialSeriesDecisionDto dto);
+
     /// <summary>Lấy danh sách chương của bộ truyện.</summary>
     Task<List<ChapterDto>> GetChaptersBySeries(Guid seriesId, Guid requestUserId);
 
     /// <summary>Lấy bảng xếp hạng bộ truyện.</summary>
     Task<SeriesRankingContainerDto> GetSeriesRanking(string? genre, string? sortBy, string? timeframe);
 }
-

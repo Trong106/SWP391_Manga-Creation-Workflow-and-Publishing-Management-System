@@ -34,6 +34,26 @@ public class ReviewProposalDto
     public string Decision { get; set; } = null!;
 
     public string? Feedback { get; set; }
+
+    public Guid? TantouId { get; set; }
+}
+
+public class ReviewChapterDto
+{
+    [Required(ErrorMessage = "Quyet dinh review chapter la bat buoc.")]
+    [RegularExpression("^(approved|revision_requested|rejected)$",
+        ErrorMessage = "Decision chi duoc la: approved, revision_requested hoac rejected.")]
+    public string Decision { get; set; } = null!;
+
+    public string? Note { get; set; }
+}
+
+public class UserOptionDto
+{
+    public Guid UserId { get; set; }
+    public string FullName { get; set; } = null!;
+    public string Email { get; set; } = null!;
+    public string Role { get; set; } = null!;
 }
 
 /// <summary>DTO hiển thị lịch xuất bản.</summary>

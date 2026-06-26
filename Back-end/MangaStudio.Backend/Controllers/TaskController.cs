@@ -169,6 +169,31 @@ public class TaskController : ControllerBase
         }
     }
 
+    [HttpPost("tasks/{id:guid}/ask")]
+    [Authorize(Roles = "assistant")]
+    public async Task<IActionResult> AskClarification(Guid id, [FromBody] AskClarificationDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var assistantId = GetCurrentUserId();
+            var result = await _taskService.AskClarification(id, assistantId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// PUT /api/tasks/{id} — Cập nhật thông tin công việc.
     /// </summary>
@@ -190,6 +215,14 @@ public class TaskController : ControllerBase
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -266,6 +299,14 @@ public class TaskController : ControllerBase
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

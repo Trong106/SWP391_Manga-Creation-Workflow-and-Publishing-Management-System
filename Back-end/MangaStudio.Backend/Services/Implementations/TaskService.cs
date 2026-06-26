@@ -82,6 +82,65 @@ public class TaskService : ITaskService
         return await GetTaskById(task.TaskId);
     }
 
+    public async Task<NotificationDto> AskClarification(Guid taskId, Guid assistantId, AskClarificationDto dto)
+    {
+        var task = await _context.Tasks
+            .Include(t => t.Assignee)
+            .Include(t => t.Assigner)
+            .Include(t => t.Page)
+                .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
+            .FirstOrDefaultAsync(t => t.TaskId == taskId)
+            ?? throw new KeyNotFoundException($"Task with ID {taskId} was not found.");
+
+        if (task.AssigneeId != assistantId)
+        {
+            throw new UnauthorizedAccessException("Only the assigned assistant can ask for clarification on this task.");
+        }
+
+        var message = string.IsNullOrWhiteSpace(dto.Message)
+            ? $"{task.Assignee?.FullName ?? "Assistant"} needs clarification for task \"{task.Title}\"."
+            : dto.Message.Trim();
+
+        var notification = new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = task.AssignerId,
+            Type = "task_clarification",
+            Title = "Task clarification requested",
+            Message = message,
+            Link = $"/review?pageId={task.PageId}&taskId={task.TaskId}",
+            IsRead = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Notifications.Add(notification);
+        _context.AuditLogs.Add(new AuditLog
+        {
+            AuditLogId = Guid.NewGuid(),
+            UserId = assistantId,
+            Action = "task_clarification_requested",
+            EntityType = "task",
+            EntityId = task.TaskId,
+            DetailsJson = $"{{\"taskTitle\":\"{EscapeJson(task.Title)}\",\"pageId\":\"{task.PageId}\",\"chapterId\":\"{task.Page.ChapterId}\",\"message\":\"{EscapeJson(message)}\"}}",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new NotificationDto
+        {
+            Id = notification.NotificationId,
+            UserId = notification.UserId,
+            Type = notification.Type,
+            Title = notification.Title,
+            Message = notification.Message,
+            IsRead = notification.IsRead,
+            Link = notification.Link,
+            CreatedAt = notification.CreatedAt
+        };
+    }
+
     /// <summary>
     /// Lấy danh sách công việc của một trang truyện.
     /// </summary>
@@ -265,11 +324,16 @@ public class TaskService : ITaskService
                 .ThenInclude(t => t.Page)
             .Include(s => s.SubmittedBy)
             .FirstOrDefaultAsync(s => s.SubmissionId == submissionId)
-            ?? throw new KeyNotFoundException($"Không tìm thấy bài nộp với ID {submissionId}");
+            ?? throw new KeyNotFoundException($"Khong tim thay bai nop voi ID {submissionId}");
 
         if (submission.Task.AssignerId != reviewerId)
         {
-            throw new UnauthorizedAccessException("Bạn không phải người giao việc này nên không thể duyệt.");
+            throw new UnauthorizedAccessException("Ban khong phai nguoi giao viec nay nen khong the duyet.");
+        }
+
+        if (!string.Equals(submission.Status, "submitted", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Bai nop nay da duoc duyet truoc do.");
         }
 
         var decision = dto.Decision.ToLower();
@@ -277,41 +341,96 @@ public class TaskService : ITaskService
         {
             submission.Status = "accepted";
             submission.Task.Status = "approved";
-            submission.Task.Page.Status = "review"; // Hoàn thành task -> chờ review toàn bộ trang
 
-            // Tạo PayrollRecord cho trợ lý
-            var periodDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            var payroll = new PayrollRecord
+            var otherSubmittedVersions = await _context.TaskSubmissions
+                .Where(s => s.TaskId == submission.TaskId
+                    && s.SubmissionId != submission.SubmissionId
+                    && s.Status == "submitted")
+                .ToListAsync();
+
+            foreach (var otherSubmission in otherSubmittedVersions)
             {
-                PayrollRecordId = Guid.NewGuid(),
-                AssistantId = submission.SubmittedById,
-                TaskId = submission.TaskId,
-                PeriodStart = periodDate,
-                PeriodEnd = periodDate,
-                BaseAmount = submission.Task.PaymentAmount,
-                BonusAmount = 0,
-                DeductionAmount = 0,
-                Status = "pending",
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.PayrollRecords.Add(payroll);
+                otherSubmission.Status = "superseded";
+            }
+
+            var payrollExists = await _context.PayrollRecords
+                .AnyAsync(p => p.TaskId == submission.TaskId);
+
+            if (!payrollExists)
+            {
+                var periodDate = DateOnly.FromDateTime(DateTime.UtcNow);
+                var payroll = new PayrollRecord
+                {
+                    PayrollRecordId = Guid.NewGuid(),
+                    AssistantId = submission.SubmittedById,
+                    TaskId = submission.TaskId,
+                    PeriodStart = periodDate,
+                    PeriodEnd = periodDate,
+                    BaseAmount = submission.Task.PaymentAmount,
+                    BonusAmount = 0,
+                    DeductionAmount = 0,
+                    Status = "pending",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.PayrollRecords.Add(payroll);
+            }
         }
-        else // rejected
+        else if (decision == "rejected")
         {
             submission.Status = "rejected";
             submission.Task.Status = "revision";
-            submission.Task.Page.Status = "revision";
+        }
+        else
+        {
+            throw new ArgumentException("Decision must be approved or rejected.");
         }
 
         submission.Task.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        await RecalculatePageStatus(submission.Task.PageId);
         await _context.SaveChangesAsync();
 
         return await GetSubmissionById(submission.SubmissionId);
     }
 
-    /// <summary>
-    /// Lấy danh sách tất cả trợ lý đang hoạt động.
-    /// </summary>
+    private async System.Threading.Tasks.Task RecalculatePageStatus(Guid pageId)
+    {
+        var page = await _context.MangaPages
+            .FirstOrDefaultAsync(p => p.PageId == pageId)
+            ?? throw new KeyNotFoundException($"Trang truyen voi ID {pageId} khong ton tai.");
+
+        var taskStatuses = await _context.Tasks
+            .Where(t => t.PageId == pageId)
+            .Select(t => t.Status.ToLower())
+            .ToListAsync();
+
+        if (taskStatuses.Count == 0)
+        {
+            return;
+        }
+
+        if (taskStatuses.Any(s => s == "revision"))
+        {
+            page.Status = "revision";
+        }
+        else if (taskStatuses.Any(s => s == "submitted"))
+        {
+            page.Status = "submitted";
+        }
+        else if (taskStatuses.Any(s => s == "in_progress"))
+        {
+            page.Status = "in_progress";
+        }
+        else if (taskStatuses.Any(s => s == "pending" || s == "assigned"))
+        {
+            page.Status = "assigned";
+        }
+        else if (taskStatuses.All(s => s == "approved"))
+        {
+            page.Status = "review";
+        }
+    }
+
     public async Task<List<AssistantDto>> GetAllAssistants()
     {
         return await _context.Users
@@ -449,5 +568,14 @@ public class TaskService : ITaskService
             SeriesTitle = task.Page.Chapter?.Series?.Title,
             ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0
         };
+    }
+
+    private static string EscapeJson(string? value)
+    {
+        return (value ?? string.Empty)
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n");
     }
 }

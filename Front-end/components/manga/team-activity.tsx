@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useState, useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 
 const typeBadges: Record<string, string> = {
   series: "bg-blue-500/20 text-blue-400",
@@ -15,11 +16,22 @@ const typeBadges: Record<string, string> = {
 }
 
 export function TeamActivity() {
+  const { role, token } = useAuth()
   const [activities, setActivities] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/audit-logs`)
+    if (!token || role !== "editorial") {
+      setActivities([])
+      setLoading(false)
+      return
+    }
+
+    fetch(`${API_BASE_URL}/api/data/audit-logs`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -41,7 +53,7 @@ export function TeamActivity() {
         console.error("Error fetching activity logs:", err)
         setLoading(false)
       })
-  }, [])
+  }, [role, token])
 
   return (
     <Card className="bg-card border-border">

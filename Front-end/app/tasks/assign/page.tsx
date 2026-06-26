@@ -115,6 +115,30 @@ const TASK_TYPES = [
   { value: "review", label: "Review" },
 ]
 
+const TASK_TEMPLATES = [
+  {
+    label: "Background Cleanup",
+    title: "Background cleanup",
+    type: "background",
+    description: "Clean perspective lines, remove rough sketch artifacts, and prepare the background layer for final review.",
+    paymentAmount: "120",
+  },
+  {
+    label: "Line Art Polish",
+    title: "Line art polish",
+    type: "line_art",
+    description: "Refine character line weight, close open strokes, and keep line art ready for screentone/coloring.",
+    paymentAmount: "150",
+  },
+  {
+    label: "Lettering Pass",
+    title: "Lettering and SFX pass",
+    type: "lettering",
+    description: "Place dialogue, sound effects, and balloon text while preserving panel readability.",
+    paymentAmount: "90",
+  },
+]
+
 const typeColors: Record<string, string> = {
   line_art: "bg-green-500/20 text-green-400 border-green-700/30",
   background: "bg-blue-500/20 text-blue-400 border-blue-700/30",
@@ -158,7 +182,7 @@ export default function TaskAssignPage() {
     title: "",
     description: "",
     type: "",
-    assigneeId: "",
+    assigneeId: "unassigned",
     dueDate: "",
     paymentAmount: "",
     pageId: "",
@@ -285,7 +309,7 @@ export default function TaskAssignPage() {
         title: form.title.trim(),
         description: form.description.trim() || null,
         type: form.type,
-        assigneeId: form.assigneeId || null,
+        assigneeId: (form.assigneeId && form.assigneeId !== "unassigned") ? form.assigneeId : null,
         dueDate: form.dueDate || null,
         paymentAmount: parseFloat(form.paymentAmount) || 0,
       }
@@ -300,7 +324,7 @@ export default function TaskAssignPage() {
       }
       toast.success("Task created and assigned successfully!")
       setIsDialogOpen(false)
-      setForm({ title: "", description: "", type: "", assigneeId: "", dueDate: "", paymentAmount: "", pageId: "" })
+      setForm({ title: "", description: "", type: "", assigneeId: "unassigned", dueDate: "", paymentAmount: "", pageId: "" })
       loadPageTasks(selectedPageId)
     } catch (err: any) {
       toast.error(err.message || "Failed to create task.")
@@ -324,6 +348,16 @@ export default function TaskAssignPage() {
     } catch (err: any) {
       toast.error(err.message || "Failed to cancel task.")
     }
+  }
+
+  const applyTaskTemplate = (template: typeof TASK_TEMPLATES[number]) => {
+    setForm((current) => ({
+      ...current,
+      title: template.title,
+      type: template.type,
+      description: template.description,
+      paymentAmount: template.paymentAmount,
+    }))
   }
 
   // ── Guard: only mangaka ───────────────────────────────────────────────────
@@ -498,6 +532,23 @@ export default function TaskAssignPage() {
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
+                      <div className="space-y-2">
+                        <Label className="text-sm text-zinc-300">Quick Templates</Label>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          {TASK_TEMPLATES.map((template) => (
+                            <Button
+                              key={template.label}
+                              type="button"
+                              variant="outline"
+                              onClick={() => applyTaskTemplate(template)}
+                              className="h-auto justify-start border-zinc-800 bg-zinc-900/60 px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                            >
+                              {template.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
                       {/* Title */}
                       <div className="space-y-1.5">
                         <Label className="text-sm text-zinc-300">Task Title <span className="text-red-400">*</span></Label>
@@ -548,7 +599,7 @@ export default function TaskAssignPage() {
                               <SelectValue placeholder="Unassigned" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-700 text-white">
-                              <SelectItem value="" className="hover:bg-zinc-800 focus:bg-zinc-800 cursor-pointer text-zinc-400">
+                              <SelectItem value="unassigned" className="hover:bg-zinc-800 focus:bg-zinc-800 cursor-pointer text-zinc-400">
                                 Unassigned
                               </SelectItem>
                               {assistants.filter(a => a.status === "active").map(a => (

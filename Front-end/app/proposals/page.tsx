@@ -60,6 +60,13 @@ interface Proposal {
   rating: number | null
 }
 
+interface UserOption {
+  userId: string
+  fullName: string
+  email: string
+  role: string
+}
+
 const statusColors: Record<string, string> = {
   submitted: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   approved: "bg-[#00dfc0]/20 text-[#00dfc0] border-[#00dfc0]/30",
@@ -91,6 +98,8 @@ export default function ProposalsPage() {
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const [reviewDecision, setReviewDecision] = useState<"approved" | "rejected">("approved")
   const [reviewFeedback, setReviewFeedback] = useState("")
+  const [tantouUsers, setTantouUsers] = useState<UserOption[]>([])
+  const [selectedTantouId, setSelectedTantouId] = useState("")
   const [submittingReview, setSubmittingReview] = useState(false)
 
   const fetchProposals = () => {
@@ -130,10 +139,29 @@ export default function ProposalsPage() {
     fetchProposals()
   }, [token])
 
+  useEffect(() => {
+    if (!token) return
+
+    fetch(`${API_BASE_URL}/api/users/by-role/tantou`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setTantouUsers(data)
+          setSelectedTantouId(data[0]?.userId || "")
+        }
+      })
+      .catch(() => setTantouUsers([]))
+  }, [token])
+
   const handleOpenReview = (proposal: Proposal) => {
     setSelectedProposal(proposal)
     setReviewDecision("approved")
     setReviewFeedback("")
+    setSelectedTantouId(tantouUsers[0]?.userId || "")
     setIsReviewOpen(true)
   }
 
@@ -144,6 +172,10 @@ export default function ProposalsPage() {
 
   const handlePostReview = async () => {
     if (!selectedProposal || !token) return
+    if (reviewDecision === "approved" && !selectedTantouId) {
+      alert("Please select a Tantou Editor before approving this proposal.")
+      return
+    }
     setSubmittingReview(true)
 
     try {
@@ -155,7 +187,8 @@ export default function ProposalsPage() {
         },
         body: JSON.stringify({
           decision: reviewDecision,
-          feedback: reviewFeedback
+          feedback: reviewFeedback,
+          tantouId: reviewDecision === "approved" ? selectedTantouId : null
         })
       })
 
@@ -530,6 +563,27 @@ export default function ProposalsPage() {
                 className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus-visible:ring-[#00dfc0]"
               />
             </div>
+
+            {reviewDecision === "approved" && (
+              <div className="space-y-2">
+                <Label className="text-zinc-300">Assign Tantou Editor</Label>
+                <Select value={selectedTantouId} onValueChange={setSelectedTantouId}>
+                  <SelectTrigger className="w-full bg-zinc-900 border-zinc-800 text-white">
+                    <SelectValue placeholder="Select Tantou Editor" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                    {tantouUsers.map((editor) => (
+                      <SelectItem key={editor.userId} value={editor.userId}>
+                        {editor.fullName} - {editor.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {tantouUsers.length === 0 && (
+                  <p className="text-xs text-red-400">No active Tantou Editor account is available.</p>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2">

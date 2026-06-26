@@ -5,16 +5,24 @@ import { Star, Eye, Bookmark, FileText, BookOpen } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 import { SeriesDetailModal } from "./series-detail-modal"
 
 export function ProjectList() {
+  const { token } = useAuth()
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const fetchSeries = () => {
-    fetch(`${API_BASE_URL}/api/data/series`)
+    if (!token) return
+
+    fetch(`${API_BASE_URL}/api/data/series`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -34,7 +42,7 @@ export function ProjectList() {
 
   useEffect(() => {
     fetchSeries()
-  }, [])
+  }, [token])
 
   const getFullCoverUrl = (coverPath?: string) => {
     if (!coverPath) return ""

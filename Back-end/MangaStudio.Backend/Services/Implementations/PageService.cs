@@ -175,6 +175,34 @@ public class PageService : IPageService
             .ToListAsync();
     }
 
+    public async Task<List<PageVersionOptionDto>> GetPageVersions(Guid pageId)
+    {
+        var page = await _context.MangaPages
+            .FirstOrDefaultAsync(p => p.PageId == pageId)
+            ?? throw new KeyNotFoundException($"Page with ID {pageId} was not found.");
+
+        return await _context.PageVersions
+            .Where(v => v.PageId == pageId)
+            .Include(v => v.UploadedBy)
+            .OrderByDescending(v => v.VersionNumber)
+            .Select(v => new PageVersionOptionDto
+            {
+                PageVersionId = v.PageVersionId,
+                PageId = v.PageId,
+                VersionNumber = v.VersionNumber,
+                FileUrl = v.FileUrl,
+                FileName = v.FileName,
+                FileSizeBytes = v.FileSizeBytes,
+                MimeType = v.MimeType,
+                UploadedById = v.UploadedById,
+                UploadedByName = v.UploadedBy.FullName,
+                CreatedAt = v.CreatedAt,
+                Note = v.Note,
+                IsCurrent = v.FileUrl == page.CurrentImageUrl
+            })
+            .ToListAsync();
+    }
+
     /// <summary>
     /// Đánh giá trang (PageReview).
     /// Quyết định có thể là: approved, rejected, revision_requested, needs_revision.
@@ -188,7 +216,7 @@ public class PageService : IPageService
             ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
 
         // Check permission: Phải là Mangaka hoặc Tantou của bộ truyện này
-        if (page.Chapter.Series.MangakaId != reviewerId && page.Chapter.Series.TantouId != reviewerId)
+        if (page.Chapter.Series.MangakaId != reviewerId)
         {
             throw new UnauthorizedAccessException("Bạn không có quyền đánh giá trang truyện của bộ truyện này.");
         }

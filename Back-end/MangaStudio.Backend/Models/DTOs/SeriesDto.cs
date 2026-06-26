@@ -18,10 +18,24 @@ public class SeriesDto
     public int? Ranking { get; set; }
     public int ReaderCount { get; set; }
     public decimal? Rating { get; set; }
+    public string RiskLevel { get; set; } = "normal";
+    public string? RiskReason { get; set; }
+    public string? CancellationReason { get; set; }
     public List<string> Genres { get; set; } = new();
     public int ChapterCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+}
+
+public class EditorialSeriesDecisionDto
+{
+    [Required(ErrorMessage = "Decision is required.")]
+    [RegularExpression("^(cancelled|hiatus|active)$",
+        ErrorMessage = "Decision must be one of: cancelled, hiatus, active.")]
+    public string Decision { get; set; } = null!;
+
+    [StringLength(1000)]
+    public string? Reason { get; set; }
 }
 
 /// <summary>DTO tạo bộ truyện mới.</summary>
@@ -67,6 +81,10 @@ public class SeriesRankingDto
     public int Views { get; set; }
     public decimal GrowthRate { get; set; }
     public string Status { get; set; } = null!;
+    public string SeriesStatus { get; set; } = null!;
+    public string RiskLevel { get; set; } = "normal";
+    public string? RiskReason { get; set; }
+    public string? CancellationReason { get; set; }
     public List<string> Genres { get; set; } = new();
 }
 
@@ -79,5 +97,4 @@ public class SeriesRankingContainerDto
     public long TotalViews { get; set; }
     public List<SeriesRankingDto> Rankings { get; set; } = new();
 }
-
 

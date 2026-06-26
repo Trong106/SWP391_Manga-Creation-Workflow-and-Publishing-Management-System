@@ -16,6 +16,8 @@ public interface IWorkflowService
     /// <summary>Tantou duyệt hoặc từ chối đề xuất series.</summary>
     Task<ProposalDto> ReviewProposal(Guid proposalId, Guid tantouId, ReviewProposalDto dto);
 
+    Task<List<UserOptionDto>> GetUsersByRole(string roleCode);
+
     // === Publish Schedule ===
 
     /// <summary>Lấy tất cả lịch xuất bản (có thể lọc theo ngày).</summary>
@@ -30,7 +32,7 @@ public interface IWorkflowService
     // === Payroll ===
 
     /// <summary>Lấy danh sách bản ghi lương của trợ lý (Mangaka xem).</summary>
-    Task<List<PayrollDto>> GetPayrollRecords(Guid? assistantId = null);
+    Task<List<PayrollDto>> GetPayrollRecords(Guid? assistantId = null, Guid? mangakaId = null);
 
     /// <summary>Đánh dấu đã thanh toán lương cho trợ lý.</summary>
     Task<PayrollDto> MarkPayrollAsPaid(Guid payrollRecordId, Guid mangakaId);
