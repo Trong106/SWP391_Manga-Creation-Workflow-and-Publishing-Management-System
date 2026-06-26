@@ -6,6 +6,7 @@ using MangaStudio.Backend.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
@@ -143,6 +144,82 @@ public class SeriesService : ISeriesService
         return await GetSeriesById(series.SeriesId, mangakaId);
     }
 
+    public async Task<SeriesDto> ApplyEditorialDecision(Guid seriesId, Guid editorialId, EditorialSeriesDecisionDto dto)
+    {
+        var decision = dto.Decision.ToLowerInvariant();
+        var series = await _context.Series
+            .Include(s => s.SeriesGenres)
+            .Include(s => s.Chapters)
+            .Include(s => s.Mangaka)
+            .Include(s => s.Tantou)
+            .FirstOrDefaultAsync(s => s.SeriesId == seriesId)
+            ?? throw new KeyNotFoundException($"Series voi ID {seriesId} khong ton tai.");
+
+        if (decision is "cancelled" or "hiatus")
+        {
+            if (string.IsNullOrWhiteSpace(dto.Reason))
+            {
+                throw new ArgumentException("Editorial Board phai nhap ly do khi huy series hoac doi hinh thuc xuat ban.");
+            }
+
+            series.CancellationReason = dto.Reason.Trim();
+        }
+        else if (decision == "active")
+        {
+            series.CancellationReason = null;
+        }
+
+        series.Status = decision;
+        series.UpdatedAt = DateTime.UtcNow;
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            AuditLogId = Guid.NewGuid(),
+            UserId = editorialId,
+            Action = decision == "cancelled" ? "cancelled_series" : decision == "hiatus" ? "changed_publication_form" : "reactivated_series",
+            EntityType = "Series",
+            EntityId = series.SeriesId,
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                series.Title,
+                Decision = decision,
+                Reason = dto.Reason,
+                series.Ranking,
+                series.ReaderCount
+            }),
+            CreatedAt = DateTime.UtcNow
+        });
+
+        var notificationTitle = decision switch
+        {
+            "cancelled" => "Series cancelled by Editorial Board",
+            "hiatus" => "Publication form changed by Editorial Board",
+            _ => "Series reactivated by Editorial Board"
+        };
+
+        var notificationMessage = decision switch
+        {
+            "cancelled" => $"Your series '{series.Title}' was cancelled. Reason: {series.CancellationReason}",
+            "hiatus" => $"Your series '{series.Title}' was moved to hiatus / publication-form review. Reason: {series.CancellationReason}",
+            _ => $"Your series '{series.Title}' has been returned to active publication."
+        };
+
+        _context.Notifications.Add(new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = series.MangakaId,
+            Type = decision == "cancelled" ? "series_cancelled" : decision == "hiatus" ? "series_at_risk" : "series_reactivated",
+            Title = notificationTitle,
+            Message = notificationMessage,
+            IsRead = false,
+            Link = "/series",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return MapToDto(series);
+    }
+
     /// <summary>
     /// Lấy danh sách chương của bộ truyện.
     /// </summary>
@@ -163,6 +240,7 @@ public class SeriesService : ISeriesService
                 DueDate = c.DueDate.HasValue ? c.DueDate.Value.ToDateTime(TimeOnly.MinValue) : null,
                 SubmittedForPublishingAt = c.SubmittedForPublishingAt,
                 PageCount = c.MangaPages.Count,
+                ApprovedPageCount = c.MangaPages.Count(p => p.Status == "approved"),
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
             })
@@ -186,6 +264,9 @@ public class SeriesService : ISeriesService
             Ranking = series.Ranking,
             ReaderCount = series.ReaderCount,
             Rating = series.Rating,
+            RiskLevel = GetRiskLevel(series),
+            RiskReason = GetRiskReason(series),
+            CancellationReason = series.CancellationReason,
             Genres = series.SeriesGenres.Select(g => g.Genre).ToList(),
             ChapterCount = series.Chapters?.Count ?? 0,
             CreatedAt = series.CreatedAt,
@@ -196,7 +277,7 @@ public class SeriesService : ISeriesService
     public async Task<SeriesRankingContainerDto> GetSeriesRanking(string? genre, string? sortBy, string? timeframe)
     {
         // Compute total metrics
-        int totalSeriesRanked = await _context.Series.CountAsync();
+        int totalSeriesRanked = await _context.Series.CountAsync(s => s.Status != "proposal");
         long totalReaderVotes = await _context.ReaderVotes.SumAsync(rv => rv.Votes);
         long totalViews = await _context.Series.SumAsync(s => (long)s.ReaderCount);
 
@@ -208,6 +289,7 @@ public class SeriesService : ISeriesService
 
         // Query series sorted by ReaderCount descending
         var query = _context.Series
+            .Where(s => s.Status != "proposal")
             .Include(s => s.SeriesGenres)
             .Include(s => s.Mangaka)
             .Include(s => s.ReaderVotes)
@@ -233,9 +315,7 @@ public class SeriesService : ISeriesService
             if (s.Title == "Dragon Hunters") growth = 12.4m;
             else if (s.Title == "Night Bloom") growth = 0.5m;
 
-            string status = "Stable";
-            if (growth > 5) status = "Trending";
-            else if (growth < -5) status = "Declining";
+            string status = GetRankingStatus(s, rank, growth, votes);
 
             return new SeriesRankingDto
             {
@@ -250,6 +330,10 @@ public class SeriesService : ISeriesService
                 Views = s.ReaderCount,
                 GrowthRate = growth,
                 Status = status,
+                SeriesStatus = s.Status,
+                RiskLevel = GetRiskLevel(s, rank, votes),
+                RiskReason = GetRiskReason(s, rank, votes),
+                CancellationReason = s.CancellationReason,
                 Genres = s.SeriesGenres.Select(g => g.Genre).ToList()
             };
         }).ToList();
@@ -291,5 +375,45 @@ public class SeriesService : ISeriesService
             TotalViews = totalViews,
             Rankings = rankings
         };
+    }
+
+    private static string GetRiskLevel(Series series, int? rank = null, int? votes = null)
+    {
+        var status = series.Status.ToLowerInvariant();
+        if (status == "cancelled") return "cancelled";
+        if (status == "hiatus") return "watch";
+
+        var effectiveRank = rank ?? series.Ranking;
+        var effectiveVotes = votes ?? (series.ReaderVotes.Count > 0 ? series.ReaderVotes.Sum(v => v.Votes) : series.ReaderCount);
+        if (effectiveRank >= 8 || effectiveVotes < 100) return "danger";
+        if (effectiveRank >= 6 || effectiveVotes < 300) return "watch";
+        return "normal";
+    }
+
+    private static string? GetRiskReason(Series series, int? rank = null, int? votes = null)
+    {
+        var status = series.Status.ToLowerInvariant();
+        if (status == "cancelled") return series.CancellationReason ?? "Series has been cancelled by Editorial Board.";
+        if (status == "hiatus") return series.CancellationReason ?? "Series is under publication-form review.";
+
+        var effectiveRank = rank ?? series.Ranking;
+        var effectiveVotes = votes ?? (series.ReaderVotes.Count > 0 ? series.ReaderVotes.Sum(v => v.Votes) : series.ReaderCount);
+        if (effectiveRank >= 8) return $"Ranking #{effectiveRank} is below the editorial safety threshold.";
+        if (effectiveVotes < 100) return $"Reader votes/views are very low ({effectiveVotes}).";
+        if (effectiveRank >= 6) return $"Ranking #{effectiveRank} should be monitored by Mangaka and Tantou.";
+        if (effectiveVotes < 300) return $"Reader response is weak ({effectiveVotes}); monitor next release.";
+        return null;
+    }
+
+    private static string GetRankingStatus(Series series, int rank, decimal growth, int votes)
+    {
+        var status = series.Status.ToLowerInvariant();
+        if (status == "cancelled") return "Cancelled";
+        if (status == "hiatus") return "Publication Review";
+        if (rank >= 8 || votes < 100) return "At Risk";
+        if (rank >= 6 || votes < 300) return "Watch";
+        if (growth > 5) return "Trending";
+        if (growth < -5) return "Declining";
+        return "Stable";
     }
 }

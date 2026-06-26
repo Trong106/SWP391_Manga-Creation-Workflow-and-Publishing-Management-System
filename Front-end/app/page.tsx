@@ -94,6 +94,7 @@ function getStageIdFromTaskType(type: string): string {
 export default function Dashboard() {
   const { role, user, token } = useAuth()
   const isMangaka = role === "mangaka"
+  const authHeader = token ? { "Authorization": `Bearer ${token}` } : undefined
   const currentRole = ROLE_INFO[role || 'mangaka'] || ROLE_INFO['mangaka']
   const [metrics, setMetrics] = useState<any[]>(currentRole.metrics)
   const [topSeries, setTopSeries] = useState<any[]>([])
@@ -157,7 +158,9 @@ export default function Dashboard() {
   }
 
   const fetchSeriesList = () => {
-    fetch(`${API_BASE_URL}/api/data/series`)
+    if (!authHeader) return
+
+    fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -168,7 +171,9 @@ export default function Dashboard() {
   }
 
   const fetchAssistantsList = () => {
-    fetch(`${API_BASE_URL}/api/data/team`)
+    if (!authHeader) return
+
+    fetch(`${API_BASE_URL}/api/data/team`, { headers: authHeader })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -290,7 +295,9 @@ export default function Dashboard() {
   }
 
   const fetchTasks = () => {
-    fetch(`${API_BASE_URL}/api/data/tasks`)
+    if (!authHeader) return
+
+    fetch(`${API_BASE_URL}/api/data/tasks`, { headers: authHeader })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -302,12 +309,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchTasks()
-  }, [])
+  }, [token])
 
   // Fetch metrics
   useEffect(() => {
-    if (role && user?.id) {
-      fetch(`${API_BASE_URL}/api/data/dashboard-metrics?role=${role}&userId=${user.id}`)
+    if (role && user?.id && authHeader) {
+      fetch(`${API_BASE_URL}/api/data/dashboard-metrics?role=${role}&userId=${user.id}`, { headers: authHeader })
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
@@ -318,11 +325,13 @@ export default function Dashboard() {
           console.error("Error fetching dashboard metrics:", err)
         })
     }
-  }, [role, user?.id])
+  }, [role, user?.id, token])
 
   // Fetch top series (Highest views & revenue)
   const fetchTopSeries = () => {
-    fetch(`${API_BASE_URL}/api/data/series`)
+    if (!authHeader) return
+
+    fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -338,7 +347,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchTopSeries()
-  }, [])
+  }, [token])
 
   // Auto-scroll effect for "Truyện Top" row (scrolls left by 1 item every 2 seconds)
   useEffect(() => {

@@ -33,13 +33,27 @@ import {
 
 import { useState, useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 
 export default function TeamPage() {
+  const { token, role } = useAuth()
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const isReadOnly = role === "tantou"
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/team`)
+    if (!token) return
+    if (role !== "mangaka" && role !== "tantou") {
+      setLoading(false)
+      setTeamMembers([])
+      return
+    }
+
+    fetch(`${API_BASE_URL}/api/data/team`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -51,7 +65,7 @@ export default function TeamPage() {
         console.error("Error fetching team members:", err)
         setLoading(false)
       })
-  }, [])
+  }, [token, role])
 
   const activeMembers = teamMembers.filter((m) => m.status === "active").length
   const totalTasks = teamMembers.reduce((sum, m) => sum + m.currentTasks, 0)
@@ -59,25 +73,44 @@ export default function TeamPage() {
     ? (teamMembers.reduce((sum, m) => sum + Number(m.rating), 0) / teamMembers.length).toFixed(1) 
     : "0.0"
 
+  if (role !== "mangaka" && role !== "tantou") {
+    return (
+      <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+          <AlertCircle className="h-8 w-8" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-destructive">Access Denied</h1>
+          <p className="mt-2 max-w-md text-sm text-zinc-400">
+            Team information is available to Mangaka and Tantou Editor roles only.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
             <Users className="w-8 h-8 text-primary" />
-            Team Management
+            {isReadOnly ? "Team Overview" : "Team Management"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage your studio assistants and collaborators
+            {isReadOnly
+              ? "View studio assistant capacity while reviewing chapter readiness"
+              : "Manage your studio assistants and collaborators"}
           </p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-primary text-primary-foreground">
-              <Plus className="w-4 h-4 mr-2" />
-              Invite Member
-            </Button>
-          </DialogTrigger>
+        {!isReadOnly && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="bg-primary text-primary-foreground">
+                <Plus className="w-4 h-4 mr-2" />
+                Invite Member
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Invite Team Member</DialogTitle>
@@ -116,7 +149,8 @@ export default function TeamPage() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
       </div>
 
       {/* Stats */}
@@ -182,7 +216,9 @@ export default function TeamPage() {
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle>Team Members</CardTitle>
-          <CardDescription>Your studio assistants and their current status</CardDescription>
+          <CardDescription>
+            {isReadOnly ? "Studio assistant workload, completion count, and rates" : "Your studio assistants and their current status"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -247,20 +283,26 @@ export default function TeamPage() {
                   </div>
                 </div>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>View Profile</DropdownMenuItem>
-                    <DropdownMenuItem>Assign Task</DropdownMenuItem>
-                    <DropdownMenuItem>View History</DropdownMenuItem>
-                    <DropdownMenuItem>Edit Rate</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Remove from Team</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {isReadOnly ? (
+                  <Badge variant="outline" className="border-zinc-700 text-zinc-400">
+                    Read only
+                  </Badge>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>View Profile</DropdownMenuItem>
+                      <DropdownMenuItem>Assign Task</DropdownMenuItem>
+                      <DropdownMenuItem>View History</DropdownMenuItem>
+                      <DropdownMenuItem>Edit Rate</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">Remove from Team</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             ))}
           </div>

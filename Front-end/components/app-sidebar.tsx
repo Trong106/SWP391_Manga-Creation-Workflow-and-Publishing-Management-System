@@ -94,7 +94,7 @@ const navItems: NavItem[] = [
   },
   {
     title: "My Earnings",
-    href: "/earnings",
+    href: "/payroll",
     icon: DollarSign,
     roles: ["assistant"],
   },
@@ -109,7 +109,14 @@ const navItems: NavItem[] = [
     href: "/review",
     icon: Eye,
     badgeKey: "reviewPages",
-    roles: ["mangaka", "tantou"],
+    roles: ["mangaka"],
+  },
+  {
+    title: "Chapter Review",
+    href: "/chapter-review",
+    icon: Eye,
+    badgeKey: "chapterReview",
+    roles: ["tantou"],
   },
   {
     title: "Team Management",
@@ -122,12 +129,6 @@ const navItems: NavItem[] = [
     href: "/payroll",
     icon: DollarSign,
     roles: ["mangaka"],
-  },
-  {
-    title: "Submit to Publish",
-    href: "/publish/submit",
-    icon: FileText,
-    roles: ["tantou"],
   },
   {
     title: "Series Proposals",
@@ -202,7 +203,7 @@ export function AppSidebar() {
         }
       }
 
-      if (role === "mangaka" || role === "tantou") {
+      if (role === "mangaka") {
         // Fetch pages in review status
         const res = await fetch(`${API_BASE_URL}/api/data/review-pages`, { headers: authHeader })
         if (res.ok) {
@@ -211,11 +212,19 @@ export function AppSidebar() {
         }
       }
 
+      if (role === "tantou") {
+        const res = await fetch(`${API_BASE_URL}/api/data/chapter-review-queue`, { headers: authHeader })
+        if (res.ok) {
+          const chapters: any[] = await res.json()
+          setBadgeCounts(prev => ({ ...prev, chapterReview: chapters.length || 0 }))
+        }
+      }
+
       if (role === "editorial") {
         // Fetch pending series proposals
         const [proposalsRes, publishRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/workflow/proposals`, { headers: authHeader }),
-          fetch(`${API_BASE_URL}/api/workflow/publish-schedules`, { headers: authHeader }),
+          fetch(`${API_BASE_URL}/api/proposals`, { headers: authHeader }),
+          fetch(`${API_BASE_URL}/api/publish-schedules`, { headers: authHeader }),
         ])
 
         if (proposalsRes.ok) {
@@ -241,9 +250,15 @@ export function AppSidebar() {
 
   useEffect(() => {
     fetchBadgeCounts()
-    // Refresh every 60 seconds
-    const interval = setInterval(fetchBadgeCounts, 60000)
-    return () => clearInterval(interval)
+    const handleBadgesRefresh = () => fetchBadgeCounts()
+    window.addEventListener("mangaflow:badges-refresh", handleBadgesRefresh)
+    window.addEventListener("focus", handleBadgesRefresh)
+    const interval = setInterval(fetchBadgeCounts, 5000)
+    return () => {
+      window.removeEventListener("mangaflow:badges-refresh", handleBadgesRefresh)
+      window.removeEventListener("focus", handleBadgesRefresh)
+      clearInterval(interval)
+    }
   }, [fetchBadgeCounts])
 
   const filteredNavItems = navItems.filter(item => item.roles.includes(role))

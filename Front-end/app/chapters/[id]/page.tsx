@@ -4,8 +4,9 @@ import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, BookOpen, AlertTriangle } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, BookOpen, AlertTriangle, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { VersionCompareDialog } from "@/components/version-compare-dialog"
 import {
   Select,
   SelectContent,
@@ -25,6 +26,7 @@ export default function ChapterReaderPage() {
   const [allChapters, setAllChapters] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [versionDialogOpen, setVersionDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!token || !id) return
@@ -124,6 +126,21 @@ export default function ChapterReaderPage() {
     )
   }
 
+  if (versionDialogOpen) {
+    return (
+      <div className="min-h-screen bg-[#0B0C0D] p-4 text-white">
+        <VersionCompareDialog
+          open={versionDialogOpen}
+          onOpenChange={setVersionDialogOpen}
+          mode="chapter"
+          chapterId={id}
+          title={`Chapter ${chapter?.chapterNumber} Versions`}
+          token={token}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0C0D] text-white flex flex-col">
       {/* Sticky Header Navigation */}
@@ -151,6 +168,16 @@ export default function ChapterReaderPage() {
 
           {/* Quick Select & Navigation */}
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVersionDialogOpen(true)}
+              className="bg-[#121416] border-[#1A1D1F] text-zinc-300 hover:text-white hover:bg-zinc-800/80 h-9"
+              title="Compare chapter versions"
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden lg:inline ml-2">Versions</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"

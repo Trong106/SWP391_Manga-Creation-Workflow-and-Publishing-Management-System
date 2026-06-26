@@ -75,6 +75,9 @@ public class ChapterService : IChapterService
     {
         var chapter = await _context.Chapters
             .Include(c => c.Series)
+                .ThenInclude(s => s.Tantou)
+                    .ThenInclude(t => t!.Role)
+            .Include(c => c.TantouReviewedBy)
             .Include(c => c.MangaPages)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
@@ -276,6 +279,9 @@ public class ChapterService : IChapterService
     {
         var chapter = await _context.Chapters
             .Include(c => c.Series)
+                .ThenInclude(s => s.Tantou)
+                    .ThenInclude(t => t!.Role)
+            .Include(c => c.TantouReviewedBy)
             .Include(c => c.MangaPages)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
@@ -290,13 +296,161 @@ public class ChapterService : IChapterService
             throw new InvalidOperationException("Chương truyện phải có ít nhất 1 trang trước khi nộp xuất bản.");
         }
 
-        chapter.Status = "submitted_for_publishing";
+        if (chapter.Series.TantouId == null ||
+            chapter.Series.Tantou == null ||
+            !chapter.Series.Tantou.IsActive ||
+            !string.Equals(chapter.Series.Tantou.Role.Code, "tantou", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Series phai duoc gan Tantou Editor hop le truoc khi submit chapter.");
+        }
+
+        if (chapter.MangaPages.Any(p => p.Status != "approved"))
+        {
+            throw new InvalidOperationException("Tất cả trang truyện phải được duyệt trước khi nộp xuất bản.");
+        }
+
+        chapter.Status = "tantou_review";
         chapter.SubmittedForPublishingAt = DateTime.UtcNow;
         chapter.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
         return await GetChapterById(chapter.ChapterId);
+    }
+
+    public async Task<ChapterDto> ReviewChapter(Guid chapterId, Guid tantouId, ReviewChapterDto dto)
+    {
+        var chapter = await _context.Chapters
+            .Include(c => c.Series)
+            .Include(c => c.MangaPages)
+            .Include(c => c.TantouReviewedBy)
+            .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
+            ?? throw new KeyNotFoundException($"Khong tim thay chapter voi ID {chapterId}.");
+
+        if (chapter.Series.TantouId != tantouId)
+        {
+            throw new UnauthorizedAccessException("Chi Tantou duoc gan cho series nay moi duoc review chapter.");
+        }
+
+        if (chapter.Status != "tantou_review" && chapter.Status != "revision_requested")
+        {
+            throw new InvalidOperationException("Chi review duoc chapter dang cho Tantou kiem duyet.");
+        }
+
+        var decision = dto.Decision.ToLower();
+        chapter.TantouReviewNote = dto.Note;
+        chapter.TantouReviewedById = tantouId;
+        chapter.TantouReviewedAt = DateTime.UtcNow;
+        chapter.UpdatedAt = DateTime.UtcNow;
+
+        if (decision == "approved")
+        {
+            if (chapter.MangaPages.Count == 0 || chapter.MangaPages.Any(p => p.Status != "approved"))
+            {
+                throw new InvalidOperationException("Cannot approve chapter while one or more pages are not approved by Mangaka.");
+            }
+
+            chapter.Status = "editorial_ready";
+        }
+        else
+        {
+            chapter.Status = "revision_requested";
+            foreach (var page in chapter.MangaPages)
+            {
+                if (page.Status == "approved")
+                {
+                    page.Status = "revision";
+                }
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        return await GetChapterById(chapter.ChapterId);
+    }
+
+    public async Task<ChapterVersionCompareDto> GetChapterVersions(Guid chapterId)
+    {
+        var chapter = await _context.Chapters
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageVersions)
+                    .ThenInclude(v => v.UploadedBy)
+            .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
+            ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
+
+        var revisionMarker = chapter.TantouReviewedAt ?? chapter.SubmittedForPublishingAt ?? DateTime.MinValue;
+
+        return new ChapterVersionCompareDto
+        {
+            ChapterId = chapter.ChapterId,
+            ChapterNumber = chapter.ChapterNumber,
+            Title = chapter.Title,
+            Status = chapter.Status,
+            TantouReviewedAt = chapter.TantouReviewedAt,
+            Pages = chapter.MangaPages
+                .OrderBy(p => p.PageNumber)
+                .Select(p =>
+                {
+                    var latestVersion = p.PageVersions.OrderByDescending(v => v.VersionNumber).FirstOrDefault();
+                    return new ChapterVersionPageDto
+                    {
+                        PageId = p.PageId,
+                        PageNumber = p.PageNumber,
+                        Status = p.Status,
+                        CurrentImageUrl = p.CurrentImageUrl ?? string.Empty,
+                        ChangedAfterRevision = p.Status == "revision" || (latestVersion != null && p.PageVersions.Count > 1 && latestVersion.CreatedAt >= revisionMarker),
+                        Versions = p.PageVersions
+                            .OrderByDescending(v => v.VersionNumber)
+                            .Select(v => new PageVersionOptionDto
+                            {
+                                PageVersionId = v.PageVersionId,
+                                PageId = v.PageId,
+                                VersionNumber = v.VersionNumber,
+                                FileUrl = v.FileUrl,
+                                FileName = v.FileName,
+                                FileSizeBytes = v.FileSizeBytes,
+                                MimeType = v.MimeType,
+                                UploadedById = v.UploadedById,
+                                UploadedByName = v.UploadedBy?.FullName ?? "Unknown",
+                                CreatedAt = v.CreatedAt,
+                                Note = v.Note,
+                                IsCurrent = v.FileUrl == p.CurrentImageUrl
+                            })
+                            .ToList()
+                    };
+                })
+                .ToList()
+        };
+    }
+
+    public async Task<List<ChapterAuditEventDto>> GetChapterAuditTimeline(Guid chapterId)
+    {
+        var pageIds = await _context.MangaPages
+            .Where(p => p.ChapterId == chapterId)
+            .Select(p => p.PageId)
+            .ToListAsync();
+
+        var chapterIdText = chapterId.ToString();
+
+        return await _context.AuditLogs
+            .Include(a => a.User)
+            .Where(a =>
+                (a.EntityType == "chapter" && a.EntityId == chapterId) ||
+                (a.EntityType == "page" && a.EntityId != null && pageIds.Contains(a.EntityId.Value)) ||
+                (a.DetailsJson != null && a.DetailsJson.Contains(chapterIdText)))
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new ChapterAuditEventDto
+            {
+                AuditLogId = a.AuditLogId,
+                UserId = a.UserId,
+                UserName = a.User != null ? a.User.FullName : null,
+                Action = a.Action,
+                EntityType = a.EntityType,
+                EntityId = a.EntityId,
+                DetailsJson = a.DetailsJson,
+                CreatedAt = a.CreatedAt
+            })
+            .ToListAsync();
     }
 
     private static ChapterDto MapToDto(Chapter c)
@@ -311,7 +465,12 @@ public class ChapterService : IChapterService
             Status = c.Status,
             DueDate = c.DueDate.HasValue ? c.DueDate.Value.ToDateTime(TimeOnly.MinValue) : null,
             SubmittedForPublishingAt = c.SubmittedForPublishingAt,
+            TantouReviewNote = c.TantouReviewNote,
+            TantouReviewedById = c.TantouReviewedById,
+            TantouReviewedByName = c.TantouReviewedBy?.FullName,
+            TantouReviewedAt = c.TantouReviewedAt,
             PageCount = c.MangaPages?.Count ?? 0,
+            ApprovedPageCount = c.MangaPages?.Count(p => p.Status == "approved") ?? 0,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         };

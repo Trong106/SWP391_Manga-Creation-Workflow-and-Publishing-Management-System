@@ -93,6 +93,9 @@ interface Task {
 export default function SubmitToPublishPage() {
   const { role, token } = useAuth()
 
+  const isPendingEditorialApproval = (chapter?: Chapter | null) =>
+    chapter?.status?.toLowerCase() === "review" && Boolean(chapter.submittedForPublishingAt)
+
   const formatDueDate = (dateStr?: string | null) => {
     if (!dateStr) return "N/A"
     try {
@@ -130,11 +133,16 @@ export default function SubmitToPublishPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedGenre, setSelectedGenre] = useState<string>("All")
 
-  // Fetch Series list (Anonymous endpoint)
+  // Fetch Series list
   const fetchSeries = async () => {
+    if (!token) return
     try {
       setLoadingSeries(true)
-      const res = await fetch(`${API_BASE_URL}/api/data/series`)
+      const res = await fetch(`${API_BASE_URL}/api/data/series`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
       if (!res.ok) throw new Error("Failed to load series")
       const data = await res.json()
       // Filter out proposals, only show active or completed series for publication
@@ -164,7 +172,7 @@ export default function SubmitToPublishPage() {
       
       // Auto-select the latest chapter that needs publishing, or the most recent one
       if (data.length > 0) {
-        const pendingPublish = data.find((c: any) => c.status === "submitted_for_publishing")
+        const pendingPublish = data.find((c: Chapter) => isPendingEditorialApproval(c))
         if (pendingPublish) {
           setSelectedChapterId(pendingPublish.chapterId)
         } else {
@@ -227,8 +235,10 @@ export default function SubmitToPublishPage() {
   }
 
   useEffect(() => {
-    fetchSeries()
-  }, [])
+    if (token) {
+      fetchSeries()
+    }
+  }, [token])
 
   useEffect(() => {
     if (token && selectedSeriesId) {
@@ -285,61 +295,25 @@ export default function SubmitToPublishPage() {
     if (!selectedChapterId || !token) return
     try {
       setPublishing(true)
-      
-      // 1. Fetch current publish schedules
-      const scheduleRes = await fetch(`${API_BASE_URL}/api/publish-schedules`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+
+      // Submit chapter for publishing review — Editorial Board will approve & schedule separately
+      const res = await fetch(`${API_BASE_URL}/api/chapters/${selectedChapterId}/submit`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
       })
-      if (!scheduleRes.ok) throw new Error("Failed to query publication schedules")
-      const schedules = await scheduleRes.json()
-      
-      let scheduleId = ""
-      const existing = schedules.find((s: any) => s.chapterId === selectedChapterId)
-      
-      if (existing) {
-        scheduleId = existing.id || existing.scheduleId
-      } else {
-        // 2. Create schedule if it does not exist
-        const createRes = await fetch(`${API_BASE_URL}/api/chapters/${selectedChapterId}/schedule`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            scheduledDate: new Date().toISOString()
-          })
-        })
-        if (!createRes.ok) {
-          const errData = await createRes.json().catch(() => ({}))
-          throw new Error(errData.message || "Failed to schedule publication")
-        }
-        const newSchedule = await createRes.json()
-        scheduleId = newSchedule.id || newSchedule.scheduleId
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error((errData as any).message || "Failed to submit chapter")
       }
-      
-      // 3. Approve schedule (which marks both schedule and chapter as "published")
-      const approveRes = await fetch(`${API_BASE_URL}/api/publish-schedules/${scheduleId}/approve`, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      })
-      if (!approveRes.ok) {
-        const errData = await approveRes.json().catch(() => ({}))
-        throw new Error(errData.message || "Failed to approve publication")
-      }
-      
-      toast.success("Manuscript published successfully! Chapter is now live.")
-      // Reload chapter details
+
+      toast.success("Chapter submitted for review! Awaiting Editorial Board approval.")
       if (selectedSeriesId) {
         await fetchChapters(selectedSeriesId)
       }
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || "An error occurred during publication deployment.")
+      toast.error(err.message || "An error occurred while submitting.")
     } finally {
       setPublishing(false)
     }
@@ -570,20 +544,26 @@ export default function SubmitToPublishPage() {
                 <p className={`font-bold text-xs tracking-wider uppercase ${
                   selectedChapter?.status.toLowerCase() === "published"
                     ? "text-primary"
+                    : isPendingEditorialApproval(selectedChapter)
+                    ? "text-amber-400"
                     : isQCVerified
                     ? "text-primary-fixed"
                     : "text-amber-400"
                 }`}>
-                  {selectedChapter?.status.toLowerCase() === "published" 
-                    ? "PUBLISHED & LIVE" 
-                    : isQCVerified 
-                    ? "READY FOR PUBLICATION" 
+                  {selectedChapter?.status.toLowerCase() === "published"
+                    ? "PUBLISHED & LIVE"
+                    : isPendingEditorialApproval(selectedChapter)
+                    ? "PENDING EDITORIAL APPROVAL"
+                    : isQCVerified
+                    ? "READY FOR PUBLICATION"
                     : "IN PROGRESS / REVIEW"}
                 </p>
               </div>
               <BadgeCheck className={`w-8 h-8 fill-zinc-950 ${
                 selectedChapter?.status.toLowerCase() === "published" || isQCVerified
                   ? "text-primary animate-pulse"
+                  : isPendingEditorialApproval(selectedChapter)
+                  ? "text-amber-400 animate-pulse"
                   : "text-amber-500"
               }`} />
             </div>
@@ -737,7 +717,11 @@ export default function SubmitToPublishPage() {
                   <div className="p-3 bg-zinc-900/60 rounded-lg border border-dashed border-zinc-800 flex items-start gap-2 text-[10px] text-zinc-400 leading-normal">
                     <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                     <span>
-                      Final publishing will trigger updates to {formatReaderCount(selectedSeries.readerCount)} subscribers and sync the manuscript to publication servers.
+                      {isPendingEditorialApproval(selectedChapter)
+                        ? "This chapter has been submitted and is awaiting approval by the Editorial Board. They will review and set the final publish date."
+                        : selectedChapter?.status.toLowerCase() === "published"
+                        ? "This chapter is live and visible to all readers."
+                        : `Submitting will send this chapter to the Editorial Board for approval. Final publishing will notify ${formatReaderCount(selectedSeries.readerCount)} subscribers.`}
                     </span>
                   </div>
                 </div>
@@ -870,7 +854,7 @@ export default function SubmitToPublishPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                   <Button 
                     variant="ghost" 
                     onClick={handleBackToSeries}
@@ -879,32 +863,51 @@ export default function SubmitToPublishPage() {
                     Return to Series
                   </Button>
 
-                  <Button
-                    onClick={handlePublish}
-                    disabled={selectedChapter.status === "published" || !isQCVerified || publishing}
-                    className={`font-bold text-xs px-6 py-2.5 h-auto rounded-lg flex items-center gap-2 shadow-[0_0_20px_rgba(1,223,192,0.15)] hover:shadow-[0_0_30px_rgba(1,223,192,0.3)] transition-all ${
-                      selectedChapter.status === "published"
-                        ? "bg-zinc-800 text-zinc-500 border border-zinc-800 shadow-none hover:shadow-none hover:bg-zinc-800"
-                        : "bg-primary hover:bg-primary-container text-background font-extrabold"
-                    }`}
-                  >
-                    {publishing ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Publishing...
-                      </>
-                    ) : selectedChapter.status === "published" ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Published Successfully
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5 shrink-0" />
-                        Submit to Publish
-                      </>
-                    )}
-                  </Button>
+                  {/* Only show submit controls if chapter not yet submitted/published */}
+                  {selectedChapter.status.toLowerCase() !== "published" &&
+                   !isPendingEditorialApproval(selectedChapter) && (
+                    <Button
+                      onClick={handlePublish}
+                      disabled={!isQCVerified || publishing}
+                      className={`font-bold text-xs px-6 py-2.5 h-auto rounded-lg flex items-center gap-2 transition-all ${
+                        !isQCVerified
+                          ? "bg-zinc-800 text-zinc-500 border border-zinc-800 shadow-none hover:shadow-none hover:bg-zinc-800"
+                          : "bg-primary hover:bg-primary-container text-background font-extrabold shadow-[0_0_20px_rgba(1,223,192,0.15)] hover:shadow-[0_0_30px_rgba(1,223,192,0.3)]"
+                      }`}
+                      id="submit-to-publish-btn"
+                    >
+                      {publishing ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5 shrink-0" />
+                          Submit to Publish
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {/* Pending approval state */}
+                  {isPendingEditorialApproval(selectedChapter) && (
+                    <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-950/30 border border-amber-800/40 rounded-lg">
+                      <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <div>
+                        <p className="text-xs font-bold text-amber-400">Awaiting Editorial Approval</p>
+                        <p className="text-[10px] text-zinc-500">Editorial Board will review &amp; approve</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Published state */}
+                  {selectedChapter.status.toLowerCase() === "published" && (
+                    <div className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 border border-primary/30 rounded-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                      <p className="text-xs font-bold text-primary">Published Successfully</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

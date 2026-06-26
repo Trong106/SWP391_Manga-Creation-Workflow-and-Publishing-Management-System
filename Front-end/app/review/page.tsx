@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Eye, Check, X, MessageSquare, ZoomIn, ChevronLeft, ChevronRight, Pencil, Download, ArrowLeft, BookOpen, Clock } from "lucide-react"
+import { Eye, Check, CheckCheck, X, MessageSquare, ChevronLeft, ChevronRight, Pencil, ArrowLeft, BookOpen, Clock, History } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,8 +16,20 @@ import {
 } from "@/components/ui/select"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
+import { TantouChapterReview } from "@/components/tantou-chapter-review"
+import { VersionCompareDialog } from "@/components/version-compare-dialog"
 
 export default function ReviewPage() {
+  const { role } = useAuth()
+
+  if (role === "tantou") {
+    return <TantouChapterReview />
+  }
+
+  return <MangakaReviewPage />
+}
+
+function MangakaReviewPage() {
   const { token } = useAuth()
   
   // Navigation & selection state
@@ -39,11 +51,24 @@ export default function ReviewPage() {
   // Interaction states
   const [annotationMode, setAnnotationMode] = useState(false)
   const [comment, setComment] = useState("")
+  const [bulkApproving, setBulkApproving] = useState(false)
+  const [versionDialogOpen, setVersionDialogOpen] = useState(false)
+  const [versionMode, setVersionMode] = useState<"page" | "chapter">("page")
+
+  const refreshSidebarBadges = () => {
+    window.dispatchEvent(new Event("mangaflow:badges-refresh"))
+  }
 
   // Fetch the Review Series queue (Screen 1)
   const fetchQueue = () => {
+    if (!token) return
+
     setLoadingQueue(true)
-    fetch(`${API_BASE_URL}/api/data/review-series`)
+    fetch(`${API_BASE_URL}/api/data/review-series`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -59,7 +84,7 @@ export default function ReviewPage() {
 
   useEffect(() => {
     fetchQueue()
-  }, [])
+  }, [token])
 
   // Fetch pages when a series is selected (Screen 2)
   useEffect(() => {
@@ -133,14 +158,55 @@ export default function ReviewPage() {
       if (res.ok) {
         alert("Page approved successfully!")
         // Refresh pages
-        const updated = pages.map((p) => p.id === activePage.id ? { ...p, status: "approved" } : p)
+        const updated = pages.filter((p) => p.id !== activePage.id)
         setPages(updated)
+        setCurrentPageIndex((current) => Math.min(current, Math.max(updated.length - 1, 0)))
+        refreshSidebarBadges()
       } else {
         alert("Failed to approve page")
       }
     } catch (err) {
       console.error(err)
       alert("Server connection error")
+    }
+  }
+
+  const handleBulkApproveDisplayed = async () => {
+    if (!token || displayedPages.length === 0) return
+    const targets = displayedPages.filter((p) => p.status !== "approved")
+    if (targets.length === 0) {
+      alert("All visible pages are already approved.")
+      return
+    }
+    if (!window.confirm(`Approve ${targets.length} visible page(s)?`)) return
+
+    setBulkApproving(true)
+    try {
+      const results = await Promise.all(targets.map((page) =>
+        fetch(`${API_BASE_URL}/api/pages/${page.id}/reviews`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ decision: "approved", note: "Bulk approved from Review Pages" })
+        })
+      ))
+
+      const failed = results.filter((res) => !res.ok).length
+      const approvedIds = new Set(targets.filter((_, index) => results[index].ok).map((page) => page.id))
+      setPages((current) => {
+        const updated = current.filter((page) => !approvedIds.has(page.id))
+        setCurrentPageIndex((index) => Math.min(index, Math.max(updated.length - 1, 0)))
+        return updated
+      })
+      refreshSidebarBadges()
+      alert(failed ? `Bulk approve completed with ${failed} failed page(s).` : "Bulk approve completed successfully.")
+    } catch (err) {
+      console.error(err)
+      alert("Connection error while bulk approving pages.")
+    } finally {
+      setBulkApproving(false)
     }
   }
 
@@ -158,8 +224,10 @@ export default function ReviewPage() {
       })
       if (res.ok) {
         alert("Revision requested successfully!")
-        const updated = pages.map((p) => p.id === activePage.id ? { ...p, status: "revision" } : p)
+        const updated = pages.filter((p) => p.id !== activePage.id)
         setPages(updated)
+        setCurrentPageIndex((current) => Math.min(current, Math.max(updated.length - 1, 0)))
+        refreshSidebarBadges()
       } else {
         alert("Failed")
       }
@@ -238,6 +306,20 @@ export default function ReviewPage() {
     rejected: "bg-red-500/20 text-red-400 border-red-500/30",
     submitted: "bg-blue-500/20 text-blue-400 border-blue-500/30",
     revision: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  }
+
+  if (versionDialogOpen && activePage) {
+    return (
+      <VersionCompareDialog
+        open={versionDialogOpen}
+        onOpenChange={setVersionDialogOpen}
+        mode={versionMode}
+        pageId={activePage?.id}
+        chapterId={activePage?.chapterId}
+        title={versionMode === "chapter" ? `Chapter ${activePage?.chapterNumber} Versions` : `Page ${activePage?.number} Versions`}
+        token={token}
+      />
+    )
   }
 
   return (
@@ -358,6 +440,44 @@ export default function ReviewPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleBulkApproveDisplayed}
+                      disabled={bulkApproving || displayedPages.length === 0}
+                      className="border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                    >
+                      <CheckCheck className="w-4 h-4 mr-2" />
+                      {bulkApproving ? "Approving..." : "Bulk Approve"}
+                    </Button>
+                    {activePage && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setVersionMode("page")
+                          setVersionDialogOpen(true)
+                        }}
+                        className="border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                      >
+                        <History className="w-4 h-4 mr-2" />
+                        Page Versions
+                      </Button>
+                    )}
+                    {activePage?.chapterId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setVersionMode("chapter")
+                          setVersionDialogOpen(true)
+                        }}
+                        className="border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                      >
+                        <History className="w-4 h-4 mr-2" />
+                        Chapter Versions
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant={annotationMode ? "default" : "outline"}

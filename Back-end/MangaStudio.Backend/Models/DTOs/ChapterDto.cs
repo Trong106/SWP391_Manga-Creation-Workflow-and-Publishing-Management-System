@@ -13,7 +13,12 @@ public class ChapterDto
     public string Status { get; set; } = null!;
     public DateTime? DueDate { get; set; }
     public DateTime? SubmittedForPublishingAt { get; set; }
+    public string? TantouReviewNote { get; set; }
+    public Guid? TantouReviewedById { get; set; }
+    public string? TantouReviewedByName { get; set; }
+    public DateTime? TantouReviewedAt { get; set; }
     public int PageCount { get; set; }
+    public int ApprovedPageCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

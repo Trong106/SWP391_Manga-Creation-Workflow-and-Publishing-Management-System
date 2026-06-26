@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/lib/auth-context"
+import { useSearchParams } from "next/navigation"
 import { API_BASE_URL } from "@/lib/api-config"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -53,6 +54,8 @@ interface Task {
 
 export default function SubmitWorkPage() {
   const { user, role, token } = useAuth()
+  const searchParams = useSearchParams()
+  const taskIdParam = searchParams.get("taskId")
   
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedTaskId, setSelectedTaskId] = useState<string>("")
@@ -76,7 +79,7 @@ export default function SubmitWorkPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch tasks assigned to the current Assistant
-  const fetchTasks = async () => {
+  const fetchTasks = async (preferredTaskId?: string | null) => {
     if (!user?.id || !token) return
     try {
       setLoading(true)
@@ -92,7 +95,11 @@ export default function SubmitWorkPage() {
       const myTasksData = await myTasksRes.json()
 
       // Fetch all tasks for series title mapping
-      const allTasksRes = await fetch(`${API_BASE_URL}/api/data/tasks`)
+      const allTasksRes = await fetch(`${API_BASE_URL}/api/data/tasks`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
       let allTasksData: any[] = []
       if (allTasksRes.ok) {
         allTasksData = await allTasksRes.json()
@@ -119,10 +126,18 @@ export default function SubmitWorkPage() {
 
       setTasks(merged)
       
-      // Select the first task if available
-      if (merged.length > 0) {
-        setSelectedTaskId(merged[0].id)
-      }
+      setSelectedTaskId((currentId) => {
+        const requestedTaskId = preferredTaskId || currentId
+        if (requestedTaskId && merged.some((task) => task.id === requestedTaskId)) {
+          return requestedTaskId
+        }
+
+        const nextActionableTask = merged.find((task) =>
+          ["pending", "in_progress", "revision"].includes(task.status)
+        )
+
+        return nextActionableTask?.id || merged[0]?.id || ""
+      })
     } catch (err: any) {
       console.error(err)
       setError("Failed to load tasks from server.")
@@ -132,8 +147,8 @@ export default function SubmitWorkPage() {
   }
 
   useEffect(() => {
-    fetchTasks()
-  }, [user?.id, token])
+    fetchTasks(taskIdParam)
+  }, [user?.id, token, taskIdParam])
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId)
 

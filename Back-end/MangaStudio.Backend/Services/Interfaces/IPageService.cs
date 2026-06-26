@@ -20,6 +20,8 @@ public interface IPageService
     /// <summary>Lấy danh sách review của trang.</summary>
     Task<List<PageReviewDto>> GetPageReviews(Guid pageId);
 
+    Task<List<PageVersionOptionDto>> GetPageVersions(Guid pageId);
+
     /// <summary>Tạo nhận xét review cho trang (Tantou/Mangaka).</summary>
     Task<PageReviewDto> CreatePageReview(Guid pageId, Guid reviewerId, CreatePageReviewDto dto);
 

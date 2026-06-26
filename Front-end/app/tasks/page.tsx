@@ -31,7 +31,8 @@ import {
   Eye,
   FileCheck,
   Download,
-  BookOpen
+  BookOpen,
+  MessageCircle
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -81,6 +82,7 @@ export default function AssistantTasksPage() {
   const [selectedTaskResource, setSelectedTaskResource] = useState<any | null>(null)
   const [loadingResource, setLoadingResource] = useState(false)
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
+  const [askingTaskId, setAskingTaskId] = useState<string | null>(null)
 
   const handleOpenResources = async (taskId: string) => {
     try {
@@ -183,6 +185,39 @@ export default function AssistantTasksPage() {
       toast.error(err.message || "Something went wrong starting this task.")
     } finally {
       setStartingTaskId(null)
+    }
+  }
+
+  const handleAskMangaka = async (task: Task) => {
+    if (!token) return
+    const message = window.prompt(
+      `Ask ${task.assignerName} for clarification:`,
+      `Please clarify the requirement for "${task.title}" on page ${task.pageNumber}.`
+    )
+    if (message === null) return
+
+    try {
+      setAskingTaskId(task.taskId)
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${task.taskId}/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.message || "Failed to send clarification request.")
+      }
+
+      toast.success(`Notification sent to ${task.assignerName}.`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "Could not send clarification request.")
+    } finally {
+      setAskingTaskId(null)
     }
   }
 
@@ -438,14 +473,29 @@ export default function AssistantTasksPage() {
                         )}
 
                         {s === "in_progress" && (
-                          <Link href={`/submit?taskId=${task.taskId}`} passHref>
+                          <>
                             <Button
-                              id={`open-files-btn-${task.taskId}`}
-                              className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all cursor-pointer"
+                              variant="outline"
+                              onClick={() => handleAskMangaka(task)}
+                              disabled={askingTaskId === task.taskId}
+                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-semibold text-xs h-8 px-3 rounded-lg transition-all"
                             >
-                              Open Files
+                              {askingTaskId === task.taskId ? (
+                                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                              ) : (
+                                <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                              )}
+                              Ask
                             </Button>
-                          </Link>
+                            <Link href={`/submit?taskId=${task.taskId}`} passHref>
+                              <Button
+                                id={`open-files-btn-${task.taskId}`}
+                                className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all cursor-pointer"
+                              >
+                                Open Files
+                              </Button>
+                            </Link>
+                          </>
                         )}
 
                         {(s === "submitted" || s === "approved") && (

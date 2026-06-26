@@ -19,6 +19,12 @@ public partial class Chapter
 
     public DateTime? SubmittedForPublishingAt { get; set; }
 
+    public string? TantouReviewNote { get; set; }
+
+    public Guid? TantouReviewedById { get; set; }
+
+    public DateTime? TantouReviewedAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -28,4 +34,6 @@ public partial class Chapter
     public virtual ICollection<PublishSchedule> PublishSchedules { get; set; } = new List<PublishSchedule>();
 
     public virtual Series Series { get; set; } = null!;
+
+    public virtual User? TantouReviewedBy { get; set; }
 }

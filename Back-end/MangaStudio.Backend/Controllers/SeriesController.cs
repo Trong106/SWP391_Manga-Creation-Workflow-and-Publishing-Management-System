@@ -124,6 +124,34 @@ public class SeriesController : ControllerBase
     }
 
     /// <summary>
+    /// PUT /api/series/{id}/editorial-decision - Editorial Board huy, dua vao theo doi, hoac kich hoat lai series.
+    /// </summary>
+    [HttpPut("{id:guid}/editorial-decision")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> ApplyEditorialDecision(Guid id, [FromBody] EditorialSeriesDecisionDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var editorialId = GetCurrentUserId();
+            var result = await _seriesService.ApplyEditorialDecision(id, editorialId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// GET /api/series/{id}/chapters — Lấy danh sách chương của bộ truyện.
     /// </summary>
     [HttpGet("{id:guid}/chapters")]
