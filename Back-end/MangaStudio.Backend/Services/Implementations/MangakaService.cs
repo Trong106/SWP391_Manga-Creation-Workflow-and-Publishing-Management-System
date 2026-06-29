@@ -12,11 +12,13 @@ namespace MangaStudio.Backend.Services.Implementations;
 public class MangakaService : IMangakaService
 {
     private readonly AppDbContext _context;
+    private readonly IStorageService _storageService;
 
-    // Dependency Injection: Nhận database context của ứng dụng
-    public MangakaService(AppDbContext context)
+    // Dependency Injection: Nhận database context của ứng dụng và storage service
+    public MangakaService(AppDbContext context, IStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
 
     /// <summary>
@@ -69,49 +71,97 @@ public class MangakaService : IMangakaService
     /// <param name="chapterId">ID Chapter truyện chứa trang vẽ này.</param>
     /// <param name="file">Tệp ảnh vẽ tải lên từ máy khách.</param>
     /// <returns>Đường dẫn URL của trang vẽ đã upload.</returns>
-    public async Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById)
+    public async Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById, int? pageNumber = null)
     {
-        // 1. Xác định thư mục lưu trữ file tải lên (Thư mục Uploads nằm tại thư mục gốc ứng dụng)
-        string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+        // 1. Tải hình vẽ trang truyện lên Cloudinary
+        string imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
-        // Nếu thư mục Uploads chưa tồn tại thì tạo mới
-        if (!Directory.Exists(uploadsFolder))
+        MangaPage? mangaPage = null;
+
+        if (pageNumber.HasValue)
         {
-            Directory.CreateDirectory(uploadsFolder);
+            // Kiểm tra xem trang với số trang đó đã tồn tại trong chapter chưa
+            mangaPage = await _context.MangaPages
+                .FirstOrDefaultAsync(p => p.ChapterId == chapterId && p.PageNumber == pageNumber.Value);
         }
 
-        // 2. Tạo tên file ngẫu nhiên bằng Guid để tránh trùng lặp đè file cũ
-        string fileName = Guid.NewGuid() + Path.GetExtension(file.FileName);
-        string filePath = Path.Combine(uploadsFolder, fileName);
-
-        // 3. Copy file vẽ từ stream request của client vào ổ đĩa của server
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        if (mangaPage != null)
         {
-            await file.CopyToAsync(stream);
+            // Nếu đã tồn tại, cập nhật CurrentImageUrl và thông tin liên quan
+            mangaPage.CurrentImageUrl = imageUrl;
+            mangaPage.UploadedAt = DateTime.UtcNow;
+            mangaPage.UploadedById = uploadedById;
+            mangaPage.Status = "pending"; // Đặt về pending để review lại bản thảo mới
+
+            // Lấy VersionNumber lớn nhất hiện tại của trang này và tạo một PageVersion mới
+            var maxVer = await _context.PageVersions
+                .Where(v => v.PageId == mangaPage.PageId)
+                .Select(v => (int?)v.VersionNumber)
+                .MaxAsync() ?? 0;
+
+            var version = new PageVersion
+            {
+                PageVersionId = Guid.NewGuid(),
+                PageId = mangaPage.PageId,
+                VersionNumber = maxVer + 1,
+                FileUrl = imageUrl,
+                FileName = file.FileName,
+                FileSizeBytes = file.Length,
+                MimeType = file.ContentType,
+                UploadedById = uploadedById,
+                CreatedAt = DateTime.UtcNow,
+                Note = $"Cập nhật lại bản vẽ trang số {mangaPage.PageNumber}"
+            };
+
+            _context.PageVersions.Add(version);
+        }
+        else
+        {
+            // Nếu chưa tồn tại (hoặc không truyền pageNumber), tạo trang mới
+            int targetPageNumber;
+            if (pageNumber.HasValue)
+            {
+                targetPageNumber = pageNumber.Value;
+            }
+            else
+            {
+                // Tự động tìm số trang tiếp theo
+                int maxPageNumber = await _context.MangaPages
+                    .Where(p => p.ChapterId == chapterId)
+                    .Select(p => (int?)p.PageNumber)
+                    .MaxAsync() ?? 0;
+                targetPageNumber = maxPageNumber + 1;
+            }
+
+            mangaPage = new MangaPage
+            {
+                PageId = Guid.NewGuid(),
+                ChapterId = chapterId,
+                CurrentImageUrl = imageUrl,
+                UploadedAt = DateTime.UtcNow,
+                Status = "pending",
+                PageNumber = targetPageNumber,
+                UploadedById = uploadedById
+            };
+
+            var version = new PageVersion
+            {
+                PageVersionId = Guid.NewGuid(),
+                PageId = mangaPage.PageId,
+                VersionNumber = 1,
+                FileUrl = imageUrl,
+                FileName = file.FileName,
+                FileSizeBytes = file.Length,
+                MimeType = file.ContentType,
+                UploadedById = uploadedById,
+                CreatedAt = DateTime.UtcNow,
+                Note = $"Tải lên trang ban đầu (Trang số {targetPageNumber})"
+            };
+
+            _context.MangaPages.Add(mangaPage);
+            _context.PageVersions.Add(version);
         }
 
-        // 4. Tìm số trang (PageNumber) tiếp theo của Chapter này để tránh trùng lặp
-        // Bằng cách tìm PageNumber lớn nhất hiện tại rồi cộng thêm 1, nếu chưa có trang nào thì bắt đầu từ 1
-        int maxPageNumber = await _context.MangaPages
-            .Where(p => p.ChapterId == chapterId)
-            .Select(p => (int?)p.PageNumber)
-            .MaxAsync() ?? 0;
-        int nextPageNumber = maxPageNumber + 1;
-
-        // 5. Khởi tạo đối tượng thực thể MangaPage để lưu vào database
-        var mangaPage = new MangaPage
-        {
-            PageId = Guid.NewGuid(),
-            ChapterId = chapterId,
-            CurrentImageUrl = "/Uploads/" + fileName, // URL tương đối phục vụ hiển thị ở frontend
-            UploadedAt = DateTime.UtcNow,
-            Status = "pending", // Thay đổi từ "Active" thành "pending" để thỏa mãn Check Constraint trong Database
-            PageNumber = nextPageNumber, // Sử dụng số trang đã tính toán động
-            UploadedById = uploadedById
-        };
-
-        // 6. Thêm thực thể vào database và lưu các thay đổi xuống CSDL
-        _context.MangaPages.Add(mangaPage);
         await _context.SaveChangesAsync();
 
         return mangaPage.CurrentImageUrl;

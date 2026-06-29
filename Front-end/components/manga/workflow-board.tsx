@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { MoreHorizontal, Plus, Clock, MessageSquare, Paperclip, Loader2, DollarSign, Calendar } from "lucide-react"
+import { Plus, Clock, MessageSquare, Paperclip, Loader2, DollarSign, Calendar, Activity } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -32,6 +32,7 @@ interface Task {
   id: string
   title: string
   chapter: string
+  status: string
   assignee: { name: string; avatar: string }
   dueDate: string
   comments: number
@@ -86,6 +87,24 @@ const priorityColors = {
   high: "bg-red-500/20 text-red-400",
 }
 
+const activeTaskStatuses = new Set(["pending", "assigned", "in_progress", "submitted", "revision"])
+
+const statusLabels: Record<string, string> = {
+  pending: "Pending",
+  assigned: "Assigned",
+  in_progress: "In progress",
+  submitted: "Submitted",
+  revision: "Revision",
+}
+
+const statusStyles: Record<string, string> = {
+  pending: "border-zinc-700 bg-zinc-900/70 text-zinc-300",
+  assigned: "border-blue-800/40 bg-blue-950/30 text-blue-300",
+  in_progress: "border-purple-800/40 bg-purple-950/30 text-purple-300",
+  submitted: "border-cyan-800/40 bg-cyan-950/30 text-cyan-300",
+  revision: "border-red-800/40 bg-red-950/30 text-red-300",
+}
+
 function getColumnIdFromTaskType(type: string): string {
   const t = type.toLowerCase()
   if (t === "line_art") return "penciling"
@@ -121,6 +140,7 @@ function formatDueDate(dateStr: string): string {
 export function WorkflowBoard() {
   const { token, role } = useAuth()
   const isMangaka = role === "mangaka"
+  const authHeader = token ? { "Authorization": `Bearer ${token}` } : undefined
 
   const [columns, setColumns] = useState<Column[]>(DEFAULT_COLUMNS.map(col => ({ ...col, tasks: [] })))
   const [loading, setLoading] = useState(true)
@@ -148,15 +168,19 @@ export function WorkflowBoard() {
   const [assistantsList, setAssistantsList] = useState<any[]>([])
 
   const loadTasks = () => {
+    if (!authHeader) return
+
     setLoading(true)
-    fetch(`${API_BASE_URL}/api/data/tasks`)
+    fetch(`${API_BASE_URL}/api/data/tasks`, { headers: authHeader })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch workflow tasks")
         return res.json()
       })
       .then((data: any[]) => {
+        const activeTasks = data.filter((t) => activeTaskStatuses.has(String(t.status || "").toLowerCase()))
+
         const updatedColumns = DEFAULT_COLUMNS.map((col) => {
-          const colTasks = data
+          const colTasks = activeTasks
             .filter((t) => getColumnIdFromTaskType(t.type) === col.id)
             .map((t) => {
               const hash = t.id.replace(/-/g, "")
@@ -184,6 +208,7 @@ export function WorkflowBoard() {
                 id: t.id,
                 title: t.title,
                 chapter: `${t.seriesTitle} (Ch ${t.chapterNumber})`,
+                status: t.status,
                 assignee: {
                   name: t.assigneeName || "Unassigned",
                   avatar: t.assigneeAvatar || "kenji",
@@ -214,7 +239,7 @@ export function WorkflowBoard() {
 
   useEffect(() => {
     loadTasks()
-  }, [])
+  }, [token])
 
   const openNewTaskDialog = (initialType?: string) => {
     setTitle("")
@@ -236,7 +261,9 @@ export function WorkflowBoard() {
   }
 
   const fetchSeriesList = () => {
-    fetch(`${API_BASE_URL}/api/data/series`)
+    if (!authHeader) return
+
+    fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -247,7 +274,9 @@ export function WorkflowBoard() {
   }
 
   const fetchAssistantsList = () => {
-    fetch(`${API_BASE_URL}/api/data/team`)
+    if (!authHeader) return
+
+    fetch(`${API_BASE_URL}/api/data/team`, { headers: authHeader })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -385,28 +414,49 @@ export function WorkflowBoard() {
     )
   }
 
+  const activeColumns = columns.filter((column) => column.tasks.length > 0)
+  const activeTaskCount = activeColumns.reduce((total, column) => total + column.tasks.length, 0)
+
   return (
     <div className="mt-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Production Pipeline</h2>
-          <p className="text-muted-foreground mt-1 text-sm">Track your manga through every stage</p>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Production Pipeline
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Active production tasks only. Completed and cancelled work is hidden.
+          </p>
         </div>
-        {isMangaka && (
-          <Button 
-            className="bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
-            onClick={() => openNewTaskDialog()}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Task
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+            {activeTaskCount} active
+          </Badge>
+          {isMangaka && (
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/95 transition-all"
+              onClick={() => openNewTaskDialog()}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((column) => (
-          <div key={column.id} className="flex-shrink-0 w-80">
-            <Card className="bg-card border-border">
+      {activeColumns.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="flex flex-col items-center justify-center min-h-[160px] gap-2 text-center text-muted-foreground">
+            <Activity className="h-8 w-8 text-primary/70" />
+            <p className="text-sm font-medium text-zinc-300">No active production tasks</p>
+            <p className="text-xs">New, submitted, revision, and in-progress tasks will appear here.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          {activeColumns.map((column) => (
+            <Card key={column.id} className="bg-card border-border">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -414,32 +464,38 @@ export function WorkflowBoard() {
                     <CardTitle className="text-base text-white font-semibold">{column.title}</CardTitle>
                     <Badge variant="secondary" className="ml-2 bg-secondary text-zinc-300 border-none">{column.tasks.length}</Badge>
                   </div>
-                  <Button variant="ghost" size="icon" className="w-8 h-8 hover:bg-zinc-800 text-zinc-400 hover:text-white">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
+                  {isMangaka && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:bg-zinc-800/70 hover:text-white"
+                      onClick={() => openNewTaskDialog(mapColumnIdToType(column.id))}
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5 text-primary" />
+                      Add
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                {column.tasks.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 border border-dashed border-zinc-800 rounded-lg text-muted-foreground text-xs bg-zinc-950/10">
-                    No tasks in this stage
-                  </div>
-                ) : (
-                  column.tasks.map((task) => (
-                    <Card key={task.id} className="bg-secondary border-border hover:border-primary/30 transition-colors cursor-pointer">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
+                {column.tasks.map((task) => {
+                  const status = task.status.toLowerCase()
+
+                  return (
+                    <Card key={task.id} className="bg-secondary border-border hover:border-primary/30 transition-colors">
+                      <CardContent className="p-3.5">
+                        <div className="flex items-start justify-between gap-3 mb-2">
                           <Badge className={priorityColors[task.priority]}>
                             {task.priority}
                           </Badge>
-                          <Button variant="ghost" size="icon" className="w-6 h-6 -mr-2 -mt-1 hover:bg-zinc-700 text-zinc-400">
-                            <MoreHorizontal className="w-3 h-3" />
-                          </Button>
+                          <Badge variant="outline" className={`text-[11px] ${statusStyles[status] || "border-zinc-700 bg-zinc-900/70 text-zinc-300"}`}>
+                            {statusLabels[status] || task.status}
+                          </Badge>
                         </div>
                         <h4 className="font-semibold text-sm text-zinc-100 mb-1 leading-snug">{task.title}</h4>
-                        <p className="text-xs text-muted-foreground mb-3">{task.chapter}</p>
+                        <p className="text-xs text-muted-foreground mb-2">{task.chapter}</p>
                         {task.progress !== undefined && (
-                          <div className="mb-3">
+                          <div className="mb-2.5">
                             <div className="flex items-center justify-between text-[11px] mb-1">
                               <span className="text-muted-foreground">Progress</span>
                               <span className="text-zinc-200 font-medium">{task.progress}%</span>
@@ -448,7 +504,7 @@ export function WorkflowBoard() {
                           </div>
                         )}
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {task.dueDate}
@@ -473,23 +529,13 @@ export function WorkflowBoard() {
                         </div>
                       </CardContent>
                     </Card>
-                  ))
-                )}
-                {isMangaka && (
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-start text-muted-foreground hover:text-white hover:bg-zinc-800/50 mt-2 text-xs py-1.5"
-                    onClick={() => openNewTaskDialog(mapColumnIdToType(column.id))}
-                  >
-                    <Plus className="w-4 h-4 mr-2 text-primary" />
-                    Add task
-                  </Button>
-                )}
+                  )
+                })}
               </CardContent>
             </Card>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Task Creation Modal */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

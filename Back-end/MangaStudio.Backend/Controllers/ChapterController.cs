@@ -98,6 +98,38 @@ public class ChapterController : ControllerBase
         }
     }
 
+    [HttpGet("{id:guid}/versions")]
+    public async Task<IActionResult> GetChapterVersions(Guid id)
+    {
+        try
+        {
+            var result = await _chapterService.GetChapterVersions(id);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/audit-timeline")]
+    public async Task<IActionResult> GetChapterAuditTimeline(Guid id)
+    {
+        try
+        {
+            var result = await _chapterService.GetChapterAuditTimeline(id);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// POST /api/chapters/{id}/upload-pages — Tải lên nhiều trang truyện.
     /// </summary>
@@ -159,6 +191,38 @@ public class ChapterController : ControllerBase
         {
             var mangakaId = GetCurrentUserId();
             var result = await _chapterService.SubmitChapterForPublishing(id, mangakaId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/chapters/{id}/tantou-review -- Tantou review noi dung ca chapter.
+    /// </summary>
+    [HttpPost("{id:guid}/tantou-review")]
+    [Authorize(Roles = "tantou")]
+    public async Task<IActionResult> ReviewChapter(Guid id, [FromBody] ReviewChapterDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var tantouId = GetCurrentUserId();
+            var result = await _chapterService.ReviewChapter(id, tantouId, dto);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

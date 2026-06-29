@@ -133,15 +133,23 @@ const categoryIcons = {
 
 import { useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 
 export default function AuditPage() {
+  const { token } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/audit-logs`)
+    if (!token) return
+
+    fetch(`${API_BASE_URL}/api/data/audit-logs`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -153,7 +161,7 @@ export default function AuditPage() {
         console.error("Error fetching audit logs:", err)
         setLoading(false)
       })
-  }, [])
+  }, [token])
 
   const filteredLogs = auditLogs.filter((log) => {
     const matchesSearch =

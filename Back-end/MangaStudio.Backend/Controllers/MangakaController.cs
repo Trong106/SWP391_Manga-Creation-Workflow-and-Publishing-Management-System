@@ -52,7 +52,7 @@ public class MangakaController : ControllerBase
     /// <param name="file">Tệp hình ảnh trang truyện tải lên.</param>
     /// <returns>HTTP 200 kèm đường dẫn ảnh đã lưu trên server.</returns>
     [HttpPost("chapters/{id}/upload-pages")]
-    public async Task<IActionResult> UploadPage(Guid id, IFormFile file)
+    public async Task<IActionResult> UploadPage(Guid id, IFormFile file, [FromQuery] int? pageNumber = null)
     { 
         if (file == null || file.Length == 0)
         {
@@ -66,7 +66,7 @@ public class MangakaController : ControllerBase
             return Unauthorized("Không xác định được người dùng đăng nhập.");
         }
 
-        var result = await _mangakaService.UploadPage(id, file, userId);
+        var result = await _mangakaService.UploadPage(id, file, userId, pageNumber);
         return Ok(result);
     }
 }

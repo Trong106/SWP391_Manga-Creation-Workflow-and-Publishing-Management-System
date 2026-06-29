@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 import {
   DollarSign,
   Download,
@@ -106,6 +107,7 @@ const statusConfig = {
 }
 
 export default function PayrollPage() {
+  const { token, role } = useAuth()
   const [payroll, setPayroll] = useState<PayrollEntry[]>([])
   const [assistantSummaries, setAssistantSummaries] = useState<AssistantSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -113,7 +115,13 @@ export default function PayrollPage() {
   const [isPayDialogOpen, setIsPayDialogOpen] = useState(false)
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/payroll`)
+    if (!token) return
+
+    fetch(`${API_BASE_URL}/api/data/payroll`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -150,7 +158,7 @@ export default function PayrollPage() {
         console.error("Error fetching payroll data:", err)
         setLoading(false)
       })
-  }, [])
+  }, [token])
 
   const totalPending = payroll
     .filter((p) => p.status === "pending" || p.status === "processing")
@@ -163,6 +171,7 @@ export default function PayrollPage() {
   const pendingCount = payroll.filter(
     (p) => p.status === "pending" || p.status === "processing"
   ).length
+  const isAssistant = role === "assistant"
 
   const formatCurrency = (amount: number) => {
     return `$${amount.toLocaleString()}`
@@ -192,10 +201,12 @@ export default function PayrollPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <DollarSign className="w-6 h-6 text-primary" />
-            Payroll Management
+            {isAssistant ? "My Earnings" : "Payroll Management"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage payments for your studio assistants
+            {isAssistant
+              ? "Track your approved payouts, pending earnings, and payment history"
+              : "Manage payments for your studio assistants"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -203,13 +214,15 @@ export default function PayrollPage() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button
-            onClick={() => setIsPayDialogOpen(true)}
-            disabled={selectedEntries.length === 0}
-          >
-            <Send className="w-4 h-4 mr-2" />
-            Process Payment ({selectedEntries.length})
-          </Button>
+          {!isAssistant && (
+            <Button
+              onClick={() => setIsPayDialogOpen(true)}
+              disabled={selectedEntries.length === 0}
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Process Payment ({selectedEntries.length})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -223,7 +236,7 @@ export default function PayrollPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{formatCurrency(totalPending)}</p>
-                <p className="text-xs text-muted-foreground">Pending Payments</p>
+                <p className="text-xs text-muted-foreground">{isAssistant ? "Pending Earnings" : "Pending Payments"}</p>
               </div>
             </div>
           </CardContent>
@@ -249,7 +262,7 @@ export default function PayrollPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{assistantSummaries.length}</p>
-                <p className="text-xs text-muted-foreground">Active Assistants</p>
+                <p className="text-xs text-muted-foreground">{isAssistant ? "Payout Sources" : "Active Assistants"}</p>
               </div>
             </div>
           </CardContent>
@@ -272,7 +285,7 @@ export default function PayrollPage() {
       <Tabs defaultValue="payroll" className="space-y-4">
         <TabsList>
           <TabsTrigger value="payroll">Payroll History</TabsTrigger>
-          <TabsTrigger value="assistants">Assistant Summary</TabsTrigger>
+          {!isAssistant && <TabsTrigger value="assistants">Assistant Summary</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="payroll" className="space-y-4">
@@ -317,17 +330,19 @@ export default function PayrollPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedEntries.length ===
-                        payroll.filter((p) => p.status === "pending").length
-                      }
-                      onChange={handleSelectAll}
-                      className="rounded border-border"
-                    />
-                  </TableHead>
+                  {!isAssistant && (
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedEntries.length ===
+                          payroll.filter((p) => p.status === "pending").length
+                        }
+                        onChange={handleSelectAll}
+                        className="rounded border-border"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Assistant</TableHead>
                   <TableHead>Period</TableHead>
                   <TableHead className="text-center">Tasks</TableHead>
@@ -336,19 +351,19 @@ export default function PayrollPage() {
                   <TableHead className="text-right">Bonus</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  {!isAssistant && <TableHead className="w-10"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-zinc-400">
+                    <TableCell colSpan={isAssistant ? 8 : 10} className="text-center py-8 text-zinc-400">
                       Loading payroll records from database...
                     </TableCell>
                   </TableRow>
                 ) : payroll.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-zinc-400">
+                    <TableCell colSpan={isAssistant ? 8 : 10} className="text-center py-8 text-zinc-400">
                       No payroll records found in database.
                     </TableCell>
                   </TableRow>
@@ -357,16 +372,18 @@ export default function PayrollPage() {
                   const StatusIcon = statusConfig[entry.status].icon
                   return (
                     <TableRow key={entry.id}>
-                      <TableCell>
-                        {entry.status === "pending" && (
-                          <input
-                            type="checkbox"
-                            checked={selectedEntries.includes(entry.id)}
-                            onChange={() => handleSelect(entry.id)}
-                            className="rounded border-border"
-                          />
-                        )}
-                      </TableCell>
+                      {!isAssistant && (
+                        <TableCell>
+                          {entry.status === "pending" && (
+                            <input
+                              type="checkbox"
+                              checked={selectedEntries.includes(entry.id)}
+                              onChange={() => handleSelect(entry.id)}
+                              className="rounded border-border"
+                            />
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="w-8 h-8">
@@ -399,25 +416,27 @@ export default function PayrollPage() {
                           {statusConfig[entry.status].label}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem>Download Invoice</DropdownMenuItem>
-                            {entry.status === "pending" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem>Process Payment</DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                      {!isAssistant && (
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>View Details</DropdownMenuItem>
+                              <DropdownMenuItem>Download Invoice</DropdownMenuItem>
+                              {entry.status === "pending" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem>Process Payment</DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      )}
                     </TableRow>
                   )
                 }))}

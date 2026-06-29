@@ -20,6 +20,10 @@ public class ProposalDto
     public string? Feedback { get; set; }
     public DateTime SubmittedAt { get; set; }
     public DateTime? ReviewedAt { get; set; }
+    public string? CoverImageUrl { get; set; }
+    public int? Ranking { get; set; }
+    public int ReaderCount { get; set; }
+    public decimal? Rating { get; set; }
 }
 
 /// <summary>DTO duyệt hoặc từ chối đề xuất bộ truyện.</summary>
@@ -30,6 +34,26 @@ public class ReviewProposalDto
     public string Decision { get; set; } = null!;
 
     public string? Feedback { get; set; }
+
+    public Guid? TantouId { get; set; }
+}
+
+public class ReviewChapterDto
+{
+    [Required(ErrorMessage = "Quyet dinh review chapter la bat buoc.")]
+    [RegularExpression("^(approved|revision_requested|rejected)$",
+        ErrorMessage = "Decision chi duoc la: approved, revision_requested hoac rejected.")]
+    public string Decision { get; set; } = null!;
+
+    public string? Note { get; set; }
+}
+
+public class UserOptionDto
+{
+    public Guid UserId { get; set; }
+    public string FullName { get; set; } = null!;
+    public string Email { get; set; } = null!;
+    public string Role { get; set; } = null!;
 }
 
 /// <summary>DTO hiển thị lịch xuất bản.</summary>
@@ -46,6 +70,11 @@ public class PublishScheduleDto
     public string? ApprovedByName { get; set; }
     public DateTime? PublishedAt { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? CoverImageUrl { get; set; }
+    public string? AuthorName { get; set; }
+    public decimal? Rating { get; set; }
+    public int ReaderCount { get; set; }
+    public string? ChapterStatus { get; set; }
 }
 
 /// <summary>DTO tạo lịch xuất bản.</summary>
@@ -70,5 +99,18 @@ public class PayrollDto
     public string Status { get; set; } = null!;
     public DateTime? PaidAt { get; set; }
     public string? PaymentReference { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+/// <summary>DTO hiển thị thông báo.</summary>
+public class NotificationDto
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string Type { get; set; } = null!;
+    public string Title { get; set; } = null!;
+    public string Message { get; set; } = null!;
+    public bool IsRead { get; set; }
+    public string? Link { get; set; }
     public DateTime CreatedAt { get; set; }
 }

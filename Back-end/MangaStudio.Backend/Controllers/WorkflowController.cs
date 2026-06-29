@@ -36,7 +36,7 @@ public class WorkflowController : ControllerBase
     /// GET /api/proposals — Tantou xem danh sách đề xuất chờ duyệt.
     /// </summary>
     [HttpGet("proposals")]
-    [Authorize(Roles = "tantou")]
+    [Authorize(Roles = "tantou,editorial")]
     public async Task<IActionResult> GetPendingProposals()
     {
         try
@@ -73,19 +73,38 @@ public class WorkflowController : ControllerBase
     /// PUT /api/proposals/{id}/review — Tantou phê duyệt hoặc từ chối đề xuất series.
     /// </summary>
     [HttpPut("proposals/{id:guid}/review")]
-    [Authorize(Roles = "tantou")]
+    [Authorize(Roles = "editorial")]
     public async Task<IActionResult> ReviewProposal(Guid id, [FromBody] ReviewProposalDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            var tantouId = GetCurrentUserId();
-            var result = await _workflowService.ReviewProposal(id, tantouId, dto);
+            var editorialId = GetCurrentUserId();
+            var result = await _workflowService.ReviewProposal(id, editorialId, dto);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("users/by-role/{roleCode}")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> GetUsersByRole(string roleCode)
+    {
+        try
+        {
+            var result = await _workflowService.GetUsersByRole(roleCode);
+            return Ok(result);
         }
         catch (Exception ex)
         {
@@ -116,6 +135,7 @@ public class WorkflowController : ControllerBase
     /// POST /api/chapters/{id}/schedule — Tạo lịch xuất bản cho một chương truyện.
     /// </summary>
     [HttpPost("chapters/{id:guid}/schedule")]
+    [Authorize(Roles = "editorial")]
     public async Task<IActionResult> CreatePublishSchedule(Guid id, [FromBody] CreatePublishScheduleDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -129,6 +149,10 @@ public class WorkflowController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = ex.Message });
@@ -139,13 +163,13 @@ public class WorkflowController : ControllerBase
     /// PUT /api/publish-schedules/{id}/approve — Tantou phê duyệt lịch xuất bản.
     /// </summary>
     [HttpPut("publish-schedules/{id:guid}/approve")]
-    [Authorize(Roles = "tantou")]
+    [Authorize(Roles = "editorial")]
     public async Task<IActionResult> ApprovePublishSchedule(Guid id)
     {
         try
         {
-            var tantouId = GetCurrentUserId();
-            var result = await _workflowService.ApprovePublishSchedule(id, tantouId);
+            var editorialId = GetCurrentUserId();
+            var result = await _workflowService.ApprovePublishSchedule(id, editorialId);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -169,7 +193,8 @@ public class WorkflowController : ControllerBase
     {
         try
         {
-            var result = await _workflowService.GetPayrollRecords();
+            var mangakaId = GetCurrentUserId();
+            var result = await _workflowService.GetPayrollRecords(mangakaId: mangakaId);
             return Ok(result);
         }
         catch (Exception ex)
@@ -217,6 +242,63 @@ public class WorkflowController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    // === Notifications ===
+
+    /// <summary>
+    /// GET /api/notifications — Lấy danh sách thông báo của người dùng đang đăng nhập.
+    /// </summary>
+    [HttpGet("notifications")]
+    public async Task<IActionResult> GetMyNotifications()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _workflowService.GetNotifications(userId);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// PUT /api/notifications/{id}/read — Đánh dấu một thông báo đã đọc.
+    /// </summary>
+    [HttpPut("notifications/{id:guid}/read")]
+    public async Task<IActionResult> MarkAsRead(Guid id)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var success = await _workflowService.MarkAsRead(id, userId);
+            if (!success) return NotFound(new { message = "Không tìm thấy thông báo hoặc bạn không có quyền." });
+            return Ok(new { message = "Đã đánh dấu đã đọc." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// PUT /api/notifications/read-all — Đánh dấu tất cả thông báo của người dùng đã đọc.
+    /// </summary>
+    [HttpPut("notifications/read-all")]
+    public async Task<IActionResult> MarkAllAsRead()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            await _workflowService.MarkAllAsRead(userId);
+            return Ok(new { message = "Đã đánh dấu đọc tất cả thông báo." });
         }
         catch (Exception ex)
         {

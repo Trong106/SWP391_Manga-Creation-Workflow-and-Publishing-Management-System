@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Upload, X, ImageIcon, Folder, ChevronRight, Check, Plus } from "lucide-react"
+import { Upload, X, ImageIcon, Folder, ChevronRight, Check, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
+import { toast } from "sonner"
 import {
   Select,
   SelectContent,
@@ -38,10 +39,17 @@ interface UploadedFile {
 export default function UploadPage() {
   const { user, token } = useAuth()
   const [selectedSeries, setSelectedSeries] = useState("")
-  const [chapterNumber, setChapterNumber] = useState("45") // Mặc định chapter 45 để dễ test với dữ liệu mẫu
   const [seriesList, setSeriesList] = useState<any[]>([])
+  const [chapters, setChapters] = useState<any[]>([])
+  const [selectedChapterId, setSelectedChapterId] = useState<string>("")
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [newChapterNumber, setNewChapterNumber] = useState("")
+  const [newChapterTitle, setNewChapterTitle] = useState("")
+  const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [pageSelectionMode, setPageSelectionMode] = useState<"auto" | "specific">("auto")
+  const [specificPageNumber, setSpecificPageNumber] = useState<string>("")
 
   // Lấy danh sách bộ truyện thật từ database (gửi kèm JWT Token để xác thực)
   useEffect(() => {
@@ -65,30 +73,135 @@ export default function UploadPage() {
         })
         .catch((err) => console.error("Lỗi lấy danh sách bộ truyện:", err))
     }
-  }, [user?.id])
+  }, [user?.id, token])
 
-  // Hàm hỗ trợ map số chapter nhập vào sang ID Chapter mẫu tương ứng
-  const getChapterId = () => {
-    // Nếu là Dragon Hunters (ID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa) và chapter 45
-    if (selectedSeries === "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" && chapterNumber === "45") {
-      return "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  // Lấy danh sách chương của bộ truyện được chọn
+  useEffect(() => {
+    if (selectedSeries && token) {
+      fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch chapters")
+          return res.json()
+        })
+        .then((data) => {
+          setChapters(data)
+          if (data.length > 0) {
+            // Keep selection if it's still in the new list, otherwise pick the first one
+            const exists = data.some((c: any) => c.chapterId === selectedChapterId)
+            if (!exists) {
+              setSelectedChapterId(data[0].chapterId)
+            }
+          } else {
+            setSelectedChapterId("")
+          }
+        })
+        .catch((err) => {
+          console.error("Lỗi lấy danh sách chương:", err)
+          setChapters([])
+          setSelectedChapterId("")
+        })
+    } else {
+      setChapters([])
+      setSelectedChapterId("")
     }
-    // Nếu là Night Bloom (ID: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb) và chapter 1
-    if (selectedSeries === "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" && chapterNumber === "1") {
-      return "dddddddd-dddd-dddd-dddd-dddddddddddd"
+  }, [selectedSeries, token])
+
+  // Hàm tạo chương mới qua API
+  const handleCreateChapter = async () => {
+    if (!selectedSeries) {
+      toast.error("Vui lòng chọn bộ truyện trước.")
+      return
     }
-    // Mặc định fallback về Chapter 45 của Dragon Hunters để luôn upload thành công khi chạy thử
-    return "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    if (!newChapterNumber) {
+      toast.error("Vui lòng nhập số chương.")
+      return
+    }
+    const num = parseInt(newChapterNumber)
+    if (isNaN(num) || num < 1 || num > 9999) {
+      toast.error("Số chương phải là số nguyên từ 1 đến 9999.")
+      return
+    }
+
+    setIsCreatingChapter(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          chapterNumber: num,
+          title: newChapterTitle.trim() || undefined
+        })
+      })
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}))
+        throw new Error(errData.message || "Tạo chương mới thất bại.")
+      }
+
+      const createdChapter = await response.json()
+      toast.success(`Đã tạo thành công chương ${createdChapter.chapterNumber}`)
+      
+      // Refresh list of chapters and auto select the new one
+      const updatedRes = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+      
+      if (updatedRes.ok) {
+        const data = await updatedRes.json()
+        setChapters(data)
+        const found = data.find((c: any) => c.chapterNumber === num)
+        if (found) {
+          setSelectedChapterId(found.chapterId)
+        } else {
+          setSelectedChapterId(createdChapter.chapterId)
+        }
+      } else {
+        setChapters(prev => [...prev, createdChapter])
+        setSelectedChapterId(createdChapter.chapterId)
+      }
+
+      setNewChapterNumber("")
+      setNewChapterTitle("")
+      setIsDialogOpen(false)
+    } catch (err: any) {
+      console.error("Lỗi tạo chương:", err)
+      toast.error(err.message || "Đã xảy ra lỗi khi tạo chương.")
+    } finally {
+      setIsCreatingChapter(false)
+    }
   }
 
   // Hàm thực hiện gọi API Upload File lên Backend
   const uploadFile = async (file: File, fileId: string) => {
-    const chapterId = getChapterId()
+    if (!selectedChapterId) {
+      toast.error("Vui lòng chọn hoặc tạo chương truyện trước khi tải lên.")
+      setUploadedFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileId ? { ...f, status: "error", progress: 0 } : f
+        )
+      )
+      return
+    }
+
     const formData = new FormData()
     formData.append("file", file)
 
+    let url = `${API_BASE_URL}/api/mangaka/chapters/${selectedChapterId}/upload-pages`
+    if (pageSelectionMode === "specific" && specificPageNumber) {
+      url += `?pageNumber=${specificPageNumber}`
+    }
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/mangaka/chapters/${chapterId}/upload-pages`, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -106,7 +219,7 @@ export default function UploadPage() {
       setUploadedFiles((prev) =>
         prev.map((f) =>
           f.id === fileId
-            ? { ...f, status: "complete", progress: 100, preview: `${API_BASE_URL}${fileUrl}` }
+            ? { ...f, status: "complete", progress: 100, preview: fileUrl.startsWith("http") ? fileUrl : `${API_BASE_URL}${fileUrl}` }
             : f
         )
       )
@@ -122,7 +235,8 @@ export default function UploadPage() {
 
   // Hàm xử lý khi kéo thả hoặc chọn file từ máy tính
   const handleFiles = (files: File[]) => {
-    const newFiles: UploadedFile[] = files.map((file, index) => {
+    const orderedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+    const newFiles: UploadedFile[] = orderedFiles.map((file, index) => {
       const fileId = `new-${Date.now()}-${index}`
       
       // Gọi API tải lên ngầm
@@ -132,7 +246,7 @@ export default function UploadPage() {
         id: fileId,
         name: file.name,
         size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        preview: "",
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
         status: "uploading",
         progress: 50, // Thanh hiển thị ban đầu đang upload
       }
@@ -159,6 +273,17 @@ export default function UploadPage() {
 
   const removeFile = (id: string) => {
     setUploadedFiles(uploadedFiles.filter((f) => f.id !== id))
+  }
+
+  const moveFile = (index: number, direction: -1 | 1) => {
+    setUploadedFiles((current) => {
+      const next = [...current]
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= next.length) return current
+      const [item] = next.splice(index, 1)
+      next.splice(targetIndex, 0, item)
+      return next
+    })
   }
 
   return (
@@ -199,16 +324,54 @@ export default function UploadPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Chapter Number</Label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 45"
-                    value={chapterNumber}
-                    onChange={(e) => setChapterNumber(e.target.value)}
-                  />
+                  <Label>Chapter</Label>
+                  <Select value={selectedChapterId} onValueChange={setSelectedChapterId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select chapter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chapters.length === 0 ? (
+                        <SelectItem value="none" disabled>No chapters available</SelectItem>
+                      ) : (
+                        chapters.map((ch) => (
+                          <SelectItem key={ch.chapterId} value={ch.chapterId}>
+                            Ch. {ch.chapterNumber} {ch.title ? `- ${ch.title}` : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <Dialog>
+
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Upload Mode</Label>
+                  <Select value={pageSelectionMode} onValueChange={(val: any) => setPageSelectionMode(val)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select upload mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto Increment (New Page)</SelectItem>
+                      <SelectItem value="specific">Upload to Specific Page</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {pageSelectionMode === "specific" && (
+                  <div className="space-y-2 animate-in fade-in duration-200">
+                    <Label>Target Page Number</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="e.g. 3"
+                      value={specificPageNumber}
+                      onChange={(e) => setSpecificPageNumber(e.target.value)}
+                      className="bg-background border-border text-white text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Plus className="w-4 h-4 mr-2" />
@@ -223,14 +386,29 @@ export default function UploadPage() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Chapter Title</Label>
-                      <Input placeholder="e.g., The Final Battle" />
+                      <Input
+                        placeholder="e.g., The Final Battle"
+                        value={newChapterTitle}
+                        onChange={(e) => setNewChapterTitle(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Chapter Number</Label>
-                      <Input type="number" placeholder="e.g., 46" />
+                      <Input
+                        type="number"
+                        placeholder="e.g., 46"
+                        value={newChapterNumber}
+                        onChange={(e) => setNewChapterNumber(e.target.value)}
+                      />
                     </div>
                   </div>
-                  <Button className="w-full bg-primary text-primary-foreground">Create Chapter</Button>
+                  <Button
+                    className="w-full bg-primary text-primary-foreground"
+                    onClick={handleCreateChapter}
+                    disabled={isCreatingChapter}
+                  >
+                    {isCreatingChapter ? "Creating..." : "Create Chapter"}
+                  </Button>
                 </DialogContent>
               </Dialog>
             </CardContent>
@@ -286,17 +464,26 @@ export default function UploadPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {uploadedFiles.map((file) => (
+                  {uploadedFiles.map((file, index) => (
                     <div
                       key={file.id}
                       className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg"
                     >
-                      <div className="w-12 h-16 bg-muted rounded flex items-center justify-center">
-                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                      <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                        <GripVertical className="h-4 w-4" />
+                        <span className="text-[10px] font-semibold">#{index + 1}</span>
+                      </div>
+                      <div className="w-16 h-20 bg-muted rounded flex items-center justify-center overflow-hidden border border-border">
+                        {file.preview ? (
+                          <img src={file.preview} alt={file.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{file.name}</p>
                         <p className="text-sm text-muted-foreground">{file.size}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">Preview order: page slot {index + 1}</p>
                         {file.status === "uploading" && (
                           <div className="mt-2">
                             <Progress value={file.progress} className="h-1.5" />
@@ -304,6 +491,26 @@ export default function UploadPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveFile(index, -1)}
+                            disabled={index === 0}
+                            title="Move earlier"
+                          >
+                            <ArrowUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveFile(index, 1)}
+                            disabled={index === uploadedFiles.length - 1}
+                            title="Move later"
+                          >
+                            <ArrowDown className="w-4 h-4" />
+                          </Button>
+                        </div>
                         {file.status === "complete" && (
                           <Badge className="bg-success/20 text-success">
                             <Check className="w-3 h-3 mr-1" />
@@ -346,7 +553,11 @@ export default function UploadPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Chapter</span>
-                <span className="font-medium">{chapterNumber || "Not specified"}</span>
+                <span className="font-medium">
+                  {selectedChapterId
+                    ? `Ch. ${chapters.find((c) => c.chapterId === selectedChapterId)?.chapterNumber || ""}`
+                    : "Not selected"}
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Pages</span>
@@ -357,7 +568,7 @@ export default function UploadPage() {
                 <Badge className="bg-warning/20 text-warning">Draft</Badge>
               </div>
               <div className="pt-4 border-t border-border">
-                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || uploadedFiles.length === 0}>
+                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || !selectedChapterId || uploadedFiles.length === 0}>
                   <ChevronRight className="w-4 h-4 mr-2" />
                   Continue to Region Selection
                 </Button>

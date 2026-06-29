@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 import { WorkflowBoard } from "@/components/manga/workflow-board"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 
@@ -29,6 +30,7 @@ const statusColors: Record<string, string> = {
 }
 
 export default function ProgressPage() {
+  const { token } = useAuth()
   const [seriesList, setSeriesList] = useState<SeriesProgress[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +39,13 @@ export default function ProgressPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const fetchSeriesData = () => {
-    fetch(`${API_BASE_URL}/api/data/series`)
+    if (!token) return
+
+    fetch(`${API_BASE_URL}/api/data/series`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load series progress data")
         return res.json()
@@ -57,7 +65,7 @@ export default function ProgressPage() {
 
   useEffect(() => {
     fetchSeriesData()
-  }, [])
+  }, [token])
 
   const handleCardClick = (id: string) => {
     setSelectedSeriesId(id)

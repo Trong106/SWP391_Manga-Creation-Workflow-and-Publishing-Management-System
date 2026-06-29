@@ -117,6 +117,84 @@ public class TaskController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/tasks/{id:guid}/resources — Lấy link ảnh và thông tin tài nguyên của Task.
+    /// </summary>
+    [HttpGet("tasks/{id:guid}/resources")]
+    [Authorize(Roles = "assistant,mangaka")]
+    public async Task<IActionResult> GetTaskResource(Guid id)
+    {
+        try
+        {
+            var result = await _taskService.GetTaskResource(id);
+            if (result == null)
+            {
+                return NotFound(new { message = "Không tìm thấy tài nguyên cho công việc này." });
+            }
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/tasks/{id}/start — Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).
+    /// </summary>
+    [HttpPost("tasks/{id:guid}/start")]
+    [Authorize(Roles = "assistant")]
+    public async Task<IActionResult> StartTask(Guid id)
+    {
+        try
+        {
+            var assistantId = GetCurrentUserId();
+            var result = await _taskService.StartTask(id, assistantId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("tasks/{id:guid}/ask")]
+    [Authorize(Roles = "assistant")]
+    public async Task<IActionResult> AskClarification(Guid id, [FromBody] AskClarificationDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var assistantId = GetCurrentUserId();
+            var result = await _taskService.AskClarification(id, assistantId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// PUT /api/tasks/{id} — Cập nhật thông tin công việc.
     /// </summary>
     [HttpPut("tasks/{id:guid}")]
@@ -137,6 +215,14 @@ public class TaskController : ControllerBase
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -213,6 +299,14 @@ public class TaskController : ControllerBase
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

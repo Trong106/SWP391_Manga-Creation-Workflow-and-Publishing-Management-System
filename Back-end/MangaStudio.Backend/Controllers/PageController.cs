@@ -131,11 +131,29 @@ public class PageController : ControllerBase
         }
     }
 
+    [HttpGet("{id:guid}/versions")]
+    public async Task<IActionResult> GetPageVersions(Guid id)
+    {
+        try
+        {
+            var result = await _pageService.GetPageVersions(id);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// POST /api/pages/{id}/reviews — Thêm nhận xét review cho trang (chỉ dành cho Tantou hoặc Mangaka).
     /// </summary>
     [HttpPost("{id:guid}/reviews")]
-    [Authorize(Roles = "mangaka,tantou")]
+    [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> CreatePageReview(Guid id, [FromBody] CreatePageReviewDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -148,6 +166,10 @@ public class PageController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (Exception ex)
         {

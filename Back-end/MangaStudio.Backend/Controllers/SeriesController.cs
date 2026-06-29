@@ -18,11 +18,13 @@ public class SeriesController : ControllerBase
 {
     private readonly ISeriesService _seriesService;
     private readonly IChapterService _chapterService;
+    private readonly IStorageService _storageService;
 
-    public SeriesController(ISeriesService seriesService, IChapterService chapterService)
+    public SeriesController(ISeriesService seriesService, IChapterService chapterService, IStorageService storageService)
     {
         _seriesService = seriesService;
         _chapterService = chapterService;
+        _storageService = storageService;
     }
 
     private Guid GetCurrentUserId()
@@ -122,6 +124,34 @@ public class SeriesController : ControllerBase
     }
 
     /// <summary>
+    /// PUT /api/series/{id}/editorial-decision - Editorial Board huy, dua vao theo doi, hoac kich hoat lai series.
+    /// </summary>
+    [HttpPut("{id:guid}/editorial-decision")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> ApplyEditorialDecision(Guid id, [FromBody] EditorialSeriesDecisionDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var editorialId = GetCurrentUserId();
+            var result = await _seriesService.ApplyEditorialDecision(id, editorialId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// GET /api/series/{id}/chapters — Lấy danh sách chương của bộ truyện.
     /// </summary>
     [HttpGet("{id:guid}/chapters")]
@@ -187,20 +217,8 @@ public class SeriesController : ControllerBase
         {
             var mangakaId = GetCurrentUserId();
             
-            // Lưu file vào thư mục Uploads
-            string uploadsFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Uploads");
-            if (!System.IO.Directory.Exists(uploadsFolder))
-                System.IO.Directory.CreateDirectory(uploadsFolder);
-
-            string fileName = Guid.NewGuid().ToString() + System.IO.Path.GetExtension(file.FileName);
-            string filePath = System.IO.Path.Combine(uploadsFolder, fileName);
-
-            using (var fileStream = new System.IO.FileStream(filePath, System.IO.FileMode.Create))
-            {
-                await file.CopyToAsync(fileStream);
-            }
-
-            var coverUrl = "/Uploads/" + fileName;
+            // Tải file lên Cloudinary
+            string coverUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Covers");
 
             // Cập nhật CoverImageUrl thông qua service
             var dto = new UpdateSeriesDto { CoverImageUrl = coverUrl };
@@ -215,6 +233,23 @@ public class SeriesController : ControllerBase
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/series/ranking — Lấy bảng xếp hạng bộ truyện.
+    /// </summary>
+    [HttpGet("ranking")]
+    public async Task<IActionResult> GetSeriesRanking([FromQuery] string? genre, [FromQuery] string? sortBy, [FromQuery] string? timeframe)
+    {
+        try
+        {
+            var result = await _seriesService.GetSeriesRanking(genre, sortBy, timeframe);
+            return Ok(result);
         }
         catch (Exception ex)
         {

@@ -19,11 +19,13 @@ namespace MangaStudio.Backend.Services.Implementations;
 public class ChapterService : IChapterService
 {
     private readonly AppDbContext _context;
+    private readonly IStorageService _storageService;
     private static readonly SemaphoreSlim _uploadLock = new SemaphoreSlim(1, 1);
 
-    public ChapterService(AppDbContext context)
+    public ChapterService(AppDbContext context, IStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
 
     /// <summary>
@@ -73,6 +75,9 @@ public class ChapterService : IChapterService
     {
         var chapter = await _context.Chapters
             .Include(c => c.Series)
+                .ThenInclude(s => s.Tantou)
+                    .ThenInclude(t => t!.Role)
+            .Include(c => c.TantouReviewedBy)
             .Include(c => c.MangaPages)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
@@ -183,23 +188,15 @@ public class ChapterService : IChapterService
             {
                 maxPageNumber++;
 
-                var ext = Path.GetExtension(file.FileName).ToLower();
-                var uniqueFileName = $"{Guid.NewGuid()}{ext}";
-                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                var imageUrl = $"/Uploads/{uniqueFileName}";
+                // Tải hình vẽ trang truyện lên Cloudinary
+                var imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
                 var page = new MangaPage
                 {
                     PageId = Guid.NewGuid(),
                     ChapterId = chapterId,
                     PageNumber = maxPageNumber,
-                    CurrentImageUrl = imageUrl,
+                    CurrentImageUrl = imageUrl, // URL tuyệt đối của Cloudinary
                     Status = "pending",
                     UploadedById = uploadedById,
                     UploadedAt = DateTime.UtcNow
@@ -211,7 +208,7 @@ public class ChapterService : IChapterService
                     PageVersionId = Guid.NewGuid(),
                     PageId = page.PageId,
                     VersionNumber = 1,
-                    FileUrl = imageUrl,
+                    FileUrl = imageUrl, // URL tuyệt đối của Cloudinary
                     FileName = file.FileName,
                     FileSizeBytes = file.Length,
                     MimeType = file.ContentType,
@@ -282,6 +279,9 @@ public class ChapterService : IChapterService
     {
         var chapter = await _context.Chapters
             .Include(c => c.Series)
+                .ThenInclude(s => s.Tantou)
+                    .ThenInclude(t => t!.Role)
+            .Include(c => c.TantouReviewedBy)
             .Include(c => c.MangaPages)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
@@ -296,7 +296,20 @@ public class ChapterService : IChapterService
             throw new InvalidOperationException("Chương truyện phải có ít nhất 1 trang trước khi nộp xuất bản.");
         }
 
-        chapter.Status = "submitted_for_publishing";
+        if (chapter.Series.TantouId == null ||
+            chapter.Series.Tantou == null ||
+            !chapter.Series.Tantou.IsActive ||
+            !string.Equals(chapter.Series.Tantou.Role.Code, "tantou", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Series phai duoc gan Tantou Editor hop le truoc khi submit chapter.");
+        }
+
+        if (chapter.MangaPages.Any(p => p.Status != "approved"))
+        {
+            throw new InvalidOperationException("Tất cả trang truyện phải được duyệt trước khi nộp xuất bản.");
+        }
+
+        chapter.Status = "tantou_review";
         chapter.SubmittedForPublishingAt = DateTime.UtcNow;
         chapter.UpdatedAt = DateTime.UtcNow;
 
@@ -452,7 +465,12 @@ public class ChapterService : IChapterService
             Status = c.Status,
             DueDate = c.DueDate.HasValue ? c.DueDate.Value.ToDateTime(TimeOnly.MinValue) : null,
             SubmittedForPublishingAt = c.SubmittedForPublishingAt,
+            TantouReviewNote = c.TantouReviewNote,
+            TantouReviewedById = c.TantouReviewedById,
+            TantouReviewedByName = c.TantouReviewedBy?.FullName,
+            TantouReviewedAt = c.TantouReviewedAt,
             PageCount = c.MangaPages?.Count ?? 0,
+            ApprovedPageCount = c.MangaPages?.Count(p => p.Status == "approved") ?? 0,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         };

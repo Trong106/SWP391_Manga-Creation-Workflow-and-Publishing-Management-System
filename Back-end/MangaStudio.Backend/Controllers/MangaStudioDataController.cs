@@ -8,12 +8,13 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using MangaStudio.Backend.Models.DTOs;
+using System.Security.Claims;
 
 namespace MangaStudio.Backend.Controllers;
 
 [ApiController]
 [Route("api/data")]
-[AllowAnonymous]
+[Authorize]
 public class MangaStudioDataController : ControllerBase
 {
     private readonly AppDbContext _dbContext;
@@ -23,8 +24,15 @@ public class MangaStudioDataController : ControllerBase
         _dbContext = dbContext;
     }
 
+    private Guid GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
+    }
+
     // GET api/data/series
     [HttpGet("series")]
+    [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetSeriesList()
     {
         var series = await _dbContext.Series
@@ -77,10 +85,17 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/dashboard-metrics?role=mangaka&userId=...
     [HttpGet("dashboard-metrics")]
+    [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetDashboardMetrics([FromQuery] string role, [FromQuery] Guid userId)
     {
         if (string.IsNullOrEmpty(role))
             return BadRequest("Role is required.");
+
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId != Guid.Empty)
+        {
+            userId = currentUserId;
+        }
 
         switch (role.ToLower())
         {
@@ -200,6 +215,7 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/audit-logs
     [HttpGet("audit-logs")]
+    [Authorize(Roles = "editorial")]
     public async Task<IActionResult> GetAuditLogs()
     {
         var logs = await _dbContext.AuditLogs
@@ -232,6 +248,7 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/reader-votes
     [HttpGet("reader-votes")]
+    [Authorize(Roles = "editorial")]
     public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
     {
         // Get current week votes
@@ -272,6 +289,7 @@ public class MangaStudioDataController : ControllerBase
 
     // POST api/data/reader-votes
     [HttpPost("reader-votes")]
+    [Authorize(Roles = "editorial")]
     public async Task<IActionResult> SaveWeeklyVotes([FromBody] SaveVotesDto dto)
     {
         if (dto == null || dto.WeekNumber < 1 || dto.WeekNumber > 53 || dto.YearNumber < 2000)
@@ -329,6 +347,7 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/publish-schedule
     [HttpGet("publish-schedule")]
+    [Authorize(Roles = "tantou,editorial")]
     public async Task<IActionResult> GetPublishSchedule()
     {
         var schedules = await _dbContext.PublishSchedules
@@ -353,6 +372,7 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/team
     [HttpGet("team")]
+    [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetTeam()
     {
         var assistants = await _dbContext.Users
@@ -396,11 +416,27 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/payroll
     [HttpGet("payroll")]
+    [Authorize(Roles = "mangaka,assistant")]
     public async Task<IActionResult> GetPayroll()
     {
-        var payrolls = await _dbContext.PayrollRecords
+        var payrollQuery = _dbContext.PayrollRecords
             .Include(p => p.Assistant)
             .ThenInclude(a => a.AssistantProfile)
+            .Include(p => p.Task)
+            .AsQueryable();
+
+        if (User.IsInRole("assistant"))
+        {
+            var assistantId = GetCurrentUserId();
+            payrollQuery = payrollQuery.Where(p => p.AssistantId == assistantId);
+        }
+        else if (User.IsInRole("mangaka"))
+        {
+            var mangakaId = GetCurrentUserId();
+            payrollQuery = payrollQuery.Where(p => p.Task != null && p.Task.AssignerId == mangakaId);
+        }
+
+        var payrolls = await payrollQuery
             .OrderByDescending(p => p.PeriodEnd)
             .ToListAsync();
 
@@ -450,13 +486,27 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/tasks
     [HttpGet("tasks")]
+    [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetTasks()
     {
-        var tasksList = await _dbContext.Tasks
+        var taskQuery = _dbContext.Tasks
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
             .Include(t => t.Assignee)
+            .AsQueryable();
+
+        var currentUserId = GetCurrentUserId();
+        if (User.IsInRole("assistant"))
+        {
+            taskQuery = taskQuery.Where(t => t.AssigneeId == currentUserId);
+        }
+        else if (User.IsInRole("mangaka"))
+        {
+            taskQuery = taskQuery.Where(t => t.AssignerId == currentUserId);
+        }
+
+        var tasksList = await taskQuery
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
 
@@ -484,6 +534,7 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/review-series
     [HttpGet("review-series")]
+    [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetReviewSeriesList()
     {
         var seriesList = await _dbContext.Series
@@ -534,6 +585,7 @@ public class MangaStudioDataController : ControllerBase
 
     // GET api/data/review-pages?chapterId=...
     [HttpGet("review-pages")]
+    [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetReviewPages([FromQuery] Guid? chapterId)
     {
         IQueryable<MangaPage> query = _dbContext.MangaPages;
@@ -593,6 +645,75 @@ public class MangaStudioDataController : ControllerBase
     }
 
     // ─── Private helpers ────────────────────────────────────────────────────────
+
+    // GET api/data/chapter-review-queue
+    [HttpGet("chapter-review-queue")]
+    [Authorize(Roles = "tantou")]
+    public async Task<IActionResult> GetChapterReviewQueue()
+    {
+        var tantouId = GetCurrentUserId();
+
+        var chapters = await _dbContext.Chapters
+            .Include(c => c.Series)
+                .ThenInclude(s => s.Mangaka)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageAnnotations)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.ReviewComments)
+                    .ThenInclude(c => c.User)
+            .Where(c => c.Series.TantouId == tantouId && c.Status == "tantou_review")
+            .OrderBy(c => c.SubmittedForPublishingAt ?? c.UpdatedAt)
+            .ToListAsync();
+
+        var result = chapters.Select(c => new
+        {
+            chapterId = c.ChapterId.ToString(),
+            chapterNumber = c.ChapterNumber,
+            title = c.Title,
+            status = c.Status,
+            dueDate = c.DueDate.HasValue ? c.DueDate.Value.ToString("yyyy-MM-dd") : null,
+            submittedForPublishingAt = c.SubmittedForPublishingAt,
+            tantouReviewNote = c.TantouReviewNote,
+            seriesId = c.SeriesId.ToString(),
+            seriesTitle = c.Series.Title,
+            author = c.Series.Mangaka.FullName,
+            coverImageUrl = c.Series.CoverImageUrl,
+            pageCount = c.MangaPages.Count,
+            pages = c.MangaPages
+                .OrderBy(p => p.PageNumber)
+                .Select(p => new
+                {
+                    id = p.PageId.ToString(),
+                    number = p.PageNumber,
+                    status = p.Status.ToLower(),
+                    imageUrl = p.CurrentImageUrl,
+                    chapterId = p.ChapterId.ToString(),
+                    hasAnnotations = p.PageAnnotations.Any(),
+                    annotations = p.PageAnnotations.Select(a => new
+                    {
+                        id = a.AnnotationId.ToString(),
+                        createdById = a.CreatedById.ToString(),
+                        x = (double)a.X,
+                        y = (double)a.Y,
+                        width = (double?)a.Width,
+                        height = (double?)a.Height,
+                        body = a.Body,
+                        status = a.Status.ToLower()
+                    }),
+                    comments = p.ReviewComments.Select(rc => new
+                    {
+                        id = rc.CommentId.ToString(),
+                        userId = rc.UserId.ToString(),
+                        userName = rc.User.FullName,
+                        avatar = rc.User.Avatar,
+                        body = rc.Body,
+                        createdAt = GetRelativeTime(rc.CreatedAt)
+                    })
+                })
+        });
+
+        return Ok(result);
+    }
 
     private static string GetCategory(string entityType) =>
         entityType.ToLower() switch

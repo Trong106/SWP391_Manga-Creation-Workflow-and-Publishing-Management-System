@@ -30,7 +30,6 @@ public class WorkflowService : IWorkflowService
     public async Task<List<ProposalDto>> GetPendingProposals()
     {
         return await _context.SeriesProposals
-            .Where(p => p.Status == "submitted")
             .Include(p => p.Series)
                 .ThenInclude(s => s.SeriesGenres)
             .Include(p => p.SubmittedBy)
@@ -62,7 +61,7 @@ public class WorkflowService : IWorkflowService
     /// - Nếu approved -> Series.Status = 'active' và gán TantouId cho Series.
     /// - Cập nhật thông tin người duyệt, thời gian duyệt và feedback.
     /// </summary>
-    public async Task<ProposalDto> ReviewProposal(Guid proposalId, Guid tantouId, ReviewProposalDto dto)
+    public async Task<ProposalDto> ReviewProposal(Guid proposalId, Guid reviewerId, ReviewProposalDto dto)
     {
         var proposal = await _context.SeriesProposals
             .Include(p => p.Series)
@@ -73,14 +72,24 @@ public class WorkflowService : IWorkflowService
 
         var decision = dto.Decision.ToLower();
         proposal.Status = decision;
-        proposal.ReviewedById = tantouId;
+        proposal.ReviewedById = reviewerId;
         proposal.ReviewedAt = DateTime.UtcNow;
         proposal.ReviewNote = dto.Feedback;
 
         if (decision == "approved")
         {
+            if (!dto.TantouId.HasValue)
+            {
+                throw new InvalidOperationException("Phai chon Tantou Editor khi approve series proposal.");
+            }
+
+            var tantou = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.UserId == dto.TantouId.Value && u.Role.Code == "tantou" && u.IsActive)
+                ?? throw new InvalidOperationException("Tantou Editor duoc chon khong hop le hoac da bi vo hieu hoa.");
+
             proposal.Series.Status = "active"; // BR-Proposal
-            proposal.Series.TantouId = tantouId; // Assign Tantou to Series
+            proposal.Series.TantouId = tantou.UserId;
         }
         else if (decision == "rejected")
         {
@@ -92,10 +101,26 @@ public class WorkflowService : IWorkflowService
         await _context.SaveChangesAsync();
 
         // Load reviewer details
-        var reviewedBy = await _context.Users.FindAsync(tantouId);
+        var reviewedBy = await _context.Users.FindAsync(reviewerId);
         proposal.ReviewedBy = reviewedBy;
 
         return MapProposalToDto(proposal);
+    }
+
+    public async Task<List<UserOptionDto>> GetUsersByRole(string roleCode)
+    {
+        return await _context.Users
+            .Include(u => u.Role)
+            .Where(u => u.IsActive && u.Role.Code == roleCode)
+            .OrderBy(u => u.FullName)
+            .Select(u => new UserOptionDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                Role = u.Role.Code
+            })
+            .ToListAsync();
     }
 
     // === Publish Schedule ===
@@ -132,6 +157,11 @@ public class WorkflowService : IWorkflowService
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Không tìm thấy chương với ID {chapterId}");
 
+        if (chapter.Status != "editorial_ready")
+        {
+            throw new InvalidOperationException("Chi chapter da duoc Tantou approve moi duoc len lich xuat ban.");
+        }
+
         // Tạo lịch xuất bản với status mặc định là 'scheduled'
         var schedule = new PublishSchedule
         {
@@ -151,7 +181,7 @@ public class WorkflowService : IWorkflowService
     /// <summary>
     /// Tantou phê duyệt lịch xuất bản.
     /// </summary>
-    public async Task<PublishScheduleDto> ApprovePublishSchedule(Guid scheduleId, Guid tantouId)
+    public async Task<PublishScheduleDto> ApprovePublishSchedule(Guid scheduleId, Guid editorialId)
     {
         var schedule = await _context.PublishSchedules
             .Include(s => s.Chapter)
@@ -198,15 +228,21 @@ public class WorkflowService : IWorkflowService
     /// <summary>
     /// Lấy danh sách bảng lương trợ lý. Mangaka xem được tất cả, trợ lý xem của chính mình.
     /// </summary>
-    public async Task<List<PayrollDto>> GetPayrollRecords(Guid? assistantId = null)
+    public async Task<List<PayrollDto>> GetPayrollRecords(Guid? assistantId = null, Guid? mangakaId = null)
     {
         var query = _context.PayrollRecords
             .Include(p => p.Assistant)
+            .Include(p => p.Task)
             .AsQueryable();
 
         if (assistantId.HasValue)
         {
             query = query.Where(p => p.AssistantId == assistantId.Value);
+        }
+
+        if (mangakaId.HasValue)
+        {
+            query = query.Where(p => p.Task != null && p.Task.AssignerId == mangakaId.Value);
         }
 
         return await query
@@ -237,8 +273,14 @@ public class WorkflowService : IWorkflowService
     {
         var record = await _context.PayrollRecords
             .Include(p => p.Assistant)
+            .Include(p => p.Task)
             .FirstOrDefaultAsync(p => p.PayrollRecordId == payrollRecordId)
             ?? throw new KeyNotFoundException($"Không tìm thấy bản ghi lương với ID {payrollRecordId}");
+
+        if (record.Task == null || record.Task.AssignerId != mangakaId)
+        {
+            throw new UnauthorizedAccessException("Bạn không có quyền thanh toán bản ghi lương này.");
+        }
 
         if (record.Status != "pending")
         {
@@ -294,7 +336,11 @@ public class WorkflowService : IWorkflowService
             Status = p.Status,
             Feedback = p.ReviewNote, // mapped from ReviewNote in DB
             SubmittedAt = p.SubmittedAt,
-            ReviewedAt = p.ReviewedAt
+            ReviewedAt = p.ReviewedAt,
+            CoverImageUrl = p.Series?.CoverImageUrl,
+            Ranking = p.Series?.Ranking,
+            ReaderCount = p.Series?.ReaderCount ?? 0,
+            Rating = p.Series?.Rating
         };
     }
 
@@ -312,7 +358,62 @@ public class WorkflowService : IWorkflowService
             ApprovedById = s.ApprovedById,
             ApprovedByName = s.ApprovedBy?.FullName,
             PublishedAt = s.PublishedAt,
-            CreatedAt = s.CreatedAt
+            CreatedAt = s.CreatedAt,
+            CoverImageUrl = s.Chapter?.Series?.CoverImageUrl,
+            AuthorName = s.Chapter?.Series?.Mangaka?.FullName,
+            Rating = s.Chapter?.Series?.Rating,
+            ReaderCount = s.Chapter?.Series?.ReaderCount ?? 0,
+            ChapterStatus = s.Chapter?.Status
         };
+    }
+
+    // === Notifications ===
+
+    public async Task<List<NotificationDto>> GetNotifications(Guid userId)
+    {
+        return await _context.Notifications
+            .Where(n => n.UserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Select(n => new NotificationDto
+            {
+                Id = n.NotificationId,
+                UserId = n.UserId,
+                Type = n.Type,
+                Title = n.Title,
+                Message = n.Message,
+                IsRead = n.IsRead,
+                Link = n.Link,
+                CreatedAt = n.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<bool> MarkAsRead(Guid id, Guid userId)
+    {
+        var notification = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.NotificationId == id && n.UserId == userId);
+
+        if (notification == null) return false;
+
+        notification.IsRead = true;
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> MarkAllAsRead(Guid userId)
+    {
+        var unread = await _context.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+
+        if (!unread.Any()) return true;
+
+        foreach (var n in unread)
+        {
+            n.IsRead = true;
+        }
+
+        await _context.SaveChangesAsync();
+        return true;
     }
 }

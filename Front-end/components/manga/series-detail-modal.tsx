@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Upload, BookOpen, Heart, Eye, Bookmark, Calendar, User, Info, FileText } from "lucide-react"
+import { Loader2, Upload, BookOpen, Heart, Eye, Bookmark, Calendar, User, Info, FileText, AlertTriangle } from "lucide-react"
 
 interface SeriesDetailModalProps {
   seriesId: string | null
@@ -23,10 +24,12 @@ interface SeriesDetailModalProps {
 
 export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: SeriesDetailModalProps) {
   const { token, role, logout } = useAuth()
+  const router = useRouter()
   const [series, setSeries] = useState<any>(null)
   const [chapters, setChapters] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [submittingChapterId, setSubmittingChapterId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -112,6 +115,33 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     return `${API_BASE_URL}${coverPath}`
   }
 
+  const handleSubmitChapter = async (chapterId: string) => {
+    if (!token) return
+
+    setSubmittingChapterId(chapterId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chapters/${chapterId}/submit`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.message || "Could not submit chapter. Please make sure every page has been approved.")
+      }
+
+      await fetchDetails()
+      if (onUpdate) onUpdate()
+      alert("Chapter submitted to Tantou Editor for content review.")
+    } catch (err: any) {
+      alert(err.message || "Server connection error")
+    } finally {
+      setSubmittingChapterId(null)
+    }
+  }
+
   const formatStatus = (status: string) => {
     switch (status?.toLowerCase()) {
       case "active":
@@ -136,6 +166,45 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
       case "cancelled": return "bg-red-500/20 text-red-400 border-red-500/30"
       default: return "bg-blue-500/20 text-blue-400 border-blue-500/30"
     }
+  }
+
+  const getChapterStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case "editorial_ready": return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+      case "tantou_review": return "bg-amber-500/20 text-amber-300 border-amber-500/30"
+      case "revision_requested": return "bg-orange-500/20 text-orange-300 border-orange-500/30"
+      case "published": return "bg-green-500/20 text-green-300 border-green-500/30"
+      default: return "bg-zinc-700/50 text-zinc-300 border-zinc-700"
+    }
+  }
+
+  const canSubmitChapter = (chapter: any) => {
+    const lockedStatuses = ["tantou_review", "editorial_ready", "scheduled", "published"]
+    if (role !== "mangaka" || lockedStatuses.includes((chapter.status || "").toLowerCase())) {
+      return false
+    }
+
+    const pageCount = chapter.pageCount ?? 0
+    const approvedPageCount = chapter.approvedPageCount ?? 0
+    return pageCount > 0 && approvedPageCount === pageCount
+  }
+
+  const getSubmitChapterBlockReason = (chapter: any) => {
+    const status = (chapter.status || "").toLowerCase()
+    const lockedStatuses = ["tantou_review", "editorial_ready", "scheduled", "published"]
+    if (lockedStatuses.includes(status)) {
+      return "Chapter has already moved to the publishing workflow."
+    }
+
+    const pageCount = chapter.pageCount ?? 0
+    const approvedPageCount = chapter.approvedPageCount ?? 0
+    if (pageCount === 0) {
+      return "Upload at least one page before submitting."
+    }
+    if (approvedPageCount < pageCount) {
+      return `Approve all pages first (${approvedPageCount}/${pageCount} approved).`
+    }
+    return null
   }
 
   return (
@@ -282,7 +351,8 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                     className="bg-green-600 hover:bg-green-500 text-white font-medium"
                     onClick={() => {
                       if (chapters.length > 0) {
-                        alert(`Start reading Chapter 1: ${chapters[chapters.length - 1].title || "Untitled"}`)
+                        router.push(`/chapters/${chapters[chapters.length - 1].chapterId}`)
+                        onClose()
                       } else {
                         alert("No chapters uploaded yet.")
                       }
@@ -293,6 +363,22 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                 </div>
               </div>
             </div>
+
+            {series.riskLevel && series.riskLevel !== "normal" && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-100">
+                      {series.riskLevel === "cancelled" ? "Cancelled by Editorial Board" : "Editorial risk notice"}
+                    </h3>
+                    <p className="mt-1 text-sm text-amber-100/80">
+                      {series.cancellationReason || series.riskReason || "This series needs attention before the next editorial review."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Giới thiệu truyện */}
             <div className="space-y-2 border-t border-zinc-800 pt-4">
@@ -318,19 +404,65 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   </div>
                 ) : (
                   <div className="divide-y divide-zinc-800/80">
-                    {chapters.map((ch) => (
-                      <div
-                        key={ch.chapterId}
-                        className="flex items-center justify-between p-3.5 hover:bg-zinc-800/50 transition-colors text-sm cursor-pointer group"
-                      >
-                        <span className="text-zinc-200 group-hover:text-primary transition-colors font-medium">
-                          Chapter {ch.chapterNumber}{ch.title ? `: ${ch.title}` : ""}
-                        </span>
-                        <span className="text-xs text-zinc-500 shrink-0">
-                          {new Date(ch.createdAt).toLocaleDateString("en-US")}
-                        </span>
-                      </div>
-                    ))}
+                    {chapters.map((ch) => {
+                      const submitBlockReason = getSubmitChapterBlockReason(ch)
+                      const showSubmitButton = role === "mangaka" && !["tantou_review", "editorial_ready", "scheduled", "published"].includes((ch.status || "").toLowerCase())
+
+                      return (
+                        <div
+                          key={ch.chapterId}
+                          onClick={() => {
+                            router.push(`/chapters/${ch.chapterId}`)
+                            onClose()
+                          }}
+                          className="flex items-center justify-between gap-3 p-3.5 hover:bg-zinc-800/50 transition-colors text-sm cursor-pointer group"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate text-zinc-200 group-hover:text-primary transition-colors font-medium">
+                              Chapter {ch.chapterNumber}{ch.title ? `: ${ch.title}` : ""}
+                            </span>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className={`${getChapterStatusColor(ch.status)} text-[10px] px-1.5 py-0`}>
+                                {(ch.status || "draft").replaceAll("_", " ")}
+                              </Badge>
+                              <span className="text-[11px] text-zinc-500">
+                                {ch.approvedPageCount ?? 0}/{ch.pageCount ?? 0} pages approved
+                              </span>
+                              <span className="text-[11px] text-zinc-600">
+                                {new Date(ch.createdAt).toLocaleDateString("en-US")}
+                              </span>
+                            </div>
+                            {showSubmitButton && submitBlockReason && (
+                              <p className="mt-1 text-[11px] text-amber-300">
+                                {submitBlockReason}
+                              </p>
+                            )}
+                          </div>
+                          {showSubmitButton && (
+                            <Button
+                              size="sm"
+                              title={submitBlockReason || "Submit chapter to Tantou Editor"}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                if (!canSubmitChapter(ch)) return
+                                handleSubmitChapter(ch.chapterId)
+                              }}
+                              disabled={submittingChapterId === ch.chapterId || !canSubmitChapter(ch)}
+                              className="shrink-0 bg-[#00dfc0] text-black hover:bg-[#00dfc0]/90 font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {submittingChapterId === ch.chapterId ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <FileText className="w-4 h-4 mr-1.5" />
+                                  Submit Chapter
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

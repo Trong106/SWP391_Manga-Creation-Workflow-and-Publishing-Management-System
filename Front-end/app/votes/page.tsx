@@ -64,8 +64,10 @@ const weekHistory = [
 
 import { useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
+import { useAuth } from "@/lib/auth-context"
 
 export default function VotesPage() {
+  const { token } = useAuth()
   const [selectedWeek, setSelectedWeek] = useState("20")
   const [votes, setVotes] = useState<Record<string, string>>({})
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -78,8 +80,14 @@ export default function VotesPage() {
 
   // Fetch votes for the selected week
   useEffect(() => {
+    if (!token) return
+
     setLoading(true)
-    fetch(`${API_BASE_URL}/api/data/reader-votes?week=${selectedWeek}&year=2026`)
+    fetch(`${API_BASE_URL}/api/data/reader-votes?week=${selectedWeek}&year=2026`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -91,11 +99,17 @@ export default function VotesPage() {
         console.error("Error fetching reader votes:", err)
         setLoading(false)
       })
-  }, [selectedWeek])
+  }, [selectedWeek, token])
 
   // Fetch all series for input dropdown/list
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/data/series`)
+    if (!token) return
+
+    fetch(`${API_BASE_URL}/api/data/series`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -103,13 +117,18 @@ export default function VotesPage() {
         }
       })
       .catch((err) => console.error("Error fetching series:", err))
-  }, [])
+  }, [token])
 
   const handleVoteChange = (seriesId: string, value: string) => {
     setVotes({ ...votes, [seriesId]: value })
   }
 
   const handleSaveVotes = async () => {
+    if (!token) {
+      alert("Your session is not ready. Please sign in again.")
+      return
+    }
+
     const weekNum = parseInt(inputWeek)
     const yearNum = parseInt(inputYear)
     if (isNaN(weekNum) || weekNum < 1 || weekNum > 53) {
@@ -137,7 +156,8 @@ export default function VotesPage() {
       const response = await fetch(`${API_BASE_URL}/api/data/reader-votes`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
           weekNumber: weekNum,

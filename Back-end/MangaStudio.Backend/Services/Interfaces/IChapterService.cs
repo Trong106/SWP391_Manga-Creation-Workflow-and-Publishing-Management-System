@@ -25,4 +25,10 @@ public interface IChapterService
 
     /// <summary>Nộp chương để xem xét xuất bản.</summary>
     Task<ChapterDto> SubmitChapterForPublishing(Guid chapterId, Guid mangakaId);
+
+    Task<ChapterDto> ReviewChapter(Guid chapterId, Guid tantouId, ReviewChapterDto dto);
+
+    Task<ChapterVersionCompareDto> GetChapterVersions(Guid chapterId);
+
+    Task<List<ChapterAuditEventDto>> GetChapterAuditTimeline(Guid chapterId);
 }
