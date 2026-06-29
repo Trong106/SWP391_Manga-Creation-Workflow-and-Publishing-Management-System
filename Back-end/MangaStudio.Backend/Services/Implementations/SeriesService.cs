@@ -111,7 +111,7 @@ public class SeriesService : ISeriesService
             {
                 NotificationId = Guid.NewGuid(),
                 UserId = editorialUser.UserId,
-                Type = "new_proposal_submitted",
+                Type = "review_needed",
                 Title = "Đề xuất bộ truyện mới cần duyệt",
                 Message = $"Mangaka vừa gửi đề xuất cho bộ truyện mới: '{series.Title}'.",
                 IsRead = false,

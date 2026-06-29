@@ -502,19 +502,19 @@ export function TantouChapterReview() {
                 onClick={() => submitDecision("revision_requested")}
                 disabled={submittingDecision}
                 variant="outline"
-                className="border-orange-500/30 text-orange-300 hover:bg-orange-500/10"
+                className="h-auto min-h-11 min-w-0 px-2 py-2 text-xs leading-tight whitespace-normal border-orange-500/30 text-orange-300 hover:bg-orange-500/10"
               >
-                <X className="mr-1.5 h-4 w-4" />
-                Request Revision
+                <X className="mr-1 h-4 w-4 shrink-0" />
+                <span className="min-w-0 text-center">Request Revision</span>
               </Button>
               <Button
                 onClick={() => submitDecision("approved")}
                 disabled={submittingDecision || !canApproveChapter}
                 title={!canApproveChapter ? "All pages must be approved before chapter approval." : undefined}
-                className="bg-[#00dfc0] font-bold text-black hover:bg-[#00dfc0]/90"
+                className="h-auto min-h-11 min-w-0 px-2 py-2 text-xs font-bold leading-tight whitespace-normal bg-[#00dfc0] text-black hover:bg-[#00dfc0]/90"
               >
-                <Check className="mr-1.5 h-4 w-4" />
-                Approve Chapter
+                <Check className="mr-1 h-4 w-4 shrink-0" />
+                <span className="min-w-0 text-center">Approve Chapter</span>
               </Button>
             </div>
             <p className="text-[11px] leading-relaxed text-zinc-500">

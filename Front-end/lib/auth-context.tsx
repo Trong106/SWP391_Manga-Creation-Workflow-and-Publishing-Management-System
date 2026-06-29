@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import type { User, UserRole } from "@/lib/types"
 
-import { API_BASE_URL } from "@/lib/api-config"
+import { API_BASE_URL, readJson } from "@/lib/api-config"
 
 // Thông tin tài khoản mẫu
 const mockUsers: Record<UserRole, { name: string; email: string; avatar: string; id: string }> = {
@@ -58,9 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const savedToken = localStorage.getItem("auth_token")
     const savedUser = localStorage.getItem("auth_user")
     if (savedRole && savedToken && savedUser) {
-      setRoleState(savedRole)
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+      try {
+        setRoleState(savedRole)
+        setToken(savedToken)
+        setUser(JSON.parse(savedUser))
+      } catch {
+        localStorage.removeItem("auth_role")
+        localStorage.removeItem("auth_token")
+        localStorage.removeItem("auth_user")
+      }
     }
     setLoading(false)
   }, [])
@@ -78,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       if (res.ok) {
-        const data = await res.json()
+        const data = await readJson<any>(res)
+        if (!data?.token) return false
         setToken(data.token)
         
         const backendRole = data.role.toLowerCase() as UserRole
