@@ -97,6 +97,27 @@ public class SeriesService : ISeriesService
 
         _context.SeriesProposals.Add(proposal);
 
+        // Lấy ra duy nhất 1 người thuộc ban biên tập (Editorial Board) đang hoạt động
+        var editorialUser = await _context.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);
+
+        // Chỉ gửi thông báo đích danh cho 1 người biên tập này thay vì gửi diện rộng
+        if (editorialUser != null)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = editorialUser.UserId,
+                Type = "review_needed",
+                Title = "Đề xuất bộ truyện mới cần duyệt",
+                Message = $"Mangaka vừa gửi đề xuất cho bộ truyện mới: '{series.Title}'.",
+                IsRead = false,
+                Link = "/proposals",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
         await _context.SaveChangesAsync();
 
         return await GetSeriesById(series.SeriesId, mangakaId);

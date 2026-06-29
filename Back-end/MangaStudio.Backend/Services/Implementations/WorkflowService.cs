@@ -155,11 +155,38 @@ public class WorkflowService : IWorkflowService
     {
         var schedule = await _context.PublishSchedules
             .Include(s => s.Chapter)
+                .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(s => s.PublishScheduleId == scheduleId)
             ?? throw new KeyNotFoundException($"Không tìm thấy lịch xuất bản với ID {scheduleId}");
 
-        schedule.ApprovedById = tantouId;
-        // status is either kept as scheduled or approved in terms of business. Since DB only accepts 'scheduled','published','cancelled', we keep it as 'scheduled' or we can mark it 'published' if appropriate, but generally it remains 'scheduled' and ApprovedById != null represents approval.
+        if (string.Equals(schedule.Status, "published", StringComparison.OrdinalIgnoreCase))
+        {
+            return await GetPublishScheduleById(schedule.PublishScheduleId);
+        }
+
+        schedule.ApprovedById = editorialId;
+        schedule.Status = "published";
+        schedule.PublishedAt = DateTime.UtcNow;
+        if (schedule.Chapter != null)
+        {
+            schedule.Chapter.Status = "published";
+            schedule.Chapter.SubmittedForPublishingAt ??= DateTime.UtcNow;
+            schedule.Chapter.UpdatedAt = DateTime.UtcNow;
+
+            var series = schedule.Chapter.Series;
+            var publishDate = schedule.ScheduledDate.ToString("yyyy-MM-dd HH:mm 'UTC'");
+            _context.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = series.MangakaId,
+                Type = "system",
+                Title = "Chapter published",
+                Message = $"{series.Title} chapter {schedule.Chapter.ChapterNumber} has been published for {publishDate}.",
+                IsRead = false,
+                Link = $"/chapters/{schedule.Chapter.ChapterId}",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
         
         await _context.SaveChangesAsync();
 
