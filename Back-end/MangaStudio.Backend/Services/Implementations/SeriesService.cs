@@ -98,31 +98,30 @@ public class SeriesService : ISeriesService
 
         _context.SeriesProposals.Add(proposal);
 
-        // Lấy ra duy nhất 1 người thuộc ban biên tập (Editorial Board) đang hoạt động
-        var editorialUser = await _context.Users
+        // Lấy TẤT CẢ người thuộc ban biên tập (Editorial Board) đang hoạt động
+        var editorialUsers = await _context.Users
             .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);
+            .Where(u => u.Role.Code == "editorial" && u.IsActive)
+            .ToListAsync();
 
-        // Chỉ gửi thông báo đích danh cho 1 người biên tập này thay vì gửi diện rộng
-        if (editorialUser != null)
+        // Gửi thông báo cho mỗi người biên tập
+        if (editorialUsers.Any())
         {
-            _context.Notifications.Add(new Notification
+            foreach (var editorialUser in editorialUsers)
             {
-                NotificationId = Guid.NewGuid(),
-                UserId = editorialUser.UserId,
-                Type = "new_proposal_submitted",
-                Title = "Đề xuất bộ truyện mới cần duyệt",
-                Message = $"Mangaka vừa gửi đề xuất cho bộ truyện mới: '{series.Title}'.",
-                IsRead = false,
-                Link = "/proposals",
-                CreatedAt = DateTime.UtcNow
-            });
+                _context.Notifications.Add(new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    UserId = editorialUser.UserId,
+                    Type = "new_proposal_submitted",
+                    Title = "New Series Proposal Pending Review",
+                    Message = $"A Mangaka has just submitted a proposal for a new series: '{series.Title}'.",
+                    IsRead = false,
+                    Link = "/proposals",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
         }
-
-        await _context.SaveChangesAsync();
-
-        return await GetSeriesById(series.SeriesId, mangakaId);
-    }
 
     /// <summary>
     /// Cập nhật thông tin bộ truyện.
