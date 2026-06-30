@@ -152,6 +152,18 @@ public class WorkflowService : IWorkflowService
     /// </summary>
     public async Task<PublishScheduleDto> CreatePublishSchedule(Guid chapterId, Guid createdById, CreatePublishScheduleDto dto)
     {
+        var scheduledUtc = dto.ScheduledDate.Kind switch
+        {
+            DateTimeKind.Utc => dto.ScheduledDate,
+            DateTimeKind.Local => dto.ScheduledDate.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dto.ScheduledDate, DateTimeKind.Utc)
+        };
+
+        if (scheduledUtc <= DateTime.UtcNow)
+        {
+            throw new InvalidOperationException("Thoi gian xuat ban phai nam trong tuong lai.");
+        }
+
         var chapter = await _context.Chapters
             .Include(c => c.Series)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
@@ -167,7 +179,7 @@ public class WorkflowService : IWorkflowService
         {
             PublishScheduleId = Guid.NewGuid(),
             ChapterId = chapterId,
-            ScheduledDate = dto.ScheduledDate,
+            ScheduledDate = scheduledUtc,
             Status = "scheduled",
             CreatedAt = DateTime.UtcNow
         };
