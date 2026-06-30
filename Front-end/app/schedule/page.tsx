@@ -45,6 +45,7 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import { toast } from "sonner"
+import { localTodayInputValue, parseApiDateTime, toUtcIsoFromLocal } from "@/lib/date-time"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,7 +103,8 @@ export default function SchedulePage() {
   const { token, role } = useAuth()
   const authHeader = { Authorization: `Bearer ${token}` }
 
-  const today = new Date()
+  const [now, setNow] = useState(() => new Date())
+  const today = now
   const [currentMonth, setCurrentMonth] = useState(
     new Date(today.getFullYear(), today.getMonth())
   )
@@ -204,6 +206,11 @@ export default function SchedulePage() {
   }, [loadSchedules, loadSeries])
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
     if (selectedSeriesId && selectedSeriesId !== "none") {
       loadChapters(selectedSeriesId)
       setSelectedChapterId("none")
@@ -225,8 +232,12 @@ export default function SchedulePage() {
     try {
       setSubmitting(true)
       // Combine date + time into ISO datetime
-      const datetime = new Date(`${scheduledDate}T${scheduledTime}:00`)
-      const body = { scheduledDate: datetime.toISOString() }
+      const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}:00`)
+      if (scheduledAt.getTime() <= Date.now()) {
+        toast.error("Publication time must be in the future.")
+        return
+      }
+      const body = { scheduledDate: toUtcIsoFromLocal(scheduledDate, scheduledTime) }
       const res = await fetch(
         `${API_BASE_URL}/api/chapters/${selectedChapterId}/schedule`,
         {
@@ -305,7 +316,7 @@ export default function SchedulePage() {
   // Build a map of day → schedules for the displayed month
   const schedulesByDay: Record<number, PublishSchedule[]> = {}
   schedules.forEach((s) => {
-    const d = new Date(s.scheduledDate)
+    const d = parseApiDateTime(s.scheduledDate)!
     if (
       d.getFullYear() === currentMonth.getFullYear() &&
       d.getMonth() === currentMonth.getMonth()
@@ -322,14 +333,14 @@ export default function SchedulePage() {
     currentMonth.getFullYear() === today.getFullYear()
 
   const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("en-US", {
+    parseApiDateTime(iso)!.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     })
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-US", {
+    parseApiDateTime(iso)!.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -340,11 +351,14 @@ export default function SchedulePage() {
 
   // Upcoming = scheduled/approved, sorted by scheduledDate asc, next 8
   const upcoming = schedules
-    .filter((s) => s.status === "scheduled" || s.status === "approved")
+    .filter((s) =>
+      (s.status === "scheduled" || s.status === "approved") &&
+      parseApiDateTime(s.scheduledDate)!.getTime() >= now.getTime()
+    )
     .sort(
       (a, b) =>
-        new Date(a.scheduledDate).getTime() -
-        new Date(b.scheduledDate).getTime()
+        parseApiDateTime(a.scheduledDate)!.getTime() -
+        parseApiDateTime(b.scheduledDate)!.getTime()
     )
     .slice(0, 8)
 
@@ -515,7 +529,7 @@ export default function SchedulePage() {
                       onChange={(e) => setScheduledDate(e.target.value)}
                       className="bg-zinc-900 border-zinc-700 text-white"
                       id="schedule-date-input"
-                      min={new Date().toISOString().split("T")[0]}
+                      min={localTodayInputValue(now)}
                     />
                   </div>
                   <div className="space-y-1.5">

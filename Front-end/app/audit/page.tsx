@@ -134,9 +134,12 @@ const categoryIcons = {
 import { useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
+import { formatRelativeTime } from "@/lib/date-time"
+import { useNow } from "@/lib/use-now"
 
 export default function AuditPage() {
   const { token } = useAuth()
+  const now = useNow()
   const [searchQuery, setSearchQuery] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([])
@@ -301,7 +304,7 @@ export default function AuditPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {log.timestamp}
+                        {formatRelativeTime(log.timestamp, now)}
                       </div>
                     </div>
                   </div>

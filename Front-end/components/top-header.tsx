@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
+import { formatRelativeTime } from "@/lib/date-time"
+import { useNow } from "@/lib/use-now"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +41,7 @@ export function TopHeader() {
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
+  const now = useNow()
 
   const fetchNotifications = () => {
     if (!token) return
@@ -111,18 +114,6 @@ export function TopHeader() {
     } catch (err) {
       console.error("Error marking all notifications as read:", err)
     }
-  }
-
-  const getRelativeTime = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const span = Date.now() - date.getTime()
-    const minutes = Math.floor(span / 60000)
-    if (minutes < 1) return "just now"
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
   }
 
   const unreadCount = notifications.filter((n) => !n.isRead).length
@@ -201,7 +192,7 @@ export function TopHeader() {
                     <p className="text-xs text-muted-foreground line-clamp-2">
                       {notification.message}
                     </p>
-                    <span className="text-[10px] text-zinc-500">{getRelativeTime(notification.createdAt)}</span>
+                    <span className="text-[10px] text-zinc-500">{formatRelativeTime(notification.createdAt, now)}</span>
                   </DropdownMenuItem>
                 ))
               )}

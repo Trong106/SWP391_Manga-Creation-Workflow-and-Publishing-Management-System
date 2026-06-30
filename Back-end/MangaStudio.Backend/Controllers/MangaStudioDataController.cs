@@ -239,7 +239,7 @@ public class MangaStudioDataController : ControllerBase
                 ? $"{l.EntityType} (ID: {l.EntityId.Value.ToString()[..8]})"
                 : l.EntityType,
             details   = l.DetailsJson ?? "No additional details available.",
-            timestamp = GetRelativeTime(l.CreatedAt),
+            timestamp = l.CreatedAt,
             category  = GetCategory(l.EntityType)
         });
 
@@ -637,7 +637,7 @@ public class MangaStudioDataController : ControllerBase
                 userName  = c.User.FullName,
                 avatar    = c.User.Avatar,
                 body      = c.Body,
-                createdAt = GetRelativeTime(c.CreatedAt)
+                createdAt = c.CreatedAt
             })
         });
 
@@ -707,7 +707,7 @@ public class MangaStudioDataController : ControllerBase
                         userName = rc.User.FullName,
                         avatar = rc.User.Avatar,
                         body = rc.Body,
-                        createdAt = GetRelativeTime(rc.CreatedAt)
+                        createdAt = rc.CreatedAt
                     })
                 })
         });
@@ -725,15 +725,4 @@ public class MangaStudioDataController : ControllerBase
             _         => "system"
         };
 
-    private static string GetRelativeTime(DateTime dateTime)
-    {
-        var span = DateTime.UtcNow - dateTime;
-        if (span.TotalDays > 365)  return $"{(int)(span.TotalDays / 365)} year(s) ago";
-        if (span.TotalDays > 30)   return $"{(int)(span.TotalDays / 30)} month(s) ago";
-        if (span.TotalDays > 7)    return $"{(int)(span.TotalDays / 7)} week(s) ago";
-        if (span.TotalDays >= 1)   return $"{(int)span.TotalDays} day(s) ago";
-        if (span.TotalHours >= 1)  return $"{(int)span.TotalHours} hour(s) ago";
-        if (span.TotalMinutes >= 1) return $"{(int)span.TotalMinutes} minute(s) ago";
-        return "just now";
-    }
 }

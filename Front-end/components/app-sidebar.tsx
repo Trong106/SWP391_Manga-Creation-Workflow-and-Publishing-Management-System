@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
@@ -276,16 +277,26 @@ export function AppSidebar() {
           <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
             {!collapsed && (
               <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <span className="font-bold text-primary-foreground text-sm">MF</span>
-                </div>
+                <Image
+                  src="/logo.png"
+                  alt="MangaFlow Logo"
+                  width={32}
+                  height={32}
+                  className="rounded-lg object-contain"
+                />
                 <span className="text-lg font-bold">MangaFlow</span>
               </Link>
             )}
             {collapsed && (
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center mx-auto">
-                <span className="font-bold text-primary-foreground text-sm">MF</span>
-              </div>
+              <Link href="/" className="mx-auto">
+                <Image
+                  src="/logo.png"
+                  alt="MangaFlow Logo"
+                  width={32}
+                  height={32}
+                  className="rounded-lg object-contain"
+                />
+              </Link>
             )}
             <Button
               variant="ghost"
