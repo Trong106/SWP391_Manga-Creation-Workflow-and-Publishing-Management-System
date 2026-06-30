@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { SeriesDetailModal } from "./series-detail-modal"
+import { formatRelativeTime, parseApiDateTime } from "@/lib/date-time"
+import { useNow } from "@/lib/use-now"
 
 export function ProjectList() {
   const { token } = useAuth()
@@ -14,6 +16,7 @@ export function ProjectList() {
   const [loading, setLoading] = useState(true)
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const now = useNow()
 
   const fetchSeries = () => {
     if (!token) return
@@ -28,7 +31,7 @@ export function ProjectList() {
         if (Array.isArray(data)) {
           // Sắp xếp theo thứ tự cập nhật mới nhất đến cũ nhất cho mục "Danh Sách Truyện Tranh Mới"
           const sorted = [...data].sort(
-            (a, b) => new Date(b.updatedAtRaw).getTime() - new Date(a.updatedAtRaw).getTime()
+            (a, b) => parseApiDateTime(b.updatedAtRaw)!.getTime() - parseApiDateTime(a.updatedAtRaw)!.getTime()
           )
           setProjects(sorted)
         }
@@ -55,18 +58,6 @@ export function ProjectList() {
     setIsModalOpen(true)
   }
 
-  const getRelativeTimeString = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const diffMs = new Date().getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffMins < 60) return `${diffMins || 1} minutes ago`
-    if (diffHours < 24) return `${diffHours} hours ago`
-    return `${diffDays} days ago`
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -83,7 +74,7 @@ export function ProjectList() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
           {projects.map((project) => {
             const coverUrl = getFullCoverUrl(project.coverImageUrl)
-            const updatedTime = getRelativeTimeString(project.updatedAtRaw)
+            const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
             return (
               <div
                 key={project.id}

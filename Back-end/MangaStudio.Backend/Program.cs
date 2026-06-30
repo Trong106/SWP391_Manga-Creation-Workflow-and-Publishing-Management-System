@@ -8,11 +8,16 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using Microsoft.Extensions.FileProviders;
 using System.IO;
+using MangaStudio.Backend.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Đăng ký Controllers
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeJsonConverter());
+});
 
 // Cấu hình CORS để cho phép Frontend gọi API
 builder.Services.AddCors(options =>
