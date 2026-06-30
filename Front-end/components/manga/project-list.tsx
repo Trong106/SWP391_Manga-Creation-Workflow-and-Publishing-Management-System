@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Star, Eye, Bookmark, FileText, BookOpen } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { API_BASE_URL } from "@/lib/api-config"
+import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { SeriesDetailModal } from "./series-detail-modal"
 import { formatRelativeTime, parseApiDateTime } from "@/lib/date-time"
@@ -26,7 +26,7 @@ export function ProjectList() {
         "Authorization": `Bearer ${token}`
       }
     })
-      .then((res) => res.json())
+      .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
           // Sắp xếp theo thứ tự cập nhật mới nhất đến cũ nhất cho mục "Danh Sách Truyện Tranh Mới"

@@ -5,7 +5,7 @@ import { StatsCards as MetricCard } from "@/components/manga/stats-cards"
 import { TeamActivity as RecentActivity } from "@/components/manga/team-activity"
 import { ProjectList as NewMangaGrid } from "@/components/manga/project-list"
 import { useState, useEffect, useRef } from "react"
-import { API_BASE_URL } from "@/lib/api-config"
+import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 import { BookOpen, Star, Eye, Bookmark, TrendingUp, X, FolderOpen, Clock, Plus, Loader2, DollarSign, Calendar } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -161,7 +161,7 @@ export default function Dashboard() {
     if (!authHeader) return
 
     fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
-      .then((res) => res.json())
+      .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
           setSeriesList(data)
@@ -174,7 +174,7 @@ export default function Dashboard() {
     if (!authHeader) return
 
     fetch(`${API_BASE_URL}/api/data/team`, { headers: authHeader })
-      .then((res) => res.json())
+      .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
           setAssistantsList(data)
@@ -199,7 +199,7 @@ export default function Dashboard() {
     })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load chapters")
-        return res.json()
+        return readJson<any[]>(res)
       })
       .then((data) => {
         if (Array.isArray(data)) {
@@ -223,7 +223,7 @@ export default function Dashboard() {
     })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load pages")
-        return res.json()
+        return readJson<any[]>(res)
       })
       .then((data) => {
         if (Array.isArray(data)) {
@@ -275,9 +275,9 @@ export default function Dashboard() {
       body: JSON.stringify(payload)
     })
       .then(async (res) => {
-        const responseData = await res.json()
+        const responseData = await readJson<{ message?: string }>(res)
         if (!res.ok) {
-          throw new Error(responseData.message || "Failed to create task")
+          throw new Error(responseData?.message || "Failed to create task")
         }
         return responseData
       })
@@ -298,7 +298,7 @@ export default function Dashboard() {
     if (!authHeader) return
 
     fetch(`${API_BASE_URL}/api/data/tasks`, { headers: authHeader })
-      .then((res) => res.json())
+      .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
           setTasks(data)
@@ -315,7 +315,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (role && user?.id && authHeader) {
       fetch(`${API_BASE_URL}/api/data/dashboard-metrics?role=${role}&userId=${user.id}`, { headers: authHeader })
-        .then((res) => res.json())
+        .then((res) => readJson<any[]>(res))
         .then((data) => {
           if (Array.isArray(data)) {
             setMetrics(data)
@@ -332,7 +332,7 @@ export default function Dashboard() {
     if (!authHeader) return
 
     fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
-      .then((res) => res.json())
+      .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
           // Sắp xếp theo lượt xem (readerCount) giảm dần và doanh thu cao nhất
