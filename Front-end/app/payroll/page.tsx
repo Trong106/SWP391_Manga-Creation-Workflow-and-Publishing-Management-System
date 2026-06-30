@@ -80,7 +80,6 @@ interface AssistantSummary {
   totalEarned: number
   pendingAmount: number
   tasksThisMonth: number
-  rating: number
 }
 
 const statusConfig = {
@@ -106,6 +105,33 @@ const statusConfig = {
   },
 }
 
+const formatPeriodDate = (date: Date) =>
+  date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+
+const getPayrollPeriods = () => {
+  const now = new Date()
+  const currentStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() <= 15 ? 1 : 16)
+  const currentEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() <= 15 ? 15 : new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate())
+
+  const previousEnd = new Date(currentStart)
+  previousEnd.setDate(previousEnd.getDate() - 1)
+  const previousStart = new Date(previousEnd.getFullYear(), previousEnd.getMonth(), previousEnd.getDate() <= 15 ? 1 : 16)
+
+  const secondPreviousEnd = new Date(previousStart)
+  secondPreviousEnd.setDate(secondPreviousEnd.getDate() - 1)
+  const secondPreviousStart = new Date(secondPreviousEnd.getFullYear(), secondPreviousEnd.getMonth(), secondPreviousEnd.getDate() <= 15 ? 1 : 16)
+
+  return [
+    { value: "current", label: `${formatPeriodDate(currentStart)} - ${formatPeriodDate(currentEnd)}` },
+    { value: "prev", label: `${formatPeriodDate(previousStart)} - ${formatPeriodDate(previousEnd)}` },
+    { value: "prev2", label: `${formatPeriodDate(secondPreviousStart)} - ${formatPeriodDate(secondPreviousEnd)}` },
+  ]
+}
+
 export default function PayrollPage() {
   const { token, role } = useAuth()
   const [payroll, setPayroll] = useState<PayrollEntry[]>([])
@@ -113,6 +139,7 @@ export default function PayrollPage() {
   const [loading, setLoading] = useState(true)
   const [selectedEntries, setSelectedEntries] = useState<string[]>([])
   const [isPayDialogOpen, setIsPayDialogOpen] = useState(false)
+  const payrollPeriods = getPayrollPeriods()
 
   useEffect(() => {
     if (!token) return
@@ -140,7 +167,6 @@ export default function PayrollPage() {
                 totalEarned: 0,
                 pendingAmount: 0,
                 tasksThisMonth: 0,
-                rating: 4.8, // default rating
               }
             }
             if (entry.status === "paid") {
@@ -313,9 +339,11 @@ export default function PayrollPage() {
                     <SelectValue placeholder="Period" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="current">Jan 1-15, 2024</SelectItem>
-                    <SelectItem value="prev">Dec 16-31, 2023</SelectItem>
-                    <SelectItem value="prev2">Dec 1-15, 2023</SelectItem>
+                    {payrollPeriods.map((period) => (
+                      <SelectItem key={period.value} value={period.value}>
+                        {period.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon">
@@ -475,9 +503,6 @@ export default function PayrollPage() {
                           <h3 className="font-semibold">{assistant.name}</h3>
                           <p className="text-sm text-muted-foreground">{assistant.role}</p>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {assistant.rating} rating
-                        </Badge>
                       </div>
                       <div className="grid grid-cols-3 gap-4 mt-4">
                         <div>
