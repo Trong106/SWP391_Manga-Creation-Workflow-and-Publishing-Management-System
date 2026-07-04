@@ -105,7 +105,7 @@ export default function SubmitWorkPage() {
         allTasksData = await allTasksRes.json()
       }
 
-      // Merge data
+      // Merge data and keep only tasks currently being worked on.
       const merged: Task[] = myTasksData.map((mt: any) => {
         const matchingTask = allTasksData.find((at: any) => at.id === mt.taskId)
         return {
@@ -122,7 +122,7 @@ export default function SubmitWorkPage() {
           seriesTitle: matchingTask?.seriesTitle || "Neo-Tokyo Chronicles",
           assignerName: mt.assignerName || "Yuki Tanaka"
         }
-      })
+      }).filter((task: Task) => task.status === "in_progress")
 
       setTasks(merged)
       
@@ -132,11 +132,7 @@ export default function SubmitWorkPage() {
           return requestedTaskId
         }
 
-        const nextActionableTask = merged.find((task) =>
-          ["pending", "in_progress", "revision"].includes(task.status)
-        )
-
-        return nextActionableTask?.id || merged[0]?.id || ""
+        return merged[0]?.id || ""
       })
     } catch (err: any) {
       console.error(err)
@@ -312,7 +308,7 @@ export default function SubmitWorkPage() {
         </div>
         <h2 className="text-xl font-bold text-white">No Active Assignments</h2>
         <p className="text-zinc-400 text-sm">
-          You currently have no pending tasks assigned. When your Mangaka assigns you work, it will appear here.
+          You currently have no in-progress tasks ready for submission. Start a task from My Tasks before submitting work.
         </p>
       </div>
     )
@@ -324,7 +320,7 @@ export default function SubmitWorkPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-card border border-border rounded-xl">
         <div>
           <h2 className="text-sm font-semibold text-zinc-400">Select Task Assignment</h2>
-          <p className="text-xs text-zinc-500">Choose an active work item to review or submit files</p>
+          <p className="text-xs text-zinc-500">Only in-progress tasks are available for submission</p>
         </div>
         <Select value={selectedTaskId} onValueChange={setSelectedTaskId}>
           <SelectTrigger className="w-full sm:w-80 bg-zinc-950/60 border-zinc-800 text-white font-medium text-sm">
@@ -414,12 +410,12 @@ export default function SubmitWorkPage() {
           <div className="grid grid-cols-12 gap-6">
             
             {/* Left Column: Upload & Checklist (8 cols) */}
-            <div className="col-span-12 lg:col-span-8 space-y-6">
-              
-              {/* Specialized Upload Area */}
-              <Card className="bg-card border-border relative overflow-hidden">
+            <div className="col-span-12 lg:col-span-8">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {/* Specialized Upload Area */}
+                <Card className="bg-card border-border relative overflow-hidden h-full">
                 <div className="absolute top-0 right-0 p-6 pointer-events-none opacity-5">
-                  <FileUp className="w-32 h-32" />
+                  <FileUp className="w-24 h-24" />
                 </div>
                 <CardHeader>
                   <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
@@ -427,7 +423,7 @@ export default function SubmitWorkPage() {
                     MangaPages Upload
                   </CardTitle>
                   <CardDescription className="text-zinc-400 text-xs">
-                    Tải lên file bản vẽ sạch của bạn. Hệ thống sẽ tối ưu hóa dữ liệu và gửi thông báo trực tiếp cho Mangaka phụ trách.
+                    Upload your clean artwork file. The system will optimize the data and notify the assigned Mangaka directly.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -437,7 +433,7 @@ export default function SubmitWorkPage() {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[300px] ${
+                    className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[240px] ${
                       isDragging 
                         ? "border-primary bg-primary/5" 
                         : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20"
@@ -490,10 +486,10 @@ export default function SubmitWorkPage() {
                     </div>
                   )}
                 </CardContent>
-              </Card>
+                </Card>
 
-              {/* Quality Control Checklist & Submission Notes */}
-              <Card className="bg-card border-border">
+                {/* Quality Control Checklist & Submission Notes */}
+                <Card className="bg-card border-border h-full">
                 <CardHeader>
                   <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                     <Check className="w-5 h-5 text-primary" />
@@ -503,11 +499,11 @@ export default function SubmitWorkPage() {
                     Please double-check all technical details to ensure compatibility with high-resolution printing.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-5">
                   {/* QC Checklist Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3">
                     <label 
-                      className={`flex items-start gap-3 p-4 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
                         checklist.dpi ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
                       }`}
                     >
@@ -523,7 +519,7 @@ export default function SubmitWorkPage() {
                     </label>
 
                     <label 
-                      className={`flex items-start gap-3 p-4 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
                         checklist.layers ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
                       }`}
                     >
@@ -539,7 +535,7 @@ export default function SubmitWorkPage() {
                     </label>
 
                     <label 
-                      className={`flex items-start gap-3 p-4 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
                         checklist.transparency ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
                       }`}
                     >
@@ -555,7 +551,7 @@ export default function SubmitWorkPage() {
                     </label>
 
                     <label 
-                      className={`flex items-start gap-3 p-4 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
                         checklist.aliasing ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
                       }`}
                     >
@@ -581,12 +577,12 @@ export default function SubmitWorkPage() {
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       placeholder="Add details about changes, notes on formatting, or issues that need Mangaka's review..."
-                      className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[100px] resize-none"
+                      className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[92px] resize-none"
                     />
                   </div>
                 </CardContent>
-              </Card>
-
+                </Card>
+              </div>
             </div>
 
             {/* Right Column: Summary & Metadata (4 cols) */}
@@ -722,7 +718,7 @@ export default function SubmitWorkPage() {
                     </Avatar>
                     <div className="min-w-0">
                       <p className="font-bold text-sm text-zinc-200 truncate">{selectedTask.assignerName}</p>
-                      <p className="text-[10px] text-primary uppercase font-bold tracking-wider leading-none mt-1">Mangaka / Creator</p>
+                      <p className="text-xs text-zinc-500 truncate">Assigned Mangaka reviewer</p>
                     </div>
                   </div>
 

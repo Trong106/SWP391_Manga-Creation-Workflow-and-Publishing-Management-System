@@ -126,12 +126,6 @@ const navItems: NavItem[] = [
     roles: ["mangaka"],
   },
   {
-    title: "Payroll",
-    href: "/payroll",
-    icon: DollarSign,
-    roles: ["mangaka"],
-  },
-  {
     title: "Series Proposals",
     href: "/proposals",
     icon: FileText,

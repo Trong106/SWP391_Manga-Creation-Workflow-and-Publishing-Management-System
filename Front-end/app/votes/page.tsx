@@ -1,7 +1,11 @@
 "use client"
 
+<<<<<<< Updated upstream
+import { useState, useEffect } from "react"
+=======
 import { useState } from "react"
-import { BarChart3, TrendingUp, TrendingDown, Plus, Save, Download } from "lucide-react"
+>>>>>>> Stashed changes
+import { BarChart3, TrendingUp, TrendingDown, Plus, Save, Download, History } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -42,7 +46,7 @@ interface VoteEntry {
   previousRank: number
 }
 
-import { useEffect } from "react"
+
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 
@@ -179,6 +183,28 @@ export default function VotesPage() {
   const totalVotes = voteEntries.reduce((sum, v) => sum + v.votes, 0)
   const topSeries = voteEntries.length > 0 ? voteEntries[0] : null
   const atRiskCount = voteEntries.filter(v => v.rank >= 8).length
+  const weekHistory = voteEntries.length > 0
+<<<<<<< Updated upstream
+  ? [
+      {
+        week: selectedWeek,
+        year: currentYear,
+        topSeries: topSeries?.series ?? "N/A",
+        totalVotes,
+      },
+    ]
+  : []
+=======
+    ? [
+        {
+          week: selectedWeek,
+          year: currentYear,
+          topSeries: topSeries?.series || "N/A",
+          totalVotes,
+        },
+      ]
+    : []
+>>>>>>> Stashed changes
 
   return (
     <div className="space-y-6">

@@ -245,6 +245,9 @@ public class WorkflowService : IWorkflowService
         var query = _context.PayrollRecords
             .Include(p => p.Assistant)
             .Include(p => p.Task)
+                .ThenInclude(t => t!.Page)
+                    .ThenInclude(p => p.Chapter)
+                        .ThenInclude(c => c.Series)
             .AsQueryable();
 
         if (assistantId.HasValue)
@@ -257,13 +260,31 @@ public class WorkflowService : IWorkflowService
             query = query.Where(p => p.Task != null && p.Task.AssignerId == mangakaId.Value);
         }
 
-        return await query
+        var records = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        return records
+            .GroupBy(p => p.Task == null
+                ? $"payroll:{p.PayrollRecordId}"
+                : $"{p.AssistantId}:{p.Task.Page.ChapterId}:{p.Task.PageId}:{p.Task.Type.ToLower()}")
+            .Select(g => g
+                .OrderByDescending(p => p.Task?.UpdatedAt ?? p.CreatedAt)
+                .ThenByDescending(p => p.CreatedAt)
+                .First())
             .OrderByDescending(p => p.CreatedAt)
             .Select(p => new PayrollDto
             {
                 PayrollRecordId = p.PayrollRecordId,
                 AssistantId = p.AssistantId,
                 AssistantName = p.Assistant.FullName,
+                TaskId = p.TaskId,
+                TaskTitle = p.Task != null ? p.Task.Title : null,
+                TaskType = p.Task != null ? p.Task.Type : null,
+                SeriesTitle = p.Task != null ? p.Task.Page.Chapter.Series.Title : null,
+                ChapterNumber = p.Task != null ? p.Task.Page.Chapter.ChapterNumber : null,
+                ChapterTitle = p.Task != null ? p.Task.Page.Chapter.Title : null,
+                PageNumber = p.Task != null ? p.Task.Page.PageNumber : null,
                 PeriodStart = p.PeriodStart,
                 PeriodEnd = p.PeriodEnd,
                 BaseAmount = p.BaseAmount,
@@ -274,7 +295,7 @@ public class WorkflowService : IWorkflowService
                 PaidAt = p.PaidAt,
                 CreatedAt = p.CreatedAt
             })
-            .ToListAsync();
+            .ToList();
     }
 
     /// <summary>
@@ -309,6 +330,9 @@ public class WorkflowService : IWorkflowService
             PayrollRecordId = record.PayrollRecordId,
             AssistantId = record.AssistantId,
             AssistantName = record.Assistant.FullName,
+            TaskId = record.TaskId,
+            TaskTitle = record.Task != null ? record.Task.Title : null,
+            TaskType = record.Task != null ? record.Task.Type : null,
             PeriodStart = record.PeriodStart,
             PeriodEnd = record.PeriodEnd,
             BaseAmount = record.BaseAmount,
