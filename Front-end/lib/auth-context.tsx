@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return false
     } catch (err) {
-      console.error("Lỗi đăng nhập:", err)
+      console.error("Login failed:", err)
       return false
     } finally {
       setLoading(false)

@@ -7,6 +7,7 @@ public class PageDto
     public Guid ChapterId { get; set; }
     public int PageNumber { get; set; }
     public string? CurrentImageUrl { get; set; }
+    public string? OriginalFileName { get; set; }
     public string Status { get; set; } = null!;
     public Guid? UploadedById { get; set; }
     public string? UploadedByName { get; set; }
