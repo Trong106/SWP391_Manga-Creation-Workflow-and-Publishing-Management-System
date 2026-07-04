@@ -323,6 +323,7 @@ public class ChapterService : IChapterService
         var chapter = await _context.Chapters
             .Include(c => c.Series)
             .Include(c => c.MangaPages)
+                .ThenInclude(p => p.Tasks)
             .Include(c => c.TantouReviewedBy)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Khong tim thay chapter voi ID {chapterId}.");
@@ -351,6 +352,7 @@ public class ChapterService : IChapterService
             }
 
             chapter.Status = "editorial_ready";
+            await GeneratePayrollForApprovedChapter(chapter);
         }
         else
         {
@@ -367,6 +369,54 @@ public class ChapterService : IChapterService
         await _context.SaveChangesAsync();
 
         return await GetChapterById(chapter.ChapterId);
+    }
+
+    private async System.Threading.Tasks.Task GeneratePayrollForApprovedChapter(Chapter chapter)
+    {
+        var approvedTasks = chapter.MangaPages
+            .SelectMany(p => p.Tasks)
+            .Where(t => t.AssigneeId.HasValue && string.Equals(t.Status, "approved", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (!approvedTasks.Any())
+        {
+            return;
+        }
+
+        // If a page was revised, a Mangaka may create a replacement task for the
+        // same assistant/page/type. Only the latest approved task should be paid.
+        var payableTasks = approvedTasks
+            .GroupBy(t => new { t.AssigneeId, t.PageId, Type = t.Type.ToLower() })
+            .Select(g => g.OrderByDescending(t => t.UpdatedAt).ThenByDescending(t => t.CreatedAt).First())
+            .ToList();
+
+        var approvedTaskIds = payableTasks.Select(t => t.TaskId).ToList();
+        var existingPayrollTaskIds = await _context.PayrollRecords
+            .Where(p => p.TaskId.HasValue && approvedTaskIds.Contains(p.TaskId.Value))
+            .Select(p => p.TaskId!.Value)
+            .ToListAsync();
+
+        var existingSet = existingPayrollTaskIds.ToHashSet();
+        var periodDate = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        foreach (var task in payableTasks.Where(t => !existingSet.Contains(t.TaskId)))
+        {
+            var totalAmount = task.PaymentAmount;
+            _context.PayrollRecords.Add(new PayrollRecord
+            {
+                PayrollRecordId = Guid.NewGuid(),
+                AssistantId = task.AssigneeId!.Value,
+                TaskId = task.TaskId,
+                PeriodStart = periodDate,
+                PeriodEnd = periodDate,
+                BaseAmount = task.PaymentAmount,
+                BonusAmount = 0,
+                DeductionAmount = 0,
+                TotalAmount = totalAmount,
+                Status = "pending",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
     }
 
     public async Task<ChapterVersionCompareDto> GetChapterVersions(Guid chapterId)
