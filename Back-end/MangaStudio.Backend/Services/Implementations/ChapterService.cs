@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
@@ -127,6 +128,10 @@ public class ChapterService : IChapterService
                 ChapterId = p.ChapterId,
                 PageNumber = p.PageNumber,
                 CurrentImageUrl = p.CurrentImageUrl,
+                OriginalFileName = p.PageVersions
+                    .OrderBy(v => v.VersionNumber)
+                    .Select(v => v.FileName)
+                    .FirstOrDefault(),
                 Status = p.Status,
                 UploadedById = p.UploadedById,
                 UploadedByName = p.UploadedBy != null ? p.UploadedBy.FullName : null,
@@ -152,18 +157,59 @@ public class ChapterService : IChapterService
 
         var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".psd", ".clip" };
         var maxFileSize = 50 * 1024 * 1024; // 50 MB
+        var pageNamePattern = new Regex(@"^page_(\d{3,})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        var orderedFiles = files
+            .Select(file => new
+            {
+                File = file,
+                Extension = Path.GetExtension(file.FileName).ToLowerInvariant(),
+                BaseName = Path.GetFileNameWithoutExtension(file.FileName),
+            })
+            .Select(item => new
+            {
+                item.File,
+                item.Extension,
+                item.BaseName,
+                Match = pageNamePattern.Match(item.BaseName),
+            })
+            .ToList();
 
-        foreach (var file in files)
+        foreach (var item in orderedFiles)
         {
-            var ext = Path.GetExtension(file.FileName).ToLower();
-            if (!allowedExtensions.Contains(ext))
+            var file = item.File;
+            if (!allowedExtensions.Contains(item.Extension))
             {
                 throw new ArgumentException($"Định dạng file {file.FileName} không được hỗ trợ. Chỉ chấp nhận .PNG, .JPG, .JPEG, .PSD, .CLIP.");
+            }
+
+            if (!item.Match.Success)
+            {
+                throw new ArgumentException($"Tên file '{file.FileName}' không hợp lệ. Hãy đặt tên liên tiếp theo mẫu page_001, page_002...");
             }
 
             if (file.Length > maxFileSize)
             {
                 throw new ArgumentException($"File {file.FileName} vượt quá kích thước tối đa cho phép là 50MB.");
+            }
+        }
+
+        var duplicateInBatch = orderedFiles
+            .GroupBy(item => item.File.FileName, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateInBatch != null)
+        {
+            throw new InvalidOperationException($"Tên page bị trùng trong danh sách tải lên: {duplicateInBatch.Key}");
+        }
+
+        var numberedFiles = orderedFiles
+            .Select(item => new { item.File, Number = int.Parse(item.Match.Groups[1].Value) })
+            .OrderBy(item => item.Number)
+            .ToList();
+        for (var index = 1; index < numberedFiles.Count; index++)
+        {
+            if (numberedFiles[index].Number != numberedFiles[index - 1].Number + 1)
+            {
+                throw new ArgumentException("Các page phải được đặt số liên tiếp, ví dụ page_001, page_002, page_003...");
             }
         }
 
@@ -179,14 +225,34 @@ public class ChapterService : IChapterService
         await _uploadLock.WaitAsync();
         try
         {
+            var incomingNames = numberedFiles
+                .Select(item => item.File.FileName.ToLower())
+                .ToList();
+            var existingNames = await _context.PageVersions
+                .Where(version => version.Page.ChapterId == chapterId)
+                .Select(version => version.FileName.ToLower())
+                .Where(fileName => incomingNames.Contains(fileName))
+                .Distinct()
+                .ToListAsync();
+            if (existingNames.Count > 0)
+            {
+                throw new InvalidOperationException($"Chapter đã có page trùng tên: {string.Join(", ", existingNames)}");
+            }
+
             var maxPageNumber = await _context.MangaPages
                 .Where(p => p.ChapterId == chapterId)
                 .Select(p => (int?)p.PageNumber)
                 .MaxAsync() ?? 0;
 
-            foreach (var file in files)
+            if (numberedFiles[0].Number != maxPageNumber + 1)
             {
-                maxPageNumber++;
+                throw new ArgumentException($"Tên page tiếp theo phải bắt đầu từ page_{maxPageNumber + 1:D3}.");
+            }
+
+            foreach (var numberedFile in numberedFiles)
+            {
+                var file = numberedFile.File;
+                maxPageNumber = numberedFile.Number;
 
                 // Tải hình vẽ trang truyện lên Cloudinary
                 var imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
@@ -231,7 +297,7 @@ public class ChapterService : IChapterService
             }
 
             await _context.SaveChangesAsync();
-            resultDto.TotalUploaded = files.Count;
+            resultDto.TotalUploaded = numberedFiles.Count;
         }
         finally
         {

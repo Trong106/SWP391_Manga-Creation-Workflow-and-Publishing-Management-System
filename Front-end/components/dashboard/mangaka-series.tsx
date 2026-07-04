@@ -57,7 +57,7 @@ export function MangakaSeries() {
           setLoading(false)
         })
         .catch((err) => {
-          console.error("Lỗi lấy danh sách bộ truyện từ API:", err)
+          console.error("Failed to load series:", err)
           setLoading(false)
         })
     }

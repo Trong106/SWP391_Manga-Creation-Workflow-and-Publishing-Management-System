@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import {
@@ -26,7 +27,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -35,6 +35,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
+
+const SynopsisRichTextEditor = dynamic(
+  () => import("@/components/manga/synopsis-rich-text-editor"),
+  { ssr: false },
+)
 
 interface Series {
   id: string
@@ -225,7 +230,7 @@ export default function SeriesPage() {
               New Series
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px] bg-[#18181b] text-white border-zinc-800">
+          <DialogContent className="w-[calc(100vw-2rem)] max-w-none sm:max-w-[1100px] bg-[#18181b] text-white border-zinc-800 max-h-[92vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Series</DialogTitle>
               <DialogDescription className="text-zinc-400">
@@ -272,15 +277,13 @@ export default function SeriesPage() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="synopsis" className="text-zinc-300">Synopsis</Label>
-                <Textarea
-                  id="synopsis"
-                  value={newSynopsis}
-                  onChange={(e) => setNewSynopsis(e.target.value)}
-                  placeholder="Brief description of your manga..."
-                  rows={3}
-                  className="bg-zinc-900 border-zinc-800 text-white"
-                />
+                <div>
+                  <Label htmlFor="synopsis" className="text-zinc-300">Synopsis</Label>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Long-form synopsis supported, including manuscripts over 2,000 words.
+                  </p>
+                </div>
+                <SynopsisRichTextEditor value={newSynopsis} onChange={setNewSynopsis} />
               </div>
             </div>
             <DialogFooter>
