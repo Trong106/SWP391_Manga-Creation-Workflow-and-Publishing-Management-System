@@ -135,7 +135,7 @@ public class ChapterController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/upload-pages")]
     [Authorize(Roles = "mangaka")]
-    public async Task<IActionResult> UploadPages(Guid id, List<IFormFile> files)
+    public async Task<IActionResult> UploadPages(Guid id, [FromForm] List<IFormFile> files)
     {
         try
         {
@@ -146,6 +146,10 @@ public class ChapterController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
         }
         catch (Exception ex)
         {

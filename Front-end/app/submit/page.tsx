@@ -423,7 +423,7 @@ export default function SubmitWorkPage() {
                     MangaPages Upload
                   </CardTitle>
                   <CardDescription className="text-zinc-400 text-xs">
-                    Upload your clean artwork file. The system will optimize the data and notify the assigned Mangaka directly.
+                    Upload your finished artwork. The system will optimize the file and notify the assigned Mangaka directly.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
