@@ -105,7 +105,7 @@ export default function SubmitWorkPage() {
         allTasksData = await allTasksRes.json()
       }
 
-      // Merge data and keep only tasks currently being worked on.
+      // Merge data
       const merged: Task[] = myTasksData.map((mt: any) => {
         const matchingTask = allTasksData.find((at: any) => at.id === mt.taskId)
         return {
@@ -122,7 +122,7 @@ export default function SubmitWorkPage() {
           seriesTitle: matchingTask?.seriesTitle || "Neo-Tokyo Chronicles",
           assignerName: mt.assignerName || "Yuki Tanaka"
         }
-      }).filter((task: Task) => task.status === "in_progress")
+      })
 
       setTasks(merged)
       
@@ -132,7 +132,11 @@ export default function SubmitWorkPage() {
           return requestedTaskId
         }
 
-        return merged[0]?.id || ""
+        const nextActionableTask = merged.find((task) =>
+          ["pending", "in_progress", "revision"].includes(task.status)
+        )
+
+        return nextActionableTask?.id || merged[0]?.id || ""
       })
     } catch (err: any) {
       console.error(err)
@@ -308,7 +312,7 @@ export default function SubmitWorkPage() {
         </div>
         <h2 className="text-xl font-bold text-white">No Active Assignments</h2>
         <p className="text-zinc-400 text-sm">
-          You currently have no in-progress tasks ready for submission. Start a task from My Tasks before submitting work.
+          You currently have no pending tasks assigned. When your Mangaka assigns you work, it will appear here.
         </p>
       </div>
     )
@@ -320,7 +324,7 @@ export default function SubmitWorkPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-card border border-border rounded-xl">
         <div>
           <h2 className="text-sm font-semibold text-zinc-400">Select Task Assignment</h2>
-          <p className="text-xs text-zinc-500">Only in-progress tasks are available for submission</p>
+          <p className="text-xs text-zinc-500">Choose an active work item to review or submit files</p>
         </div>
         <Select value={selectedTaskId} onValueChange={setSelectedTaskId}>
           <SelectTrigger className="w-full sm:w-80 bg-zinc-950/60 border-zinc-800 text-white font-medium text-sm">
@@ -411,328 +415,301 @@ export default function SubmitWorkPage() {
             
             {/* Left Column: Upload & Checklist (8 cols) */}
             <div className="col-span-12 lg:col-span-8">
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                
                 {/* Specialized Upload Area */}
-                <Card className="bg-card border-border relative overflow-hidden h-full">
-                <div className="absolute top-0 right-0 p-6 pointer-events-none opacity-5">
-                  <FileUp className="w-24 h-24" />
-                </div>
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                    <FileUp className="w-5 h-5 text-primary" />
-                    MangaPages Upload
-                  </CardTitle>
-                  <CardDescription className="text-zinc-400 text-xs">
-                    Upload your finished artwork. The system will optimize the file and notify the assigned Mangaka directly.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Dashed Drag/Drop Box */}
-                  <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[240px] ${
-                      isDragging 
-                        ? "border-primary bg-primary/5" 
-                        : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20"
-                    }`}
-                  >
-                    <input 
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                      accept=".png,.jpg,.jpeg,.psd,.clip"
-                    />
-                    <div className="w-14 h-14 rounded-full bg-zinc-950 flex items-center justify-center border border-zinc-800 mb-4 group-hover:scale-105 transition-transform">
-                      <FileUp className="w-6 h-6 text-primary" />
-                    </div>
-                    <h3 className="font-bold text-zinc-200 text-lg mb-1">Drag & drop your file here</h3>
-                    <p className="text-zinc-400 text-xs mb-1">or click to browse local files</p>
-                    <p className="text-zinc-500 text-[10px] uppercase font-semibold tracking-wider mt-2">
-                      Supports PSD, CLIP, PNG, JPG, JPEG (Max 50MB)
-                    </p>
+                <Card className="bg-card border-border relative overflow-hidden flex flex-col justify-between h-full">
+                  <div className="absolute top-0 right-0 p-6 pointer-events-none opacity-5">
+                    <FileUp className="w-32 h-32" />
                   </div>
-
-                  {/* Uploaded File Queue */}
-                  {file && (
-                    <div className="space-y-2 mt-4">
-                      <Label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Upload Queue</Label>
-                      <div className="flex items-center justify-between p-3.5 bg-zinc-950/60 border border-zinc-850 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center justify-center shrink-0">
-                            {file.name.endsWith(".psd") || file.name.endsWith(".clip") ? (
-                              <FileCode className="w-5 h-5 text-primary" />
-                            ) : (
-                              <ImageIcon className="w-5 h-5 text-primary" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-sm text-zinc-200 truncate">{file.name}</p>
-                            <p className="text-zinc-500 text-xs">{(file.size / (1024 * 1024)).toFixed(1)} MB • Ready to submit</p>
-                          </div>
-                        </div>
-                        <Button 
-                          onClick={removeFile} 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-zinc-400 hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash className="w-4 h-4" />
-                        </Button>
+                  <CardHeader>
+                    <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                      <FileUp className="w-5 h-5 text-primary" />
+                      MangaPages Upload
+                    </CardTitle>
+                    <CardDescription className="text-zinc-400 text-xs">
+                      Upload your clean drawing files. The system will optimize the data and send a notification directly to the in-charge Mangaka.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                    {/* Dashed Drag/Drop Box */}
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[300px] flex-1 ${
+                        isDragging 
+                          ? "border-primary bg-primary/5" 
+                          : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20"
+                      }`}
+                    >
+                      <input 
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept=".png,.jpg,.jpeg,.psd,.clip"
+                      />
+                      <div className="w-14 h-14 rounded-full bg-zinc-950 flex items-center justify-center border border-zinc-800 mb-4 group-hover:scale-105 transition-transform">
+                        <FileUp className="w-6 h-6 text-primary" />
                       </div>
+                      <h3 className="font-bold text-zinc-200 text-lg mb-1">Drag & drop your file here</h3>
+                      <p className="text-zinc-400 text-xs mb-1">or click to browse local files</p>
+                      <p className="text-zinc-555 text-[10px] uppercase font-semibold tracking-wider mt-2">
+                        Supports PSD, CLIP, PNG, JPG, JPEG (Max 50MB)
+                      </p>
                     </div>
-                  )}
-                </CardContent>
+
+                    {/* Uploaded File Queue */}
+                    {file && (
+                      <div className="space-y-2 mt-4">
+                        <Label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Upload Queue</Label>
+                        <div className="flex items-center justify-between p-3 bg-zinc-950/60 border border-zinc-850 rounded-xl">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center justify-center shrink-0">
+                              {file.name.endsWith(".psd") || file.name.endsWith(".clip") ? (
+                                <FileCode className="w-5 h-5 text-primary" />
+                              ) : (
+                                <ImageIcon className="w-5 h-5 text-primary" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-xs text-zinc-200 truncate">{file.name}</p>
+                              <p className="text-zinc-555 text-[10px]">{(file.size / (1024 * 1024)).toFixed(1)} MB</p>
+                            </div>
+                          </div>
+                          <Button 
+                            onClick={removeFile} 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-zinc-400 hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
                 </Card>
 
                 {/* Quality Control Checklist & Submission Notes */}
-                <Card className="bg-card border-border h-full">
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                    <Check className="w-5 h-5 text-primary" />
-                    Studio Quality Control
-                  </CardTitle>
-                  <CardDescription className="text-zinc-400 text-xs">
-                    Please double-check all technical details to ensure compatibility with high-resolution printing.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {/* QC Checklist Grid */}
-                  <div className="grid grid-cols-1 gap-3">
-                    <label 
-                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                        checklist.dpi ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
-                      }`}
-                    >
-                      <Checkbox 
-                        checked={checklist.dpi} 
-                        onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, dpi: !!checked }))}
-                        className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-sm text-zinc-200">Minimum 600 DPI</span>
-                        <p className="text-zinc-500 text-[11px] leading-snug">Required for high-resolution print production.</p>
-                      </div>
-                    </label>
+                <Card className="bg-card border-border flex flex-col justify-between h-full">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                      <Check className="w-5 h-5 text-primary" />
+                      Studio Quality Control
+                    </CardTitle>
+                    <CardDescription className="text-zinc-400 text-xs">
+                      Please double-check all technical details to ensure compatibility with high-resolution printing.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                    {/* QC Checklist Grid (Single Column Stack) */}
+                    <div className="grid grid-cols-1 gap-3">
+                      <label 
+                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                          checklist.dpi ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
+                        }`}
+                      >
+                        <Checkbox 
+                          checked={checklist.dpi} 
+                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, dpi: !!checked }))}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                        />
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs text-zinc-200">Minimum 600 DPI</span>
+                          <p className="text-zinc-555 text-[10px] leading-snug">Required for high-resolution print production.</p>
+                        </div>
+                      </label>
 
-                    <label 
-                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                        checklist.layers ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
-                      }`}
-                    >
-                      <Checkbox 
-                        checked={checklist.layers} 
-                        onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, layers: !!checked }))}
-                        className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-sm text-zinc-200">Layer Structure Preserved</span>
-                        <p className="text-zinc-500 text-[11px] leading-snug">Lineart, Tones, and SFX on separate layers.</p>
-                      </div>
-                    </label>
+                      <label 
+                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                          checklist.layers ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
+                        }`}
+                      >
+                        <Checkbox 
+                          checked={checklist.layers} 
+                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, layers: !!checked }))}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                        />
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs text-zinc-200">Layer Structure Preserved</span>
+                          <p className="text-zinc-555 text-[10px] leading-snug">Lineart, Tones, and SFX on separate layers.</p>
+                        </div>
+                      </label>
 
-                    <label 
-                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                        checklist.transparency ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
-                      }`}
-                    >
-                      <Checkbox 
-                        checked={checklist.transparency} 
-                        onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, transparency: !!checked }))}
-                        className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-sm text-zinc-200">Transparency Check</span>
-                        <p className="text-zinc-500 text-[11px] leading-snug">No stray pixels on alpha channel backgrounds.</p>
-                      </div>
-                    </label>
+                      <label 
+                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                          checklist.transparency ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
+                        }`}
+                      >
+                        <Checkbox 
+                          checked={checklist.transparency} 
+                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, transparency: !!checked }))}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                        />
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs text-zinc-200">Transparency Check</span>
+                          <p className="text-zinc-555 text-[10px] leading-snug">No stray pixels on alpha channel backgrounds.</p>
+                        </div>
+                      </label>
 
-                    <label 
-                      className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                        checklist.aliasing ? "border-primary/40 bg-primary/5" : "border-zinc-850 hover:border-zinc-700"
-                      }`}
-                    >
-                      <Checkbox 
-                        checked={checklist.aliasing} 
-                        onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, aliasing: !!checked }))}
-                        className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                      />
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-sm text-zinc-200">Anti-Aliasing Off</span>
-                        <p className="text-zinc-500 text-[11px] leading-snug">Binary (Aliased) lines for screentone compatibility.</p>
-                      </div>
-                    </label>
-                  </div>
+                      <label 
+                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
+                          checklist.aliasing ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
+                        }`}
+                      >
+                        <Checkbox 
+                          checked={checklist.aliasing} 
+                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, aliasing: !!checked }))}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                        />
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-xs text-zinc-200">Anti-Aliasing Off</span>
+                          <p className="text-zinc-555 text-[10px] leading-snug">Binary (Aliased) lines for screentone compatibility.</p>
+                        </div>
+                      </label>
+                    </div>
 
-                  {/* Submission Notes */}
-                  <div className="space-y-2 pt-2">
-                    <Label htmlFor="submit-notes" className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
-                      Submission Notes (Optional)
-                    </Label>
-                    <Textarea 
-                      id="submit-notes"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      placeholder="Add details about changes, notes on formatting, or issues that need Mangaka's review..."
-                      className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[92px] resize-none"
-                    />
-                  </div>
-                </CardContent>
+                    {/* Submission Notes */}
+                    <div className="space-y-2 pt-2">
+                      <Label htmlFor="submit-notes" className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                        Submission Notes (Optional)
+                      </Label>
+                      <Textarea 
+                        id="submit-notes"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="Add details about changes, notes on formatting, or issues that need Mangaka's review..."
+                        className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[90px] resize-none text-xs"
+                      />
+                    </div>
+                  </CardContent>
                 </Card>
+
               </div>
             </div>
 
-            {/* Right Column: Summary & Metadata (4 cols) */}
-            <div className="col-span-12 lg:col-span-4 space-y-6">
-
-              {/* Task Summary Card */}
-              <Card className="bg-card border-border overflow-hidden">
-                <div className="h-1.5 bg-primary w-full"></div>
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-bold text-white">Task Summary</CardTitle>
+            {/* Right Column: Workflow & Reviewer (4 cols) */}
+            <div className="col-span-12 lg:col-span-4">
+              <Card className="bg-card border-border h-full flex flex-col justify-between">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                    <UserCheck className="w-5 h-5 text-primary" />
+                    Reviewer & Progress
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3.5">
-                  <div className="flex justify-between items-center py-2 border-b border-zinc-850/50">
-                    <span className="text-xs text-zinc-400 font-medium">Assignment Type</span>
-                    <span className="text-xs font-semibold text-zinc-200 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-850">
-                      {formatTaskType(selectedTask.type)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-zinc-850/50">
-                    <span className="text-xs text-zinc-400 font-medium">Deadline</span>
-                    <span className={`text-xs font-semibold flex items-center gap-1 ${
-                      selectedTask.dueDate ? "text-destructive" : "text-zinc-500"
-                    }`}>
-                      <Clock className="w-3.5 h-3.5 shrink-0" />
-                      {selectedTask.dueDate ? selectedTask.dueDate : "No deadline"}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-xs text-zinc-400 font-semibold uppercase tracking-widest">Payout</span>
-                    <span className="text-xl font-bold text-primary font-mono">
-                      ¥{selectedTask.payment ? selectedTask.payment.toLocaleString() : "0"}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Workflow State (Vertical Timeline) */}
-              <Card className="bg-card border-border">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-bold text-white">Workflow State</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="relative pl-6 space-y-6">
-                    {/* Timeline Line */}
-                    <div className="absolute left-[9px] top-1.5 bottom-1.5 w-0.5 bg-zinc-850"></div>
-
-                    {/* Step 1 */}
-                    <div className="relative flex gap-3">
-                      <div className="absolute -left-6 w-5 h-5 rounded-full bg-primary/25 border border-primary/60 flex items-center justify-center z-10">
-                        <Check className="w-3 h-3 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-zinc-200">Started Work</p>
-                        <p className="text-[10px] text-zinc-500">Assignment accepted</p>
+                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                  {/* Task Reviewer Info */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Reviewer</span>
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[9px] font-semibold py-0.5 px-2">
+                        Online
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2.5 bg-zinc-950/60 border border-zinc-850 rounded-xl">
+                      <Avatar className="w-8 h-8 border border-zinc-800 shrink-0">
+                        <AvatarImage src={`https://api.dicebear.com/7.x/notionists/svg?seed=${selectedTask.assignerName}`} />
+                        <AvatarFallback className="bg-zinc-900 text-zinc-200">{selectedTask.assignerName.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-xs text-zinc-200 truncate">{selectedTask.assignerName}</p>
+                        <p className="text-[9px] text-primary uppercase font-bold tracking-wider leading-none mt-0.5">Mangaka / Creator</p>
                       </div>
                     </div>
 
-                    {/* Step 2 */}
-                    <div className="relative flex gap-3">
-                      <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
-                        selectedTask.status === "in_progress" || selectedTask.status === "pending" || selectedTask.status === "revision"
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-primary/20 text-primary border-primary/50"
-                      }`}>
-                        <span className="text-[10px] font-bold">1</span>
+                    <Button 
+                      onClick={handleRequestPreReview}
+                      variant="outline" 
+                      className="w-full bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-xs py-2 h-9 font-medium transition-colors"
+                    >
+                      <UserCheck className="w-3.5 h-3.5 mr-1.5" />
+                      Request Pre-Review
+                    </Button>
+                  </div>
+
+                  <div className="border-t border-zinc-900/60 my-2"></div>
+
+                  {/* Workflow State Steps */}
+                  <div className="space-y-3">
+                    <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Workflow Status</span>
+                    
+                    <div className="relative pl-6 space-y-4">
+                      {/* Timeline Line */}
+                      <div className="absolute left-[9px] top-1.5 bottom-1.5 w-0.5 bg-zinc-850"></div>
+
+                      {/* Step 1 */}
+                      <div className="relative flex gap-2">
+                        <div className="absolute -left-6 w-5 h-5 rounded-full bg-primary/25 border border-primary/60 flex items-center justify-center z-10">
+                          <Check className="w-3 h-3 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-zinc-200">Started Work</p>
+                          <p className="text-[9px] text-zinc-500">Assignment accepted</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className={`text-xs font-bold ${
-                          selectedTask.status === "in_progress" || selectedTask.status === "pending" || selectedTask.status === "revision" 
-                            ? "text-primary" 
-                            : "text-zinc-400"
+
+                      {/* Step 2 */}
+                      <div className="relative flex gap-2">
+                        <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
+                          selectedTask.status === "in_progress" || selectedTask.status === "pending" || selectedTask.status === "revision"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-primary/20 text-primary border-primary/50"
                         }`}>
-                          In Progress
-                        </p>
-                        <p className="text-[10px] text-zinc-500">Drawing line arts & layouts</p>
+                          <span className="text-[10px] font-bold">1</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[11px] font-bold ${
+                            selectedTask.status === "in_progress" || selectedTask.status === "pending" || selectedTask.status === "revision" 
+                              ? "text-primary" 
+                              : "text-zinc-400"
+                          }`}>
+                            In Progress
+                          </p>
+                          <p className="text-[9px] text-zinc-550">Drawing line arts & layouts</p>
+                        </div>
+                      </div>
+
+                      {/* Step 3 */}
+                      <div className="relative flex gap-2">
+                        <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
+                          selectedTask.status === "submitted"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-zinc-950 text-zinc-500 border-zinc-800"
+                        }`}>
+                          <span className="text-[10px] font-bold">2</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[11px] font-bold ${selectedTask.status === "submitted" ? "text-primary" : "text-zinc-400"}`}>
+                            Submitted
+                          </p>
+                          <p className="text-[9px] text-zinc-550">Pending Mangaka review</p>
+                        </div>
+                      </div>
+
+                      {/* Step 4 */}
+                      <div className="relative flex gap-2">
+                        <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
+                          selectedTask.status === "approved"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-zinc-950 text-zinc-550 border-zinc-800"
+                        }`}>
+                          <span className="text-[10px] font-bold">3</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-[11px] font-bold ${selectedTask.status === "approved" ? "text-primary" : "text-zinc-400"}`}>
+                            Approved / Completed
+                          </p>
+                          <p className="text-[9px] text-zinc-555">Payroll record generated</p>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Step 3 */}
-                    <div className="relative flex gap-3">
-                      <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
-                        selectedTask.status === "submitted"
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-zinc-950 text-zinc-500 border-zinc-800"
-                      }`}>
-                        <span className="text-[10px] font-bold">2</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className={`text-xs font-bold ${selectedTask.status === "submitted" ? "text-primary" : "text-zinc-400"}`}>
-                          Submitted
-                        </p>
-                        <p className="text-[10px] text-zinc-500">Pending Mangaka review</p>
-                      </div>
-                    </div>
-
-                    {/* Step 4 */}
-                    <div className="relative flex gap-3">
-                      <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
-                        selectedTask.status === "approved"
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-zinc-950 text-zinc-500 border-zinc-800"
-                      }`}>
-                        <span className="text-[10px] font-bold">3</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className={`text-xs font-bold ${selectedTask.status === "approved" ? "text-primary" : "text-zinc-400"}`}>
-                          Approved / Completed
-                        </p>
-                        <p className="text-[10px] text-zinc-500">Payroll record generated</p>
-                      </div>
-                    </div>
-
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Task Owner / Assigner Section */}
-              <Card className="bg-card border-border">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-sm text-zinc-200">Task Reviewer</h3>
-                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-semibold py-0.5 px-2">
-                      Reviewer Online
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center gap-3.5 p-3 bg-zinc-950/60 border border-zinc-850 rounded-xl">
-                    <Avatar className="w-10 h-10 border border-zinc-800 shrink-0">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/notionists/svg?seed=${selectedTask.assignerName}`} />
-                      <AvatarFallback className="bg-zinc-900 text-zinc-200">{selectedTask.assignerName.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="font-bold text-sm text-zinc-200 truncate">{selectedTask.assignerName}</p>
-                      <p className="text-xs text-zinc-500 truncate">Assigned Mangaka reviewer</p>
-                    </div>
-                  </div>
-
-                  <Button 
-                    onClick={handleRequestPreReview}
-                    variant="outline" 
-                    className="w-full bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-xs py-2.5 font-medium transition-colors"
-                  >
-                    <UserCheck className="w-4 h-4 mr-2" />
-                    Request Pre-Review
-                  </Button>
-                </CardContent>
-              </Card>
-
             </div>
 
           </div>

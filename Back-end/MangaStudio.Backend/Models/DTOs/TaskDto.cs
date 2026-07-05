@@ -23,6 +23,8 @@ public class TaskDto
     public decimal PaymentAmount { get; set; }
     public int ChapterNumber { get; set; }
     public string? SeriesTitle { get; set; }
+    public Guid? SeriesId { get; set; }
+    public string? SeriesCoverImageUrl { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
