@@ -90,6 +90,13 @@ public class PayrollDto
     public Guid PayrollRecordId { get; set; }
     public Guid AssistantId { get; set; }
     public string AssistantName { get; set; } = null!;
+    public Guid? TaskId { get; set; }
+    public string? TaskTitle { get; set; }
+    public string? TaskType { get; set; }
+    public string? SeriesTitle { get; set; }
+    public int? ChapterNumber { get; set; }
+    public string? ChapterTitle { get; set; }
+    public int? PageNumber { get; set; }
     public DateOnly PeriodStart { get; set; }
     public DateOnly PeriodEnd { get; set; }
     public decimal BaseAmount { get; set; }

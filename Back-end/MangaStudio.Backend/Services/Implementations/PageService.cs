@@ -316,7 +316,7 @@ public class PageService : IPageService
             UserName = user?.FullName ?? "Unknown",
             Avatar = user?.Avatar,
             Body = comment.Body,
-            CreatedAt = "Just now"
+            CreatedAt = comment.CreatedAt.ToString("O")
         };
     }
 }

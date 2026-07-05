@@ -18,6 +18,8 @@ import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { TantouChapterReview } from "@/components/tantou-chapter-review"
 import { VersionCompareDialog } from "@/components/version-compare-dialog"
+import { formatRelativeTime } from "@/lib/date-time"
+import { useNow } from "@/lib/use-now"
 
 export default function ReviewPage() {
   const { role } = useAuth()
@@ -54,6 +56,7 @@ function MangakaReviewPage() {
   const [bulkApproving, setBulkApproving] = useState(false)
   const [versionDialogOpen, setVersionDialogOpen] = useState(false)
   const [versionMode, setVersionMode] = useState<"page" | "chapter">("page")
+  const now = useNow()
 
   const refreshSidebarBadges = () => {
     window.dispatchEvent(new Event("mangaflow:badges-refresh"))
@@ -130,22 +133,6 @@ function MangakaReviewPage() {
     return `${API_BASE_URL}${coverPath}`
   }
 
-  const getRelativeTime = (timeStr?: string) => {
-    if (!timeStr) return ""
-    let normalized = timeStr
-    if (timeStr && !timeStr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(timeStr)) {
-      normalized = timeStr + "Z"
-    }
-    const date = new Date(normalized)
-    const diffMs = new Date().getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffMins < 60) return `${diffMins || 1} minutes ago`
-    if (diffHours < 24) return `${diffHours} hours ago`
-    return `${diffDays} days ago`
-  }
 
   // Handle page approval
   const handleApprovePage = async () => {
@@ -349,7 +336,7 @@ function MangakaReviewPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
               {reviewSeries.map((s) => {
                 const coverUrl = getFullCoverUrl(s.coverImageUrl)
-                const relativeTime = getRelativeTime(s.oldestReviewPageTime)
+                const relativeTime = formatRelativeTime(s.oldestReviewPageTime, now)
                 return (
                   <div
                     key={s.id}
@@ -661,7 +648,7 @@ function MangakaReviewPage() {
                             </Avatar>
                             <span className="font-semibold text-zinc-200">{c.userName}</span>
                           </div>
-                          <span className="text-[10px] text-zinc-500">{c.createdAt}</span>
+                          <span className="text-[10px] text-zinc-500">{formatRelativeTime(c.createdAt, now)}</span>
                         </div>
                         <p className="text-zinc-400 leading-normal">{c.body}</p>
                       </div>

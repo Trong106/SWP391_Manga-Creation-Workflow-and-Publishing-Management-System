@@ -352,28 +352,6 @@ public class TaskService : ITaskService
             {
                 otherSubmission.Status = "superseded";
             }
-
-            var payrollExists = await _context.PayrollRecords
-                .AnyAsync(p => p.TaskId == submission.TaskId);
-
-            if (!payrollExists)
-            {
-                var periodDate = DateOnly.FromDateTime(DateTime.UtcNow);
-                var payroll = new PayrollRecord
-                {
-                    PayrollRecordId = Guid.NewGuid(),
-                    AssistantId = submission.SubmittedById,
-                    TaskId = submission.TaskId,
-                    PeriodStart = periodDate,
-                    PeriodEnd = periodDate,
-                    BaseAmount = submission.Task.PaymentAmount,
-                    BonusAmount = 0,
-                    DeductionAmount = 0,
-                    Status = "pending",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.PayrollRecords.Add(payroll);
-            }
         }
         else if (decision == "rejected")
         {

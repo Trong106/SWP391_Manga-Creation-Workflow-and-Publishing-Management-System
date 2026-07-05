@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Upload, X, ImageIcon, Folder, ChevronRight, Check, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -36,6 +36,16 @@ interface UploadedFile {
   progress: number
 }
 
+interface ChapterPage {
+  pageId: string
+  pageNumber: number
+  currentImageUrl?: string
+  originalFileName?: string
+  status: string
+}
+
+const PAGE_FILE_PATTERN = /^page_(\d{3,})\.(png|jpe?g|psd|clip)$/i
+
 export default function UploadPage() {
   const { user, token } = useAuth()
   const [selectedSeries, setSelectedSeries] = useState("")
@@ -47,9 +57,10 @@ export default function UploadPage() {
   const [newChapterTitle, setNewChapterTitle] = useState("")
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [chapterPages, setChapterPages] = useState<ChapterPage[]>([])
+  const [isLoadingPages, setIsLoadingPages] = useState(false)
+  const [duplicateWarning, setDuplicateWarning] = useState<string[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const [pageSelectionMode, setPageSelectionMode] = useState<"auto" | "specific">("auto")
-  const [specificPageNumber, setSpecificPageNumber] = useState<string>("")
 
   // Lấy danh sách bộ truyện thật từ database (gửi kèm JWT Token để xác thực)
   useEffect(() => {
@@ -71,7 +82,7 @@ export default function UploadPage() {
             setSelectedSeries(mapped[0].id)
           }
         })
-        .catch((err) => console.error("Lỗi lấy danh sách bộ truyện:", err))
+        .catch((err) => console.error("Failed to load series:", err))
     }
   }, [user?.id, token])
 
@@ -100,7 +111,7 @@ export default function UploadPage() {
           }
         })
         .catch((err) => {
-          console.error("Lỗi lấy danh sách chương:", err)
+          console.error("Failed to load chapters:", err)
           setChapters([])
           setSelectedChapterId("")
         })
@@ -110,19 +121,46 @@ export default function UploadPage() {
     }
   }, [selectedSeries, token])
 
+  const loadChapterPages = useCallback(async (chapterId: string) => {
+    if (!chapterId || !token) {
+      setChapterPages([])
+      return
+    }
+
+    setIsLoadingPages(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chapters/${chapterId}/pages`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error("Failed to fetch chapter pages")
+      const pages = await response.json()
+      setChapterPages([...pages].sort((a, b) => a.pageNumber - b.pageNumber))
+    } catch (error) {
+      console.error("Failed to load chapter pages:", error)
+      setChapterPages([])
+      toast.error("Could not load the pages in this chapter.")
+    } finally {
+      setIsLoadingPages(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    void loadChapterPages(selectedChapterId)
+  }, [selectedChapterId, loadChapterPages])
+
   // Hàm tạo chương mới qua API
   const handleCreateChapter = async () => {
     if (!selectedSeries) {
-      toast.error("Vui lòng chọn bộ truyện trước.")
+      toast.error("Please select a series first.")
       return
     }
     if (!newChapterNumber) {
-      toast.error("Vui lòng nhập số chương.")
+      toast.error("Please enter a chapter number.")
       return
     }
     const num = parseInt(newChapterNumber)
     if (isNaN(num) || num < 1 || num > 9999) {
-      toast.error("Số chương phải là số nguyên từ 1 đến 9999.")
+      toast.error("Chapter number must be an integer between 1 and 9999.")
       return
     }
 
@@ -142,11 +180,11 @@ export default function UploadPage() {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
-        throw new Error(errData.message || "Tạo chương mới thất bại.")
+        throw new Error(errData.message || "Failed to create the chapter.")
       }
 
       const createdChapter = await response.json()
-      toast.success(`Đã tạo thành công chương ${createdChapter.chapterNumber}`)
+      toast.success(`Chapter ${createdChapter.chapterNumber} was created successfully.`)
       
       // Refresh list of chapters and auto select the new one
       const updatedRes = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
@@ -173,85 +211,93 @@ export default function UploadPage() {
       setNewChapterTitle("")
       setIsDialogOpen(false)
     } catch (err: any) {
-      console.error("Lỗi tạo chương:", err)
-      toast.error(err.message || "Đã xảy ra lỗi khi tạo chương.")
+      console.error("Failed to create chapter:", err)
+      toast.error(err.message || "An error occurred while creating the chapter.")
     } finally {
       setIsCreatingChapter(false)
     }
   }
 
-  // Hàm thực hiện gọi API Upload File lên Backend
-  const uploadFile = async (file: File, fileId: string) => {
+  // Validate and upload the complete ordered batch in one request.
+  const handleFiles = async (files: File[]) => {
     if (!selectedChapterId) {
-      toast.error("Vui lòng chọn hoặc tạo chương truyện trước khi tải lên.")
-      setUploadedFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileId ? { ...f, status: "error", progress: 0 } : f
-        )
-      )
+      toast.error("Please select or create a chapter before uploading pages.")
       return
     }
 
-    const formData = new FormData()
-    formData.append("file", file)
-
-    let url = `${API_BASE_URL}/api/mangaka/chapters/${selectedChapterId}/upload-pages`
-    if (pageSelectionMode === "specific" && specificPageNumber) {
-      url += `?pageNumber=${specificPageNumber}`
+    const parsedFiles = files.map((file) => ({ file, match: file.name.match(PAGE_FILE_PATTERN) }))
+    const invalidFiles = parsedFiles.filter(({ match }) => !match).map(({ file }) => file.name)
+    if (invalidFiles.length > 0) {
+      toast.error(`Invalid page name: ${invalidFiles.join(", ")}. Use page_001, page_002...`)
+      return
     }
 
+    const orderedFiles = parsedFiles
+      .map(({ file, match }) => ({ file, pageNumber: Number(match![1]) }))
+      .sort((a, b) => a.pageNumber - b.pageNumber)
+    const existingNames = new Set(chapterPages.map((page) => page.originalFileName?.toLowerCase()).filter(Boolean))
+    const seenNames = new Set<string>()
+    const duplicateNames = orderedFiles.flatMap(({ file }) => {
+      const normalizedName = file.name.toLowerCase()
+      if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) return [file.name]
+      seenNames.add(normalizedName)
+      return []
+    })
+    if (duplicateNames.length > 0) {
+      setDuplicateWarning([...new Set(duplicateNames)])
+      return
+    }
+
+    for (let index = 1; index < orderedFiles.length; index++) {
+      if (orderedFiles[index].pageNumber !== orderedFiles[index - 1].pageNumber + 1) {
+        toast.error("Page names must use consecutive numbers (page_001, page_002, page_003...).")
+        return
+      }
+    }
+
+    const queuedFiles: UploadedFile[] = orderedFiles.map(({ file }, index) => ({
+      id: `new-${Date.now()}-${index}`,
+      name: file.name,
+      size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+      preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
+      status: "uploading",
+      progress: 50,
+    }))
+    setUploadedFiles(queuedFiles)
+
+    const formData = new FormData()
+    orderedFiles.forEach(({ file }) => formData.append("files", file))
+
     try {
-      const response = await fetch(url, {
+      const response = await fetch(`${API_BASE_URL}/api/chapters/${selectedChapterId}/upload-pages`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        },
+        headers: { "Authorization": `Bearer ${token}` },
         body: formData,
       })
 
       if (!response.ok) {
-        throw new Error("Upload failed")
+        const errorData = await response.json().catch(() => ({}))
+        if (response.status === 409) {
+          setUploadedFiles((current) => current.map((item) => ({ ...item, status: "error", progress: 0 })))
+          setDuplicateWarning([errorData.message || "One or more page names already exist in this chapter."])
+          return
+        }
+        throw new Error(errorData.message || "Upload failed")
       }
 
-      const fileUrl = await response.text()
-
-      // Tải lên thành công, cập nhật trạng thái trên UI
-      setUploadedFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileId
-            ? { ...f, status: "complete", progress: 100, preview: fileUrl.startsWith("http") ? fileUrl : `${API_BASE_URL}${fileUrl}` }
-            : f
-        )
-      )
-    } catch (err) {
+      const result = await response.json()
+      const resultByName = new Map(result.pages.map((page: any) => [page.originalFileName.toLowerCase(), page]))
+      setUploadedFiles((current) => current.map((item) => {
+        const uploadedPage: any = resultByName.get(item.name.toLowerCase())
+        return { ...item, status: "complete", progress: 100, preview: uploadedPage?.imageUrl || item.preview }
+      }))
+      await loadChapterPages(selectedChapterId)
+      toast.success(`${result.totalUploaded} pages uploaded successfully.`)
+    } catch (err: any) {
       console.error("Error uploading image to API:", err)
-      setUploadedFiles((prev) =>
-        prev.map((f) =>
-          f.id === fileId ? { ...f, status: "error", progress: 0 } : f
-        )
-      )
+      setUploadedFiles((current) => current.map((item) => ({ ...item, status: "error", progress: 0 })))
+      toast.error(err.message || "Could not upload the selected pages.")
     }
-  }
-
-  // Hàm xử lý khi kéo thả hoặc chọn file từ máy tính
-  const handleFiles = (files: File[]) => {
-    const orderedFiles = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-    const newFiles: UploadedFile[] = orderedFiles.map((file, index) => {
-      const fileId = `new-${Date.now()}-${index}`
-      
-      // Gọi API tải lên ngầm
-      uploadFile(file, fileId)
-
-      return {
-        id: fileId,
-        name: file.name,
-        size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
-        status: "uploading",
-        progress: 50, // Thanh hiển thị ban đầu đang upload
-      }
-    })
-    setUploadedFiles((prev) => [...prev, ...newFiles])
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -267,7 +313,7 @@ export default function UploadPage() {
     e.preventDefault()
     setIsDragging(false)
     if (e.dataTransfer.files) {
-      handleFiles(Array.from(e.dataTransfer.files))
+      void handleFiles(Array.from(e.dataTransfer.files))
     }
   }
 
@@ -287,17 +333,17 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="flex flex-col lg:h-[calc(100vh-7.5rem)] space-y-4 overflow-hidden">
+      <div className="flex-none">
         <h1 className="text-3xl font-bold tracking-tight">Upload Pages</h1>
         <p className="text-muted-foreground mt-1">Upload manga pages for your series chapters</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Upload Section */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0 overflow-y-auto lg:overflow-hidden">
+        {/* Column 1: Selection & Upload zone */}
+        <div className="flex flex-col gap-4 min-h-0 lg:overflow-y-auto lg:pr-1">
           {/* Series Selection */}
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border flex-none">
             <CardHeader>
               <CardTitle>Select Series & Chapter</CardTitle>
               <CardDescription>Choose the series and chapter you want to upload pages to</CardDescription>
@@ -307,7 +353,7 @@ export default function UploadPage() {
                 <div className="space-y-2">
                   <Label>Series</Label>
                   <Select value={selectedSeries} onValueChange={setSelectedSeries}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full min-w-0">
                       <SelectValue placeholder="Select series" />
                     </SelectTrigger>
                     <SelectContent>
@@ -326,7 +372,7 @@ export default function UploadPage() {
                 <div className="space-y-2">
                   <Label>Chapter</Label>
                   <Select value={selectedChapterId} onValueChange={setSelectedChapterId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full min-w-0">
                       <SelectValue placeholder="Select chapter" />
                     </SelectTrigger>
                     <SelectContent>
@@ -344,33 +390,6 @@ export default function UploadPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="space-y-2">
-                  <Label>Upload Mode</Label>
-                  <Select value={pageSelectionMode} onValueChange={(val: any) => setPageSelectionMode(val)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select upload mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">Auto Increment (New Page)</SelectItem>
-                      <SelectItem value="specific">Upload to Specific Page</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {pageSelectionMode === "specific" && (
-                  <div className="space-y-2 animate-in fade-in duration-200">
-                    <Label>Target Page Number</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="e.g. 3"
-                      value={specificPageNumber}
-                      onChange={(e) => setSpecificPageNumber(e.target.value)}
-                      className="bg-background border-border text-white text-sm"
-                    />
-                  </div>
-                )}
-              </div>
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -415,7 +434,7 @@ export default function UploadPage() {
           </Card>
 
           {/* Upload Zone */}
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border flex-none">
             <CardHeader>
               <CardTitle>Upload Files</CardTitle>
               <CardDescription>Drag and drop manga pages or click to browse</CardDescription>
@@ -434,17 +453,18 @@ export default function UploadPage() {
                 <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-lg font-medium mb-2">Drop your pages here</p>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Support: PNG, JPG, PSD, TIFF (max 50MB per file)
+                  Support: PNG, JPG, PSD, CLIP (max 50MB per file)
                 </p>
                 <input
                   type="file"
                   id="file-browse"
                   multiple
                   className="hidden"
-                  accept="image/*"
+                  accept=".png,.jpg,.jpeg,.psd,.clip,image/png,image/jpeg"
                   onChange={(e) => {
                     if (e.target.files) {
-                      handleFiles(Array.from(e.target.files))
+                      void handleFiles(Array.from(e.target.files))
+                      e.target.value = ""
                     }
                   }}
                 />
@@ -458,7 +478,7 @@ export default function UploadPage() {
 
           {/* Uploaded Files */}
           {uploadedFiles.length > 0 && (
-            <Card className="bg-card border-border">
+            <Card className="bg-card border-border flex-none">
               <CardHeader>
                 <CardTitle>Uploaded Pages ({uploadedFiles.length})</CardTitle>
               </CardHeader>
@@ -536,9 +556,58 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <Card className="bg-card border-border">
+        {/* Column 2: Review (middle column, page image previews) */}
+        <div className="flex flex-col min-h-0 lg:overflow-hidden">
+          <Card className="bg-card border-border flex flex-col h-full min-h-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 flex-none">
+              <div>
+                <CardTitle>Review</CardTitle>
+                <CardDescription>
+                  {selectedChapterId
+                    ? `${chapterPages.length} current page${chapterPages.length === 1 ? "" : "s"}, ordered from top to bottom`
+                    : "Select a chapter to preview its pages"}
+                </CardDescription>
+              </div>
+              <Badge variant="outline">{chapterPages.length} pages</Badge>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0 flex flex-col p-6 pt-0">
+              {isLoadingPages ? (
+                <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Loading chapter pages...</div>
+              ) : chapterPages.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center p-4">
+                  <ImageIcon className="mb-3 h-10 w-10 text-muted-foreground" />
+                  <p className="font-medium">No pages to review</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Uploaded pages will appear here in reading order.</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-5 rounded-lg bg-zinc-950/70 p-4">
+                  {chapterPages.map((page) => (
+                    <figure key={page.pageId} className="mx-auto max-w-3xl overflow-hidden rounded-md border border-border bg-black shadow-xl">
+                      <figcaption className="flex items-center justify-between border-b border-border bg-card px-4 py-2 text-sm">
+                        <span className="font-medium">{page.originalFileName || `page_${String(page.pageNumber).padStart(3, "0")}`}</span>
+                        <Badge variant="secondary">Page {page.pageNumber}</Badge>
+                      </figcaption>
+                      {page.currentImageUrl ? (
+                        <img
+                          src={page.currentImageUrl}
+                          alt={`Page ${page.pageNumber}`}
+                          className="block h-auto w-full object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex aspect-[3/4] items-center justify-center text-muted-foreground">Preview unavailable</div>
+                      )}
+                    </figure>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Column 3: Sidebar (Upload Summary & Tips) */}
+        <div className="flex flex-col gap-4 min-h-0 lg:overflow-y-auto lg:pr-1">
+          <Card className="bg-card border-border flex-none">
             <CardHeader>
               <CardTitle>Upload Summary</CardTitle>
             </CardHeader>
@@ -561,7 +630,7 @@ export default function UploadPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Pages</span>
-                <span className="font-medium">{uploadedFiles.length}</span>
+                <span className="font-medium">{chapterPages.length}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Status</span>
@@ -576,7 +645,7 @@ export default function UploadPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border flex-none">
             <CardHeader>
               <CardTitle>Upload Tips</CardTitle>
             </CardHeader>
@@ -589,6 +658,21 @@ export default function UploadPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={duplicateWarning.length > 0} onOpenChange={(open) => !open && setDuplicateWarning([])}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicate page name</DialogTitle>
+            <DialogDescription>
+              The upload was stopped because these page names already exist in the chapter or were selected more than once.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-destructive/30 bg-destructive/10 p-3">
+            {duplicateWarning.map((name) => <p key={name} className="text-sm font-medium text-destructive">{name}</p>)}
+          </div>
+          <Button onClick={() => setDuplicateWarning([])}>Choose different files</Button>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

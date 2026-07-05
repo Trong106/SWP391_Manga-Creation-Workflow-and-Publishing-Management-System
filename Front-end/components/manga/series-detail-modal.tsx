@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Upload, BookOpen, Heart, Eye, Bookmark, Calendar, User, Info, FileText, AlertTriangle } from "lucide-react"
+import { RichSynopsis } from "./rich-synopsis"
 
 interface SeriesDetailModalProps {
   seriesId: string | null
@@ -386,9 +387,10 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                 <Info className="w-4 h-4 text-primary" />
                 Synopsis
               </h3>
-              <p className="text-sm text-zinc-300 leading-relaxed bg-[#202023] p-4 rounded-lg border border-zinc-800/40">
-                {series.synopsis || "No synopsis available for this series."}
-              </p>
+              <RichSynopsis
+                html={series.synopsis}
+                className="text-sm text-zinc-300 leading-relaxed bg-[#202023] p-4 rounded-lg border border-zinc-800/40 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-4"
+              />
             </div>
 
             {/* Danh sách chương */}

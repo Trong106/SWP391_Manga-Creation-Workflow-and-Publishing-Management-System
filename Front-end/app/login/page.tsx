@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
-import { Mail, Lock, ArrowRight, Sparkles, BookOpen, AlertCircle } from "lucide-react"
+import { Mail, Lock, ArrowRight, Sparkles, AlertCircle } from "lucide-react"
+import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,9 +55,13 @@ export default function LoginPage() {
       <div className="w-full max-w-[480px] z-10 space-y-6">
         {/* Logo and Brand */}
         <div className="flex flex-col items-center justify-center text-center space-y-2">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-            <BookOpen className="w-6 h-6 text-primary-foreground" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="MangaFlow Logo"
+            width={64}
+            height={64}
+            className="rounded-xl object-contain drop-shadow-[0_0_18px_rgba(0,200,180,0.35)]"
+          />
           <h2 className="text-3xl font-bold tracking-tight text-white mt-3">MangaFlow</h2>
           <p className="text-muted-foreground text-sm">Professional Manga Production Workflow Management System</p>
         </div>

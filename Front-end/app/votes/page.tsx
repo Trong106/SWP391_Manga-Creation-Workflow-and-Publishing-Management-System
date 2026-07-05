@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { BarChart3, TrendingUp, TrendingDown, Plus, Save, History, Download } from "lucide-react"
+import { useState, useEffect } from "react"
+import { BarChart3, TrendingUp, TrendingDown, Plus, Save, Download, History } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -42,40 +42,30 @@ interface VoteEntry {
   previousRank: number
 }
 
-const mockVotes: VoteEntry[] = [
-  { id: "1", series: "One Step Beyond", votes: 2450, previousVotes: 2380, change: 70, rank: 1, previousRank: 1 },
-  { id: "2", series: "Heart of Steel", votes: 2380, previousVotes: 2290, change: 90, rank: 2, previousRank: 3 },
-  { id: "3", series: "Dragon Hunters", votes: 2250, previousVotes: 2100, change: 150, rank: 3, previousRank: 5 },
-  { id: "4", series: "Midnight Sun", votes: 2100, previousVotes: 2350, change: -250, rank: 4, previousRank: 2 },
-  { id: "5", series: "Garden of Shadows", votes: 1980, previousVotes: 1980, change: 0, rank: 5, previousRank: 5 },
-  { id: "6", series: "Night Bloom", votes: 1850, previousVotes: 1720, change: 130, rank: 6, previousRank: 7 },
-  { id: "7", series: "Cyber Knights", votes: 1720, previousVotes: 1850, change: -130, rank: 7, previousRank: 6 },
-  { id: "8", series: "Silent Whispers", votes: 1450, previousVotes: 1620, change: -170, rank: 8, previousRank: 8 },
-  { id: "9", series: "Fading Light", votes: 1200, previousVotes: 1200, change: 0, rank: 9, previousRank: 9 },
-  { id: "10", series: "Broken Dreams", votes: 980, previousVotes: 1150, change: -170, rank: 10, previousRank: 10 },
-]
 
-const weekHistory = [
-  { week: 20, year: 2026, totalVotes: 18360, topSeries: "One Step Beyond" },
-  { week: 19, year: 2026, totalVotes: 17640, topSeries: "One Step Beyond" },
-  { week: 18, year: 2026, totalVotes: 17890, topSeries: "Midnight Sun" },
-  { week: 17, year: 2026, totalVotes: 16920, topSeries: "One Step Beyond" },
-]
-
-import { useEffect } from "react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 
+const currentYear = new Date().getFullYear()
+const currentWeek = (() => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 1)
+  const dayOffset = Math.floor((now.getTime() - start.getTime()) / 86400000)
+  return Math.min(53, Math.max(1, Math.ceil((dayOffset + start.getDay() + 1) / 7)))
+})()
+
 export default function VotesPage() {
   const { token } = useAuth()
-  const [selectedWeek, setSelectedWeek] = useState("20")
+  const [selectedWeek, setSelectedWeek] = useState(String(currentWeek))
   const [votes, setVotes] = useState<Record<string, string>>({})
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [voteEntries, setVoteEntries] = useState<VoteEntry[]>([])
   const [seriesList, setSeriesList] = useState<any[]>([])
-  const [availableWeeks, setAvailableWeeks] = useState<string[]>(["20", "19", "18", "17"])
-  const [inputWeek, setInputWeek] = useState("21")
-  const [inputYear, setInputYear] = useState("2026")
+  const [availableWeeks, setAvailableWeeks] = useState<string[]>(
+    Array.from({ length: Math.min(4, currentWeek) }, (_, index) => String(currentWeek - index))
+  )
+  const [inputWeek, setInputWeek] = useState(String(currentWeek))
+  const [inputYear, setInputYear] = useState(String(currentYear))
   const [loading, setLoading] = useState(true)
 
   // Fetch votes for the selected week
@@ -83,7 +73,7 @@ export default function VotesPage() {
     if (!token) return
 
     setLoading(true)
-    fetch(`${API_BASE_URL}/api/data/reader-votes?week=${selectedWeek}&year=2026`, {
+    fetch(`${API_BASE_URL}/api/data/reader-votes?week=${selectedWeek}&year=${currentYear}`, {
       headers: {
         "Authorization": `Bearer ${token}`
       }
@@ -189,6 +179,16 @@ export default function VotesPage() {
   const totalVotes = voteEntries.reduce((sum, v) => sum + v.votes, 0)
   const topSeries = voteEntries.length > 0 ? voteEntries[0] : null
   const atRiskCount = voteEntries.filter(v => v.rank >= 8).length
+  const weekHistory = voteEntries.length > 0
+    ? [
+        {
+          week: selectedWeek,
+          year: currentYear,
+          topSeries: topSeries?.series ?? "N/A",
+          totalVotes,
+        },
+      ]
+    : []
 
   return (
     <div className="space-y-6">
@@ -209,7 +209,7 @@ export default function VotesPage() {
             </SelectTrigger>
             <SelectContent>
               {availableWeeks.map((wk) => (
-                <SelectItem key={wk} value={wk}>Week {wk}, 2026</SelectItem>
+                <SelectItem key={wk} value={wk}>Week {wk}, {currentYear}</SelectItem>
               ))}
             </SelectContent>
           </Select>

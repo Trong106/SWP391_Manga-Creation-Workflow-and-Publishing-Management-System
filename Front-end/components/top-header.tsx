@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Bell, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -38,14 +38,13 @@ export function TopHeader() {
   const { token, logout } = useAuth()
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(false)
 
   const fetchNotifications = () => {
     if (!token) return
     fetch(`${API_BASE_URL}/api/notifications`, {
       headers: {
-        "Authorization": `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     })
       .then((res) => {
         if (res.status === 401) {
@@ -56,7 +55,7 @@ export function TopHeader() {
         return res.json()
       })
       .then((data) => {
-        if (data && Array.isArray(data)) {
+        if (Array.isArray(data)) {
           setNotifications(data)
         }
       })
@@ -67,7 +66,6 @@ export function TopHeader() {
 
   useEffect(() => {
     fetchNotifications()
-    // Poll for notifications every 15 seconds
     const interval = setInterval(fetchNotifications, 15000)
     return () => clearInterval(interval)
   }, [token])
@@ -78,12 +76,14 @@ export function TopHeader() {
       const res = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
         method: "PUT",
         headers: {
-          "Authorization": `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
       if (res.ok) {
         setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+          prev.map((notification) =>
+            notification.id === id ? { ...notification, isRead: true } : notification
+          )
         )
       }
     } catch (err) {
@@ -100,13 +100,11 @@ export function TopHeader() {
       const res = await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
         method: "PUT",
         headers: {
-          "Authorization": `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
       if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => ({ ...n, isRead: true }))
-        )
+        setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })))
       }
     } catch (err) {
       console.error("Error marking all notifications as read:", err)
@@ -129,12 +127,11 @@ export function TopHeader() {
     return `${days}d ago`
   }
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length
+  const unreadCount = notifications.filter((notification) => !notification.isRead).length
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-sm border-b border-border">
       <div className="flex items-center gap-4">
-        {/* Mobile Menu */}
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="lg:hidden">
@@ -146,7 +143,6 @@ export function TopHeader() {
           </SheetContent>
         </Sheet>
 
-        {/* Search */}
         <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -157,12 +153,10 @@ export function TopHeader() {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Search Mobile */}
         <Button variant="ghost" size="icon" className="md:hidden">
           <Search className="w-5 h-5" />
         </Button>
 
-        {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">

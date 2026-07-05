@@ -57,7 +57,7 @@ export function RoleBasedStats() {
         .then((data) => {
           setApiStats(data)
         })
-        .catch((err) => console.error("Lỗi lấy thống kê từ API:", err))
+        .catch((err) => console.error("Failed to load dashboard statistics:", err))
     } else {
       setApiStats(null)
     }
