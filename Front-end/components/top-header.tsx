@@ -114,7 +114,11 @@ export function TopHeader() {
   }
 
   const getRelativeTime = (dateStr: string) => {
-    const date = new Date(dateStr)
+    let normalized = dateStr
+    if (dateStr && !dateStr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(dateStr)) {
+      normalized = dateStr + "Z"
+    }
+    const date = new Date(normalized)
     const span = Date.now() - date.getTime()
     const minutes = Math.floor(span / 60000)
     if (minutes < 1) return "just now"

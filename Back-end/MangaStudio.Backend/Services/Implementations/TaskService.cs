@@ -106,7 +106,7 @@ public class TaskService : ITaskService
         {
             NotificationId = Guid.NewGuid(),
             UserId = task.AssignerId,
-            Type = "task_clarification",
+            Type = "system",
             Title = "Task clarification requested",
             Message = message,
             Link = $"/review?pageId={task.PageId}&taskId={task.TaskId}",
@@ -497,6 +497,8 @@ public class TaskService : ITaskService
             ChapterTitle = t.Page?.Chapter?.Title,
             ChapterNumber = t.Page?.Chapter?.ChapterNumber ?? 0,
             SeriesTitle = t.Page?.Chapter?.Series?.Title,
+            SeriesId = t.Page?.Chapter?.Series?.SeriesId,
+            SeriesCoverImageUrl = t.Page?.Chapter?.Series?.CoverImageUrl,
             RegionId = t.RegionId,
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? t.Assignee.FullName : null,

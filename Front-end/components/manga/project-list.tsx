@@ -56,7 +56,11 @@ export function ProjectList() {
   }
 
   const getRelativeTimeString = (dateStr: string) => {
-    const date = new Date(dateStr)
+    let normalized = dateStr
+    if (dateStr && !dateStr.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(dateStr)) {
+      normalized = dateStr + "Z"
+    }
+    const date = new Date(normalized)
     const diffMs = new Date().getTime() - date.getTime()
     const diffMins = Math.floor(diffMs / 60000)
     const diffHours = Math.floor(diffMins / 60)
