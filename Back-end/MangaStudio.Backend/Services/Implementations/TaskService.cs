@@ -42,6 +42,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Chỉ Mangaka sở hữu bộ truyện mới có quyền giao việc.");
         }
 
+        if (dto.DueDate.HasValue && dto.DueDate.Value < DateOnly.FromDateTime(DateTime.Today))
+        {
+            throw new ArgumentException("Due date cannot be in the past.");
+        }
+
         if (dto.AssigneeId.HasValue)
         {
             var assistant = await _context.Users
@@ -214,6 +219,7 @@ public class TaskService : ITaskService
     {
         var task = await _context.Tasks
             .Include(t => t.Page)
+                .ThenInclude(p => p.PageAnnotations)
             .FirstOrDefaultAsync(t => t.TaskId == taskId)
             ?? throw new KeyNotFoundException($"Công việc với ID {taskId} không tồn tại.");
 
@@ -263,6 +269,14 @@ public class TaskService : ITaskService
 
             // Cập nhật CurrentImageUrl của MangaPage
             task.Page.CurrentImageUrl = fileUrl;
+            task.Page.UploadedAt = DateTime.UtcNow;
+            task.Page.UploadedById = assistantId;
+
+            foreach (var annotation in task.Page.PageAnnotations.Where(a => a.Status == "open"))
+            {
+                annotation.Status = "resolved";
+                annotation.ResolvedAt = DateTime.UtcNow;
+            }
         }
 
         // Cập nhật trạng thái

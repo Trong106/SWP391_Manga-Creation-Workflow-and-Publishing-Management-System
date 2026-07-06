@@ -1,20 +1,20 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import {
-  AlertCircle,
-  BookOpen,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  FileText,
-  ShieldAlert,
-} from "lucide-react"
+import { useEffect, useState } from "react"
+import { AlertCircle, CalendarDays, Eye, Loader2, ShieldAlert, Wallet } from "lucide-react"
 
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -25,49 +25,31 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 
-interface PayrollRecord {
-  payrollRecordId: string
-  assistantId: string
-  assistantName: string
-  taskId?: string | null
-  taskTitle?: string | null
+type PayrollTask = {
+  taskId: string
+  taskName: string
   taskType?: string | null
-  seriesTitle?: string | null
-  chapterNumber?: number | null
-  chapterTitle?: string | null
   pageNumber?: number | null
-  periodStart: string
-  periodEnd: string
-  baseAmount: number
-  bonusAmount: number
-  deductionAmount: number
-  totalAmount: number
-  status: string
-  paidAt?: string | null
-  createdAt: string
+  status: "Approved" | "Submitted" | "Revision Required" | string
+  submittedAt: string
+  approvedDate?: string | null
+  payment: number
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
-  pending: {
-    label: "Pending",
-    color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
-    icon: Clock,
-  },
-  processing: {
-    label: "Processing",
-    color: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-    icon: Clock,
-  },
-  paid: {
-    label: "Paid",
-    color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    icon: CheckCircle,
-  },
-  failed: {
-    label: "Failed",
-    color: "bg-red-500/15 text-red-400 border-red-500/30",
-    icon: AlertCircle,
-  },
+type PayrollMonth = {
+  month: string
+  year: number
+  monthNumber: number
+  completedTasks: number
+  approvedTasks: number
+  monthlyIncome: number
+  tasks: PayrollTask[]
+}
+
+const statusStyle: Record<string, string> = {
+  Approved: "border-emerald-500/30 bg-emerald-500/15 text-emerald-300",
+  Submitted: "border-cyan-500/30 bg-cyan-500/15 text-cyan-300",
+  "Revision Required": "border-orange-500/30 bg-orange-500/15 text-orange-300",
 }
 
 const taskLabels: Record<string, string> = {
@@ -81,7 +63,8 @@ const taskLabels: Record<string, string> = {
 
 export default function PayrollPage() {
   const { role, token } = useAuth()
-  const [records, setRecords] = useState<PayrollRecord[]>([])
+  const [months, setMonths] = useState<PayrollMonth[]>([])
+  const [selectedMonth, setSelectedMonth] = useState<PayrollMonth | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -94,21 +77,17 @@ export default function PayrollPage() {
     setLoading(true)
     setError(null)
 
-    fetch(`${API_BASE_URL}/api/payroll/my-payroll`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    fetch(`${API_BASE_URL}/api/payroll/my-payroll/monthly`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to load payroll records")
+        if (!res.ok) throw new Error("Failed to load payroll data")
         return res.json()
       })
-      .then((data) => {
-        setRecords(Array.isArray(data) ? data : [])
-      })
+      .then((data) => setMonths(Array.isArray(data) ? data : []))
       .catch((err) => {
-        console.error("Error loading payroll records:", err)
-        setError("Could not load your payroll records.")
+        console.error("Error loading monthly payroll:", err)
+        setError("Could not load your payroll data.")
       })
       .finally(() => setLoading(false))
   }, [role, token])
@@ -116,63 +95,42 @@ export default function PayrollPage() {
   const formatCurrency = (value: number) => `$${Number(value || 0).toLocaleString()}`
 
   const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return "N/A"
+    if (!dateStr) return "-"
     const date = new Date(dateStr)
-    if (Number.isNaN(date.getTime())) return dateStr
-
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
+    if (Number.isNaN(date.getTime())) return "-"
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
       year: "numeric",
     })
   }
 
-  const summary = useMemo(() => {
-    const pending = records.filter((record) => {
-      const status = record.status.toLowerCase()
-      return status === "pending" || status === "processing"
-    })
-    const paid = records.filter((record) => record.status.toLowerCase() === "paid")
-    const uniquePages = new Set(
-      records
-        .filter((record) => record.seriesTitle && record.chapterNumber && record.pageNumber)
-        .map((record) => `${record.seriesTitle}-${record.chapterNumber}-${record.pageNumber}`)
-    )
-
-    return {
-      pendingAmount: pending.reduce((sum, record) => sum + record.totalAmount, 0),
-      paidAmount: paid.reduce((sum, record) => sum + record.totalAmount, 0),
-      approvedTasks: records.length,
-      completedPages: uniquePages.size,
-    }
-  }, [records])
+  const formatTaskName = (task: PayrollTask) => {
+    if (task.taskName) return task.taskName
+    return taskLabels[task.taskType ?? ""] ?? "Task"
+  }
 
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <Skeleton className="h-8 w-48 bg-zinc-800" />
+          <Skeleton className="h-8 w-44 bg-zinc-800" />
           <Skeleton className="h-4 w-80 bg-zinc-800" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28 bg-zinc-800" />
-          ))}
-        </div>
-        <Skeleton className="h-72 bg-zinc-800" />
+        <Skeleton className="h-80 bg-zinc-800" />
       </div>
     )
   }
 
   if (role !== "assistant") {
     return (
-      <Card className="bg-destructive/10 border-destructive/20 max-w-md mx-auto mt-12 text-white">
+      <Card className="mx-auto mt-12 max-w-md border-destructive/20 bg-destructive/10 text-white">
         <CardHeader className="flex flex-row items-center gap-3">
-          <ShieldAlert className="w-8 h-8 text-destructive" />
+          <ShieldAlert className="h-8 w-8 text-destructive" />
           <div>
             <CardTitle>Access Denied</CardTitle>
             <CardDescription className="text-zinc-400">
-              Payroll is read-only and available to assistants only.
+              Payroll is available to assistants only.
             </CardDescription>
           </div>
         </CardHeader>
@@ -183,162 +141,144 @@ export default function PayrollPage() {
   return (
     <div className="space-y-6 text-white">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <DollarSign className="w-6 h-6 text-primary" />
-          My Earnings
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <Wallet className="h-6 w-6 text-primary" />
+          My Payroll
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Earnings are added only after Tantou approves the chapter.
+        <p className="mt-1 text-sm text-muted-foreground">
+          Monthly task submissions, approved work, and earned payment.
         </p>
       </div>
 
       {error && (
-        <Card className="bg-destructive/10 border-destructive/20">
-          <CardContent className="p-4 flex items-center gap-2 text-destructive">
-            <AlertCircle className="w-4 h-4" />
+        <Card className="border-destructive/20 bg-destructive/10">
+          <CardContent className="flex items-center gap-2 p-4 text-destructive">
+            <AlertCircle className="h-4 w-4" />
             <span className="text-sm">{error}</span>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-yellow-500/10">
-                <Clock className="w-5 h-5 text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatCurrency(summary.pendingAmount)}</p>
-                <p className="text-xs text-muted-foreground">Pending Earnings</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{formatCurrency(summary.paidAmount)}</p>
-                <p className="text-xs text-muted-foreground">Paid Earnings</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary.approvedTasks}</p>
-                <p className="text-xs text-muted-foreground">Approved Tasks</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <BookOpen className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summary.completedPages}</p>
-                <p className="text-xs text-muted-foreground">Pages Credited</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="bg-card border-border">
+      <Card className="border-border bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">Payroll Records</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <CalendarDays className="h-5 w-5 text-primary" />
+            Monthly Payroll
+          </CardTitle>
           <CardDescription>
-            Each row is generated from an approved task inside a Tantou-approved chapter.
+            Approved tasks are counted only when the task is paid by a valid payroll record.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {records.length === 0 ? (
+          {months.length === 0 ? (
             <div className="py-12 text-center text-sm text-zinc-500">
-              No payroll records yet. Records will appear after Tantou approves a chapter containing your approved tasks.
+              No payroll data yet. Submitted tasks will appear here by month.
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-zinc-800 hover:bg-transparent">
-                  <TableHead className="text-zinc-400">Series / Chapter</TableHead>
-                  <TableHead className="text-zinc-400">Page</TableHead>
-                  <TableHead className="text-zinc-400">Task</TableHead>
-                  <TableHead className="text-right text-zinc-400">Base</TableHead>
-                  <TableHead className="text-right text-zinc-400">Bonus</TableHead>
-                  <TableHead className="text-right text-zinc-400">Total</TableHead>
-                  <TableHead className="text-zinc-400">Status</TableHead>
-                  <TableHead className="text-zinc-400">Created</TableHead>
+                  <TableHead className="text-zinc-400">Month</TableHead>
+                  <TableHead className="text-right text-zinc-400">Completed Tasks</TableHead>
+                  <TableHead className="text-right text-zinc-400">Approved Tasks</TableHead>
+                  <TableHead className="text-right text-zinc-400">Income</TableHead>
+                  <TableHead className="text-right text-zinc-400">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {records.map((record) => {
-                  const status = record.status.toLowerCase()
-                  const config = statusConfig[status] ?? {
-                    label: record.status,
-                    color: "bg-zinc-800 text-zinc-300 border-zinc-700",
-                    icon: Clock,
-                  }
-                  const StatusIcon = config.icon
-
-                  return (
-                    <TableRow key={record.payrollRecordId} className="border-zinc-800 hover:bg-zinc-900/30">
-                      <TableCell>
-                        <p className="font-medium text-white">{record.seriesTitle ?? "Unknown Series"}</p>
-                        <p className="text-xs text-zinc-500">
-                          Chapter {record.chapterNumber ?? "?"}
-                          {record.chapterTitle ? ` - ${record.chapterTitle}` : ""}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-zinc-300">
-                        Page {record.pageNumber ?? "?"}
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-white">{record.taskTitle ?? "Task"}</p>
-                        <p className="text-xs text-zinc-500">
-                          {taskLabels[record.taskType ?? ""] ?? record.taskType ?? "Unknown type"}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-right text-zinc-300">
-                        {formatCurrency(record.baseAmount)}
-                      </TableCell>
-                      <TableCell className="text-right text-emerald-400">
-                        {formatCurrency(record.bonusAmount)}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-primary">
-                        {formatCurrency(record.totalAmount)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={`border ${config.color}`}>
-                          <StatusIcon className="w-3.5 h-3.5 mr-1" />
-                          {config.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-zinc-400">
-                        {formatDate(record.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
+                {months.map((month) => (
+                  <TableRow key={month.month} className="border-zinc-800 hover:bg-zinc-900/30">
+                    <TableCell className="font-medium text-white">{month.month}</TableCell>
+                    <TableCell className="text-right text-zinc-300">{month.completedTasks}</TableCell>
+                    <TableCell className="text-right text-zinc-300">{month.approvedTasks}</TableCell>
+                    <TableCell className="text-right font-semibold text-primary">
+                      {formatCurrency(month.monthlyIncome)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedMonth(month)}
+                        className="border-zinc-700 text-zinc-200 hover:bg-zinc-800"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={selectedMonth !== null} onOpenChange={(open) => !open && setSelectedMonth(null)}>
+        <DialogContent className="max-h-[85vh] max-w-5xl overflow-y-auto overflow-x-hidden border-zinc-800 bg-zinc-950 text-white">
+          <DialogHeader>
+            <DialogTitle>Payroll Detail - {selectedMonth?.month}</DialogTitle>
+            <DialogDescription>
+              Tasks submitted in this month and their payable status.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedMonth && (
+            <div className="space-y-5">
+              <div className="overflow-hidden rounded-md border border-zinc-800">
+                <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,.8fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,.9fr)] gap-2 border-b border-zinc-800 px-4 py-3 text-xs font-medium text-zinc-400 sm:text-sm">
+                  <div className="break-words">Task Name</div>
+                  <div>Page</div>
+                  <div>Status</div>
+                  <div className="break-words">Approved Date</div>
+                  <div className="break-words text-right">Payment</div>
+                </div>
+                <div>
+                  {selectedMonth.tasks.map((task) => (
+                    <div
+                      key={task.taskId}
+                      className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,.8fr)_minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,.9fr)] gap-2 border-b border-zinc-800 px-4 py-3 text-xs last:border-b-0 hover:bg-zinc-900/30 sm:text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="break-words font-medium text-white">{formatTaskName(task)}</p>
+                        {task.taskType && (
+                          <p className="break-words text-xs text-zinc-500">
+                            {taskLabels[task.taskType] ?? task.taskType}
+                          </p>
+                        )}
+                      </div>
+                      <div className="break-words text-zinc-300">Page {task.pageNumber ?? "?"}</div>
+                      <div>
+                        <Badge className={`whitespace-normal border ${statusStyle[task.status] ?? "border-zinc-700 bg-zinc-800 text-zinc-300"}`}>
+                          {task.status}
+                        </Badge>
+                      </div>
+                      <div className="break-words text-zinc-300">{formatDate(task.approvedDate)}</div>
+                      <div className="break-words text-right font-medium text-primary">
+                        {formatCurrency(task.payment)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="ml-auto w-full max-w-sm space-y-2 rounded-md border border-zinc-800 bg-zinc-900/60 p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Completed Tasks</span>
+                  <span className="font-semibold text-white">{selectedMonth.completedTasks}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Approved Tasks</span>
+                  <span className="font-semibold text-white">{selectedMonth.approvedTasks}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-zinc-800 pt-2">
+                  <span className="text-zinc-400">Monthly Income</span>
+                  <span className="font-bold text-primary">{formatCurrency(selectedMonth.monthlyIncome)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

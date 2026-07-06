@@ -45,7 +45,26 @@ public class PageService : IPageService
             UploadedById = page.UploadedById,
             UploadedByName = page.UploadedBy?.FullName,
             UploadedAt = page.UploadedAt,
-            AnnotationCount = page.PageAnnotations.Count,
+            AnnotationCount = page.PageAnnotations.Count(a => a.Status == "open"),
+            Annotations = page.PageAnnotations
+                .Where(a => a.Status == "open")
+                .OrderBy(a => a.CreatedAt)
+                .Select(a => new AnnotationDto
+                {
+                    AnnotationId = a.AnnotationId,
+                    PageId = a.PageId,
+                    CreatedById = a.CreatedById,
+                    CreatedByName = a.CreatedBy != null ? a.CreatedBy.FullName : "",
+                    X = a.X,
+                    Y = a.Y,
+                    Width = a.Width,
+                    Height = a.Height,
+                    Body = a.Body,
+                    Status = a.Status,
+                    CreatedAt = a.CreatedAt,
+                    ResolvedAt = a.ResolvedAt
+                })
+                .ToList(),
             TaskCount = taskCount
         };
     }
