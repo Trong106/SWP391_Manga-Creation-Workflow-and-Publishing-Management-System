@@ -80,6 +80,27 @@ interface Task {
   updatedAt: string
 }
 
+interface ReviewAnnotation {
+  annotationId: string
+  x: number
+  y: number
+  width?: number | null
+  height?: number | null
+  body: string
+  reviewerName: string
+  createdAt: string
+}
+
+interface TaskResource {
+  taskId: string
+  pageId: string
+  pageNumber: number
+  imageUrl: string
+  seriesTitle?: string | null
+  chapterNumber: number
+  reviewAnnotations: ReviewAnnotation[]
+}
+
 export default function AssistantTasksPage() {
   const { user, role, token } = useAuth()
   
@@ -91,9 +112,10 @@ export default function AssistantTasksPage() {
 
   // State for Resource Modal
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
-  const [selectedTaskResource, setSelectedTaskResource] = useState<any | null>(null)
+  const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   const [loadingResource, setLoadingResource] = useState(false)
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
+  const [downloadingReviewTaskId, setDownloadingReviewTaskId] = useState<string | null>(null)
   const [askingTaskId, setAskingTaskId] = useState<string | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null)
 
@@ -151,6 +173,136 @@ export default function AssistantTasksPage() {
       const fullUrl = imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`
       window.open(fullUrl, "_blank")
       toast.info("Opening image in a new tab. Save it using Ctrl+S.")
+    }
+  }
+
+  const wrapCanvasText = (context: CanvasRenderingContext2D, text: string, maxWidth: number) => {
+    const words = text.trim().split(/\s+/)
+    const lines: string[] = []
+    let line = ""
+
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line)
+        line = word
+      } else {
+        line = candidate
+      }
+    })
+    if (line) lines.push(line)
+    return lines.length > 0 ? lines : [""]
+  }
+
+  const downloadReviewedPage = async (resource: TaskResource) => {
+    if (!resource.imageUrl) throw new Error("This page does not have an image to download.")
+    if (!resource.reviewAnnotations?.length) throw new Error("No open editor marks were found for this page.")
+
+    const fullUrl = resource.imageUrl.startsWith("http") ? resource.imageUrl : `${API_BASE_URL}${resource.imageUrl}`
+    const imageResponse = await fetch(fullUrl)
+    if (!imageResponse.ok) throw new Error("Could not load the reviewed page image.")
+    const bitmap = await createImageBitmap(await imageResponse.blob())
+    const canvas = document.createElement("canvas")
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("Your browser could not prepare the review copy.")
+
+    const fontSize = Math.max(16, Math.round(bitmap.width * 0.018))
+    const padding = Math.max(24, Math.round(bitmap.width * 0.03))
+    const lineHeight = Math.round(fontSize * 1.55)
+    context.font = `${fontSize}px Arial, sans-serif`
+
+    const annotationLines = resource.reviewAnnotations.map((annotation, index) => ({
+      annotation,
+      lines: wrapCanvasText(context, `${index + 1}. ${annotation.body}`, bitmap.width - padding * 2),
+    }))
+    const footerHeight = padding * 2 + lineHeight * 2 + annotationLines.reduce(
+      (height, item) => height + item.lines.length * lineHeight + Math.round(lineHeight * 0.55),
+      0
+    )
+
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height + footerHeight
+    context.drawImage(bitmap, 0, 0)
+
+    resource.reviewAnnotations.forEach((annotation, index) => {
+      const x = (annotation.x / 100) * bitmap.width
+      const y = (annotation.y / 100) * bitmap.height
+      const width = ((annotation.width || 0) / 100) * bitmap.width
+      const height = ((annotation.height || 0) / 100) * bitmap.height
+      const markerSize = Math.max(24, Math.round(bitmap.width * 0.032))
+
+      context.save()
+      context.strokeStyle = "#f59e0b"
+      context.fillStyle = "rgba(245, 158, 11, 0.18)"
+      context.lineWidth = Math.max(4, Math.round(bitmap.width * 0.004))
+      if (width > 0 && height > 0) {
+        context.fillRect(x, y, width, height)
+        context.strokeRect(x, y, width, height)
+      }
+      context.beginPath()
+      context.arc(x, y, markerSize / 2, 0, Math.PI * 2)
+      context.fillStyle = "#f59e0b"
+      context.fill()
+      context.fillStyle = "#111827"
+      context.font = `bold ${Math.round(markerSize * 0.55)}px Arial, sans-serif`
+      context.textAlign = "center"
+      context.textBaseline = "middle"
+      context.fillText(String(index + 1), x, y)
+      context.restore()
+    })
+
+    context.fillStyle = "#111318"
+    context.fillRect(0, bitmap.height, canvas.width, footerHeight)
+    context.textAlign = "left"
+    context.textBaseline = "alphabetic"
+    context.fillStyle = "#f8fafc"
+    context.font = `bold ${Math.round(fontSize * 1.25)}px Arial, sans-serif`
+    let cursorY = bitmap.height + padding + lineHeight
+    context.fillText(`Editor Review - Page ${resource.pageNumber}`, padding, cursorY)
+    cursorY += lineHeight * 1.35
+
+    context.font = `${fontSize}px Arial, sans-serif`
+    annotationLines.forEach(({ annotation, lines }) => {
+      context.fillStyle = "#fbbf24"
+      lines.forEach((line) => {
+        context.fillText(line, padding, cursorY)
+        cursorY += lineHeight
+      })
+      context.fillStyle = "#9ca3af"
+      context.font = `${Math.max(13, Math.round(fontSize * 0.8))}px Arial, sans-serif`
+      context.fillText(`Reviewer: ${annotation.reviewerName}`, padding, cursorY)
+      cursorY += Math.round(lineHeight * 0.8)
+      context.font = `${fontSize}px Arial, sans-serif`
+    })
+
+    const output = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not export the review copy.")), "image/png")
+    })
+    const objectUrl = URL.createObjectURL(output)
+    const anchor = document.createElement("a")
+    const title = (resource.seriesTitle || "manga").replace(/[^a-z0-9]+/gi, "_")
+    anchor.href = objectUrl
+    anchor.download = `${title}_Ch${resource.chapterNumber}_Page${resource.pageNumber}_Editor_Review.png`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(objectUrl)
+  }
+
+  const handleDownloadReviewCopy = async (task: Task) => {
+    if (!token) return
+    try {
+      setDownloadingReviewTaskId(task.taskId)
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${task.taskId}/resources`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error("Failed to load the editor review marks.")
+      await downloadReviewedPage(await response.json())
+      toast.success("The marked review copy and editor reasons were downloaded.")
+    } catch (error: any) {
+      toast.error(error.message || "Could not download the review copy.")
+    } finally {
+      setDownloadingReviewTaskId(null)
     }
   }
 
@@ -460,21 +612,31 @@ export default function AssistantTasksPage() {
                     <th className="py-4 px-6 text-center w-24">Todo</th>
                     <th className="py-4 px-6 text-center w-24">Doing</th>
                     <th className="py-4 px-6 text-center w-24">Review</th>
+                    <th className="py-4 px-6 text-center w-24">Revision</th>
                     <th className="py-4 px-6 text-center w-24">Total</th>
                     <th className="py-4 px-6 text-right w-32">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900/60">
-                  {seriesList.map((series) => (
-                    <tr 
+                  {seriesList.map((series) => {
+                    const hasRevision = series.stats.revision > 0
+
+                    return (
+                    <tr
                       key={series.title}
                       onClick={() => setSelectedSeries(series.title)}
-                      className="group hover:bg-zinc-900/40 transition-colors duration-250 cursor-pointer text-sm"
+                      className={`group transition-colors duration-250 cursor-pointer text-sm ${
+                        hasRevision
+                          ? "bg-red-950/15 hover:bg-red-950/30 ring-1 ring-inset ring-red-900/50"
+                          : "hover:bg-zinc-900/40"
+                      }`}
                     >
                       {/* Cover image cell */}
                       <td className="py-4 px-6">
                         {series.coverImageUrl ? (
-                          <div className="w-10 h-14 relative rounded-lg overflow-hidden border border-zinc-800 bg-zinc-950 shadow-inner">
+                          <div className={`w-10 h-14 relative rounded-lg overflow-hidden border bg-zinc-950 shadow-inner ${
+                            hasRevision ? "border-red-600/70 shadow-red-950/50" : "border-zinc-800"
+                          }`}>
                             <img
                               src={series.coverImageUrl.startsWith("http") ? series.coverImageUrl : `${API_BASE_URL}${series.coverImageUrl}`}
                               alt={series.title}
@@ -482,18 +644,28 @@ export default function AssistantTasksPage() {
                             />
                           </div>
                         ) : (
-                          <div className="w-10 h-14 rounded-lg border border-zinc-850 bg-zinc-950/60 flex items-center justify-center text-zinc-650 shadow-inner">
+                          <div className={`w-10 h-14 rounded-lg border bg-zinc-950/60 flex items-center justify-center shadow-inner ${
+                            hasRevision ? "border-red-600/70 text-red-400" : "border-zinc-850 text-zinc-650"
+                          }`}>
                             <BookOpen className="w-4 h-4 opacity-50" />
                           </div>
                         )}
                       </td>
 
                       {/* Series Title cell */}
-                      <td className="py-4 px-6 font-bold text-zinc-200 group-hover:text-primary transition-colors">
+                      <td className={`py-4 px-6 font-bold transition-colors ${
+                        hasRevision
+                          ? "text-red-100 group-hover:text-red-200"
+                          : "text-zinc-200 group-hover:text-primary"
+                      }`}>
                         <div className="flex flex-col gap-0.5">
                           <span className="text-base line-clamp-1">{series.title}</span>
-                          <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider flex items-center gap-1">
-                            <Library className="w-3 h-3 text-primary opacity-70" /> Manga Series
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 ${
+                            hasRevision ? "text-red-300/80" : "text-zinc-500"
+                          }`}>
+                            <Library className={`w-3 h-3 opacity-70 ${
+                              hasRevision ? "text-red-400" : "text-primary"
+                            }`} /> Manga Series
                           </span>
                         </div>
                       </td>
@@ -502,9 +674,14 @@ export default function AssistantTasksPage() {
                       <td className="py-4 px-6">
                         <div className="flex flex-col gap-1.5">
                           <div className="flex justify-between text-xs font-semibold text-zinc-400">
-                            <span className="text-primary font-mono">{series.percentage}%</span>
+                            <span className={`font-mono ${hasRevision ? "text-red-400" : "text-primary"}`}>
+                              {series.percentage}%
+                            </span>
                           </div>
-                          <Progress value={series.percentage} className="h-1.5 bg-zinc-950" />
+                          <Progress
+                            value={series.percentage}
+                            className={`h-1.5 bg-zinc-950 ${hasRevision ? "[&>div]:bg-red-500" : ""}`}
+                          />
                         </div>
                       </td>
 
@@ -528,29 +705,44 @@ export default function AssistantTasksPage() {
                         )}
                       </td>
                       <td className="py-4 px-6 text-center font-semibold text-zinc-400 font-mono">
-                        {series.stats.submitted + series.stats.revision > 0 ? (
+                        {series.stats.submitted > 0 ? (
                           <span className="text-cyan-400 bg-cyan-950/20 border border-cyan-900/30 px-2 py-0.5 rounded text-xs">
-                            {series.stats.submitted + series.stats.revision}
+                            {series.stats.submitted}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-center font-semibold font-mono">
+                        {series.stats.revision > 0 ? (
+                          <span className="inline-flex min-w-7 items-center justify-center rounded border border-red-600/70 bg-red-950/70 px-2 py-0.5 text-xs font-extrabold text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.28)]">
+                            {series.stats.revision}
                           </span>
                         ) : (
                           <span className="text-zinc-600">-</span>
                         )}
                       </td>
                       <td className="py-4 px-6 text-center font-semibold text-zinc-300 font-mono">
-                        <span className="bg-zinc-900 px-2 py-0.5 rounded border border-zinc-850 text-xs text-zinc-400">
+                        <span className={`px-2 py-0.5 rounded border text-xs ${
+                          hasRevision
+                            ? "border-red-800/60 bg-red-950/40 text-red-200"
+                            : "border-zinc-850 bg-zinc-900 text-zinc-400"
+                        }`}>
                           {series.stats.total}
                         </span>
                       </td>
 
                       {/* Action cell */}
                       <td className="py-4 px-6 text-right">
-                        <button className="inline-flex items-center gap-1 text-xs font-bold text-primary group-hover:underline transition-all">
+                        <button className={`inline-flex items-center gap-1 text-xs font-bold group-hover:underline transition-all ${
+                          hasRevision ? "text-red-300 hover:text-red-200" : "text-primary"
+                        }`}>
                           <span>View Tasks</span>
                           <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>
@@ -677,6 +869,23 @@ export default function AssistantTasksPage() {
                       <span className="text-primary font-bold font-mono text-xs min-w-[65px] text-right">
                         ${task.paymentAmount.toFixed(2)}
                       </span>
+
+                      {s === "revision" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDownloadReviewCopy(task)}
+                          disabled={downloadingReviewTaskId === task.taskId}
+                          title="Download the page with editor marks and reasons"
+                          className="h-7 border-red-800/70 bg-red-950/30 px-2 text-[10px] font-bold text-red-300 hover:bg-red-950/60 hover:text-red-200"
+                        >
+                          {downloadingReviewTaskId === task.taskId ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <Download className="mr-1 h-3 w-3" />
+                          )}
+                          Review Copy
+                        </Button>
+                      )}
 
                       {/* Date (visible when not hovered) */}
                       <span className="text-xs text-zinc-500 font-semibold w-[90px] text-right group-hover/row:hidden">

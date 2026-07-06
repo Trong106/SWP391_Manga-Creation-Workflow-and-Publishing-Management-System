@@ -82,8 +82,18 @@ public class PageService : IPageService
     /// </summary>
     public async Task<AnnotationDto> CreateAnnotation(Guid pageId, Guid createdById, CreateAnnotationDto dto)
     {
-        var page = await _context.MangaPages.FindAsync(pageId)
-            ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
+        var page = await _context.MangaPages
+            .Include(p => p.Chapter)
+                .ThenInclude(c => c.Series)
+            .FirstOrDefaultAsync(p => p.PageId == pageId)
+            ?? throw new KeyNotFoundException($"Page {pageId} was not found.");
+
+        var isMangaka = page.Chapter.Series.MangakaId == createdById;
+        var isAssignedTantou = page.Chapter.Series.TantouId == createdById;
+        if (!isMangaka && !isAssignedTantou)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to annotate this page.");
+        }
 
         var annotation = new PageAnnotation
         {
@@ -100,6 +110,12 @@ public class PageService : IPageService
         };
 
         _context.PageAnnotations.Add(annotation);
+
+        if (isAssignedTantou)
+        {
+            page.Status = "revision";
+            page.Chapter.UpdatedAt = DateTime.UtcNow;
+        }
         await _context.SaveChangesAsync();
 
         var creator = await _context.Users.FindAsync(createdById);
@@ -151,6 +167,41 @@ public class PageService : IPageService
             CreatedAt = annotation.CreatedAt,
             ResolvedAt = annotation.ResolvedAt
         };
+    }
+
+    public async System.Threading.Tasks.Task DeleteAnnotation(Guid annotationId, Guid userId)
+    {
+        var annotation = await _context.PageAnnotations
+            .Include(a => a.Page)
+                .ThenInclude(page => page.Chapter)
+                    .ThenInclude(chapter => chapter.Series)
+            .FirstOrDefaultAsync(a => a.AnnotationId == annotationId)
+            ?? throw new KeyNotFoundException($"Annotation {annotationId} was not found.");
+
+        if (annotation.CreatedById != userId || annotation.Page.Chapter.Series.TantouId != userId)
+        {
+            throw new UnauthorizedAccessException("You can only delete your own review marks for an assigned series.");
+        }
+
+        if (annotation.Status != "open")
+        {
+            throw new InvalidOperationException("Only open review marks can be deleted.");
+        }
+
+        var hasOtherOpenMarks = await _context.PageAnnotations.AnyAsync(a =>
+            a.PageId == annotation.PageId &&
+            a.AnnotationId != annotationId &&
+            a.CreatedById == userId &&
+            a.Status == "open");
+
+        _context.PageAnnotations.Remove(annotation);
+        if (!hasOtherOpenMarks && annotation.Page.Chapter.Status == "tantou_review")
+        {
+            annotation.Page.Status = "approved";
+            annotation.Page.Chapter.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>
