@@ -82,6 +82,7 @@ public class MangakaService : IMangakaService
         {
             // Kiểm tra xem trang với số trang đó đã tồn tại trong chapter chưa
             mangaPage = await _context.MangaPages
+                .Include(p => p.PageAnnotations)
                 .FirstOrDefaultAsync(p => p.ChapterId == chapterId && p.PageNumber == pageNumber.Value);
         }
 
@@ -114,6 +115,12 @@ public class MangakaService : IMangakaService
             };
 
             _context.PageVersions.Add(version);
+
+            foreach (var annotation in mangaPage.PageAnnotations.Where(a => a.Status == "open"))
+            {
+                annotation.Status = "resolved";
+                annotation.ResolvedAt = DateTime.UtcNow;
+            }
         }
         else
         {

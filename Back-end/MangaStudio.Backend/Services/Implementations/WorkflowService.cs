@@ -298,6 +298,88 @@ public class WorkflowService : IWorkflowService
             .ToList();
     }
 
+    public async Task<List<AssistantPayrollMonthDto>> GetAssistantPayrollMonths(Guid assistantId)
+    {
+        var submissions = await _context.TaskSubmissions
+            .Include(s => s.Task)
+                .ThenInclude(t => t.Page)
+            .Where(s => s.SubmittedById == assistantId)
+            .ToListAsync();
+
+        var latestMonthlySubmissions = submissions
+            .GroupBy(s => new { s.TaskId, s.SubmittedAt.Year, s.SubmittedAt.Month })
+            .Select(g => g.OrderByDescending(s => s.SubmittedAt).First())
+            .ToList();
+
+        var taskIds = latestMonthlySubmissions.Select(s => s.TaskId).Distinct().ToList();
+        var payrollRecords = await _context.PayrollRecords
+            .Where(p =>
+                p.AssistantId == assistantId &&
+                p.TaskId.HasValue &&
+                taskIds.Contains(p.TaskId.Value) &&
+                p.Status != "failed")
+            .ToListAsync();
+
+        var payableByTask = payrollRecords
+            .GroupBy(p => p.TaskId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(p => p.CreatedAt).First());
+
+        return latestMonthlySubmissions
+            .GroupBy(s => new { s.SubmittedAt.Year, s.SubmittedAt.Month })
+            .Select(g =>
+            {
+                var tasks = g
+                    .OrderByDescending(s => s.SubmittedAt)
+                    .Select(s =>
+                    {
+                        payableByTask.TryGetValue(s.TaskId, out var payroll);
+                        var status = payroll != null
+                            ? "Approved"
+                            : IsRevisionStatus(s.Task.Status)
+                                ? "Revision Required"
+                                : "Submitted";
+
+                        return new AssistantPayrollTaskDto
+                        {
+                            TaskId = s.TaskId,
+                            TaskName = s.Task.Title,
+                            TaskType = s.Task.Type,
+                            PageNumber = s.Task.Page?.PageNumber,
+                            Status = status,
+                            SubmittedAt = s.SubmittedAt,
+                            ApprovedDate = payroll != null ? s.Task.UpdatedAt : null,
+                            Payment = payroll != null
+                                ? payroll.TotalAmount ?? (payroll.BaseAmount - payroll.DeductionAmount)
+                                : 0
+                        };
+                    })
+                    .ToList();
+
+                return new AssistantPayrollMonthDto
+                {
+                    Month = $"{g.Key.Month:00}/{g.Key.Year}",
+                    Year = g.Key.Year,
+                    MonthNumber = g.Key.Month,
+                    CompletedTasks = tasks.Count,
+                    ApprovedTasks = tasks.Count(t => t.Status == "Approved"),
+                    MonthlyIncome = tasks.Sum(t => t.Payment),
+                    Tasks = tasks
+                };
+            })
+            .OrderByDescending(m => m.Year)
+            .ThenByDescending(m => m.MonthNumber)
+            .ToList();
+    }
+
+    private static bool IsRevisionStatus(string status)
+    {
+        return string.Equals(status, "revision", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "revision_requested", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "rejected", StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// Mangaka đánh dấu đã thanh toán lương cho trợ lý.
     /// Business Rule: Chỉ thanh toán khi status là 'pending'.

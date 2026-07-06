@@ -110,6 +110,29 @@ public class PayrollDto
 }
 
 /// <summary>DTO hiển thị thông báo.</summary>
+public class AssistantPayrollMonthDto
+{
+    public string Month { get; set; } = null!;
+    public int Year { get; set; }
+    public int MonthNumber { get; set; }
+    public int CompletedTasks { get; set; }
+    public int ApprovedTasks { get; set; }
+    public decimal MonthlyIncome { get; set; }
+    public List<AssistantPayrollTaskDto> Tasks { get; set; } = new();
+}
+
+public class AssistantPayrollTaskDto
+{
+    public Guid TaskId { get; set; }
+    public string TaskName { get; set; } = null!;
+    public string? TaskType { get; set; }
+    public int? PageNumber { get; set; }
+    public string Status { get; set; } = null!;
+    public DateTime SubmittedAt { get; set; }
+    public DateTime? ApprovedDate { get; set; }
+    public decimal Payment { get; set; }
+}
+
 public class NotificationDto
 {
     public Guid Id { get; set; }

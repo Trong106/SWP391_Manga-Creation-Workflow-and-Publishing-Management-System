@@ -14,6 +14,7 @@ public class PageDto
     public DateTime? UploadedAt { get; set; }
     public int TaskCount { get; set; }
     public int AnnotationCount { get; set; }
+    public List<AnnotationDto> Annotations { get; set; } = new();
 }
 
 /// <summary>DTO kết quả upload nhiều trang cùng lúc.</summary>
