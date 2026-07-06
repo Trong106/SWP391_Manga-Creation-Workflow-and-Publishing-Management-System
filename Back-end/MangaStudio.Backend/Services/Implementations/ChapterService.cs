@@ -390,6 +390,12 @@ public class ChapterService : IChapterService
             .Include(c => c.Series)
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.Tasks)
+                    .ThenInclude(t => t.TaskSubmissions)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.Tasks)
+                    .ThenInclude(t => t.PayrollRecords)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageAnnotations)
             .Include(c => c.TantouReviewedBy)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Khong tim thay chapter voi ID {chapterId}.");
@@ -422,14 +428,100 @@ public class ChapterService : IChapterService
         }
         else
         {
-            chapter.Status = "revision_requested";
-            foreach (var page in chapter.MangaPages)
+            var markedPages = chapter.MangaPages
+                .Where(page => page.PageAnnotations.Any(annotation =>
+                    annotation.CreatedById == tantouId && annotation.Status == "open"))
+                .OrderBy(page => page.PageNumber)
+                .ToList();
+
+            if (markedPages.Count == 0)
             {
-                if (page.Status == "approved")
+                throw new InvalidOperationException("Add and save at least one page mark before requesting revision.");
+            }
+
+            chapter.Status = "revision_requested";
+            foreach (var page in markedPages)
+            {
+                page.Status = "revision";
+                var pageReasons = page.PageAnnotations
+                    .Where(annotation => annotation.CreatedById == tantouId && annotation.Status == "open")
+                    .OrderBy(annotation => annotation.CreatedAt)
+                    .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
+                    .Where(reason => !string.IsNullOrWhiteSpace(reason))
+                    .ToList();
+                var reasonText = pageReasons.Count > 0
+                    ? string.Join("; ", pageReasons)
+                    : "The page did not pass Tantou content review";
+
+                var revisableTasks = page.Tasks
+                    .Where(task => task.AssigneeId.HasValue
+                        && (task.Status == "approved"
+                            || task.Status == "submitted"
+                            || task.Status == "in_progress"))
+                    .ToList();
+
+                foreach (var task in revisableTasks)
                 {
-                    page.Status = "revision";
+                    if (!task.AssigneeId.HasValue)
+                    {
+                        continue;
+                    }
+
+                    var assistantId = task.AssigneeId.Value;
+                    task.Status = "revision";
+                    task.UpdatedAt = DateTime.UtcNow;
+
+                    foreach (var submission in task.TaskSubmissions
+                        .Where(submission => submission.Status == "accepted" || submission.Status == "submitted"))
+                    {
+                        submission.Status = "revision_requested";
+                    }
+
+                    foreach (var payroll in task.PayrollRecords
+                        .Where(payroll => payroll.Status != "paid"))
+                    {
+                        payroll.Status = "failed";
+                    }
+
+                    _context.Notifications.Add(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        UserId = assistantId,
+                        Type = "review_needed",
+                        Title = $"Revision required: {chapter.Series.Title} - Chapter {chapter.ChapterNumber}",
+                        Message = $"Your accepted task \"{task.Title}\" on page {page.PageNumber} was returned by Tantou review. Reason: {reasonText}. Please revise and resubmit using the same task.",
+                        IsRead = false,
+                        Link = $"/tasks?taskId={task.TaskId}",
+                        CreatedAt = DateTime.UtcNow
+                    });
                 }
             }
+
+            var pageDetails = markedPages.Select(page =>
+            {
+                var reasons = page.PageAnnotations
+                    .Where(annotation => annotation.CreatedById == tantouId && annotation.Status == "open")
+                    .OrderBy(annotation => annotation.CreatedAt)
+                    .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
+                    .Where(reason => !string.IsNullOrWhiteSpace(reason));
+                return $"Page {page.PageNumber}: {string.Join("; ", reasons)}";
+            });
+
+            var chapterNote = string.IsNullOrWhiteSpace(dto.Note)
+                ? "No chapter note provided"
+                : dto.Note.Trim().TrimEnd('.', '!', '?');
+
+            _context.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = chapter.Series.MangakaId,
+                Type = "review_needed",
+                Title = $"Revision requested for {chapter.Series.Title} - Chapter {chapter.ChapterNumber}",
+                Message = $"Pages requiring revision: {string.Join(" | ", pageDetails)}. Chapter note: {chapterNote}.",
+                IsRead = false,
+                Link = $"/chapters/{chapter.ChapterId}",
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         await _context.SaveChangesAsync();

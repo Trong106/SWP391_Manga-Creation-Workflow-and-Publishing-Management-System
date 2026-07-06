@@ -46,6 +46,10 @@ public class PageController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = ex.Message });
@@ -86,6 +90,10 @@ public class PageController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = ex.Message });
@@ -107,6 +115,33 @@ public class PageController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("annotations/{id:guid}")]
+    [Authorize(Roles = "tantou")]
+    public async Task<IActionResult> DeleteAnnotation(Guid id)
+    {
+        try
+        {
+            await _pageService.DeleteAnnotation(id, GetCurrentUserId());
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
         }
         catch (Exception ex)
         {

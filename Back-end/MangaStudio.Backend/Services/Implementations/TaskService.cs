@@ -106,7 +106,7 @@ public class TaskService : ITaskService
         {
             NotificationId = Guid.NewGuid(),
             UserId = task.AssignerId,
-            Type = "task_clarification",
+            Type = "system",
             Title = "Task clarification requested",
             Message = message,
             Link = $"/review?pageId={task.PageId}&taskId={task.TaskId}",
@@ -475,6 +475,8 @@ public class TaskService : ITaskService
             ChapterTitle = t.Page?.Chapter?.Title,
             ChapterNumber = t.Page?.Chapter?.ChapterNumber ?? 0,
             SeriesTitle = t.Page?.Chapter?.Series?.Title,
+            SeriesId = t.Page?.Chapter?.Series?.SeriesId,
+            SeriesCoverImageUrl = t.Page?.Chapter?.Series?.CoverImageUrl,
             RegionId = t.RegionId,
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? t.Assignee.FullName : null,
@@ -528,6 +530,9 @@ public class TaskService : ITaskService
     {
         var task = await _context.Tasks
             .Include(t => t.Page)
+                .ThenInclude(p => p.PageAnnotations)
+                    .ThenInclude(annotation => annotation.CreatedBy)
+            .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId);
@@ -537,6 +542,8 @@ public class TaskService : ITaskService
             return null;
         }
 
+        var tantouId = task.Page.Chapter?.Series?.TantouId;
+
         return new TaskResourceDto
         {
             TaskId = task.TaskId,
@@ -544,7 +551,25 @@ public class TaskService : ITaskService
             PageNumber = task.Page.PageNumber,
             ImageUrl = task.Page.CurrentImageUrl ?? "",
             SeriesTitle = task.Page.Chapter?.Series?.Title,
-            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0
+            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0,
+            ReviewAnnotations = task.Page.PageAnnotations
+                .Where(annotation =>
+                    annotation.Status == "open" &&
+                    tantouId.HasValue &&
+                    annotation.CreatedById == tantouId.Value)
+                .OrderBy(annotation => annotation.CreatedAt)
+                .Select(annotation => new TaskResourceAnnotationDto
+                {
+                    AnnotationId = annotation.AnnotationId,
+                    X = annotation.X,
+                    Y = annotation.Y,
+                    Width = annotation.Width,
+                    Height = annotation.Height,
+                    Body = annotation.Body,
+                    ReviewerName = annotation.CreatedBy.FullName,
+                    CreatedAt = annotation.CreatedAt
+                })
+                .ToList()
         };
     }
 

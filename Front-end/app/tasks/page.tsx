@@ -26,13 +26,21 @@ import {
   Lock, 
   DollarSign,
   TrendingUp,
-  Coins,
   ChevronRight,
   Eye,
   FileCheck,
   Download,
   BookOpen,
-  MessageCircle
+  MessageCircle,
+  ArrowLeft,
+  Library,
+  Paintbrush,
+  PenTool,
+  Type,
+  Languages,
+  Eraser,
+  FileText,
+  Send
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -45,6 +53,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 interface Task {
   taskId: string
@@ -56,6 +66,8 @@ interface Task {
   chapterTitle: string | null
   chapterNumber: number
   seriesTitle: string | null
+  seriesId: string | null
+  seriesCoverImageUrl: string | null
   regionId: string | null
   assigneeId: string | null
   assigneeName: string | null
@@ -66,6 +78,27 @@ interface Task {
   paymentAmount: number
   createdAt: string
   updatedAt: string
+}
+
+interface ReviewAnnotation {
+  annotationId: string
+  x: number
+  y: number
+  width?: number | null
+  height?: number | null
+  body: string
+  reviewerName: string
+  createdAt: string
+}
+
+interface TaskResource {
+  taskId: string
+  pageId: string
+  pageNumber: number
+  imageUrl: string
+  seriesTitle?: string | null
+  chapterNumber: number
+  reviewAnnotations: ReviewAnnotation[]
 }
 
 export default function AssistantTasksPage() {
@@ -79,10 +112,17 @@ export default function AssistantTasksPage() {
 
   // State for Resource Modal
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
-  const [selectedTaskResource, setSelectedTaskResource] = useState<any | null>(null)
+  const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   const [loadingResource, setLoadingResource] = useState(false)
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
+  const [downloadingReviewTaskId, setDownloadingReviewTaskId] = useState<string | null>(null)
   const [askingTaskId, setAskingTaskId] = useState<string | null>(null)
+  const [selectedSeries, setSelectedSeries] = useState<string | null>(null)
+
+  // Ask Clarification states
+  const [isAskDialogOpen, setIsAskDialogOpen] = useState(false)
+  const [askMessage, setAskMessage] = useState("")
+  const [taskToAsk, setTaskToAsk] = useState<Task | null>(null)
 
   const handleOpenResources = async (taskId: string) => {
     try {
@@ -133,6 +173,136 @@ export default function AssistantTasksPage() {
       const fullUrl = imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`
       window.open(fullUrl, "_blank")
       toast.info("Opening image in a new tab. Save it using Ctrl+S.")
+    }
+  }
+
+  const wrapCanvasText = (context: CanvasRenderingContext2D, text: string, maxWidth: number) => {
+    const words = text.trim().split(/\s+/)
+    const lines: string[] = []
+    let line = ""
+
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line)
+        line = word
+      } else {
+        line = candidate
+      }
+    })
+    if (line) lines.push(line)
+    return lines.length > 0 ? lines : [""]
+  }
+
+  const downloadReviewedPage = async (resource: TaskResource) => {
+    if (!resource.imageUrl) throw new Error("This page does not have an image to download.")
+    if (!resource.reviewAnnotations?.length) throw new Error("No open editor marks were found for this page.")
+
+    const fullUrl = resource.imageUrl.startsWith("http") ? resource.imageUrl : `${API_BASE_URL}${resource.imageUrl}`
+    const imageResponse = await fetch(fullUrl)
+    if (!imageResponse.ok) throw new Error("Could not load the reviewed page image.")
+    const bitmap = await createImageBitmap(await imageResponse.blob())
+    const canvas = document.createElement("canvas")
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("Your browser could not prepare the review copy.")
+
+    const fontSize = Math.max(16, Math.round(bitmap.width * 0.018))
+    const padding = Math.max(24, Math.round(bitmap.width * 0.03))
+    const lineHeight = Math.round(fontSize * 1.55)
+    context.font = `${fontSize}px Arial, sans-serif`
+
+    const annotationLines = resource.reviewAnnotations.map((annotation, index) => ({
+      annotation,
+      lines: wrapCanvasText(context, `${index + 1}. ${annotation.body}`, bitmap.width - padding * 2),
+    }))
+    const footerHeight = padding * 2 + lineHeight * 2 + annotationLines.reduce(
+      (height, item) => height + item.lines.length * lineHeight + Math.round(lineHeight * 0.55),
+      0
+    )
+
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height + footerHeight
+    context.drawImage(bitmap, 0, 0)
+
+    resource.reviewAnnotations.forEach((annotation, index) => {
+      const x = (annotation.x / 100) * bitmap.width
+      const y = (annotation.y / 100) * bitmap.height
+      const width = ((annotation.width || 0) / 100) * bitmap.width
+      const height = ((annotation.height || 0) / 100) * bitmap.height
+      const markerSize = Math.max(24, Math.round(bitmap.width * 0.032))
+
+      context.save()
+      context.strokeStyle = "#f59e0b"
+      context.fillStyle = "rgba(245, 158, 11, 0.18)"
+      context.lineWidth = Math.max(4, Math.round(bitmap.width * 0.004))
+      if (width > 0 && height > 0) {
+        context.fillRect(x, y, width, height)
+        context.strokeRect(x, y, width, height)
+      }
+      context.beginPath()
+      context.arc(x, y, markerSize / 2, 0, Math.PI * 2)
+      context.fillStyle = "#f59e0b"
+      context.fill()
+      context.fillStyle = "#111827"
+      context.font = `bold ${Math.round(markerSize * 0.55)}px Arial, sans-serif`
+      context.textAlign = "center"
+      context.textBaseline = "middle"
+      context.fillText(String(index + 1), x, y)
+      context.restore()
+    })
+
+    context.fillStyle = "#111318"
+    context.fillRect(0, bitmap.height, canvas.width, footerHeight)
+    context.textAlign = "left"
+    context.textBaseline = "alphabetic"
+    context.fillStyle = "#f8fafc"
+    context.font = `bold ${Math.round(fontSize * 1.25)}px Arial, sans-serif`
+    let cursorY = bitmap.height + padding + lineHeight
+    context.fillText(`Editor Review - Page ${resource.pageNumber}`, padding, cursorY)
+    cursorY += lineHeight * 1.35
+
+    context.font = `${fontSize}px Arial, sans-serif`
+    annotationLines.forEach(({ annotation, lines }) => {
+      context.fillStyle = "#fbbf24"
+      lines.forEach((line) => {
+        context.fillText(line, padding, cursorY)
+        cursorY += lineHeight
+      })
+      context.fillStyle = "#9ca3af"
+      context.font = `${Math.max(13, Math.round(fontSize * 0.8))}px Arial, sans-serif`
+      context.fillText(`Reviewer: ${annotation.reviewerName}`, padding, cursorY)
+      cursorY += Math.round(lineHeight * 0.8)
+      context.font = `${fontSize}px Arial, sans-serif`
+    })
+
+    const output = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not export the review copy.")), "image/png")
+    })
+    const objectUrl = URL.createObjectURL(output)
+    const anchor = document.createElement("a")
+    const title = (resource.seriesTitle || "manga").replace(/[^a-z0-9]+/gi, "_")
+    anchor.href = objectUrl
+    anchor.download = `${title}_Ch${resource.chapterNumber}_Page${resource.pageNumber}_Editor_Review.png`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(objectUrl)
+  }
+
+  const handleDownloadReviewCopy = async (task: Task) => {
+    if (!token) return
+    try {
+      setDownloadingReviewTaskId(task.taskId)
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${task.taskId}/resources`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error("Failed to load the editor review marks.")
+      await downloadReviewedPage(await response.json())
+      toast.success("The marked review copy and editor reasons were downloaded.")
+    } catch (error: any) {
+      toast.error(error.message || "Could not download the review copy.")
+    } finally {
+      setDownloadingReviewTaskId(null)
     }
   }
 
@@ -188,23 +358,24 @@ export default function AssistantTasksPage() {
     }
   }
 
-  const handleAskMangaka = async (task: Task) => {
-    if (!token) return
-    const message = window.prompt(
-      `Ask ${task.assignerName} for clarification:`,
-      `Please clarify the requirement for "${task.title}" on page ${task.pageNumber}.`
-    )
-    if (message === null) return
+  const handleAskMangaka = (task: Task) => {
+    setTaskToAsk(task)
+    setAskMessage(`Please clarify the requirement for "${task.title}" on page ${task.pageNumber}.`)
+    setIsAskDialogOpen(true)
+  }
+
+  const handleSubmitAsk = async () => {
+    if (!token || !taskToAsk || !askMessage.trim()) return
 
     try {
-      setAskingTaskId(task.taskId)
-      const res = await fetch(`${API_BASE_URL}/api/tasks/${task.taskId}/ask`, {
+      setAskingTaskId(taskToAsk.taskId)
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${taskToAsk.taskId}/ask`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message: askMessage }),
       })
 
       if (!res.ok) {
@@ -212,7 +383,10 @@ export default function AssistantTasksPage() {
         throw new Error(data?.message || "Failed to send clarification request.")
       }
 
-      toast.success(`Notification sent to ${task.assignerName}.`)
+      toast.success(`Notification sent to ${taskToAsk.assignerName}.`)
+      setIsAskDialogOpen(false)
+      setTaskToAsk(null)
+      setAskMessage("")
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Could not send clarification request.")
@@ -248,39 +422,91 @@ export default function AssistantTasksPage() {
   }
 
   // Dynamic calculations from real database objects (no fake data)
-  const approvedTasks = tasks.filter(t => t.status.toLowerCase() === "approved")
-  const submittedTasks = tasks.filter(t => t.status.toLowerCase() === "submitted")
-  
-  // Earnings
-  const approvedPayout = approvedTasks.reduce((sum, t) => sum + t.paymentAmount, 0)
-  const pendingReview = submittedTasks.reduce((sum, t) => sum + t.paymentAmount, 0)
+  // Extract all unique series names and their stats for the Selection Dashboard
+  const allSeriesGroups: Record<string, { 
+    approved: number; 
+    pending: number; 
+    inProgress: number; 
+    submitted: number; 
+    revision: number; 
+    total: number;
+    coverImageUrl: string | null;
+    latestTaskDate: Date;
+  }> = {}
+
+  tasks.forEach(t => {
+    const sTitle = t.seriesTitle || "Uncategorized"
+    const taskDate = new Date(t.createdAt || t.updatedAt || 0)
+    if (!allSeriesGroups[sTitle]) {
+      allSeriesGroups[sTitle] = { 
+        approved: 0, 
+        pending: 0, 
+        inProgress: 0, 
+        submitted: 0, 
+        revision: 0, 
+        total: 0,
+        coverImageUrl: t.seriesCoverImageUrl || null,
+        latestTaskDate: taskDate
+      }
+    }
+    if (!allSeriesGroups[sTitle].coverImageUrl && t.seriesCoverImageUrl) {
+      allSeriesGroups[sTitle].coverImageUrl = t.seriesCoverImageUrl
+    }
+    if (taskDate > allSeriesGroups[sTitle].latestTaskDate) {
+      allSeriesGroups[sTitle].latestTaskDate = taskDate
+    }
+    allSeriesGroups[sTitle].total++
+    const s = t.status.toLowerCase()
+    if (s === "approved") allSeriesGroups[sTitle].approved++
+    else if (s === "pending") allSeriesGroups[sTitle].pending++
+    else if (s === "in_progress") allSeriesGroups[sTitle].inProgress++
+    else if (s === "submitted") allSeriesGroups[sTitle].submitted++
+    else if (s === "revision") allSeriesGroups[sTitle].revision++
+  })
+
+  const seriesList = Object.entries(allSeriesGroups).map(([title, item]) => ({
+    title,
+    stats: item,
+    coverImageUrl: item.coverImageUrl,
+    latestTaskDate: item.latestTaskDate,
+    percentage: Math.round((item.approved / item.total) * 100)
+  })).sort((a, b) => b.latestTaskDate.getTime() - a.latestTaskDate.getTime())
+
+  const displayedTasks = selectedSeries 
+    ? tasks.filter(t => (t.seriesTitle || "Uncategorized") === selectedSeries)
+    : tasks
 
   // Active Progress by Series
   const seriesGroups: Record<string, { approved: number; total: number }> = {}
-  tasks.forEach(t => {
+  displayedTasks.forEach(t => {
     const sTitle = t.seriesTitle || "Uncategorized"
     if (!seriesGroups[sTitle]) {
       seriesGroups[sTitle] = { approved: 0, total: 0 }
     }
-    seriesGroups[sTitle].total++
-    if (t.status.toLowerCase() === "approved") {
-      seriesGroups[sTitle].approved++
-    }
+    displayedTasks.forEach(item => {
+      if ((item.seriesTitle || "Uncategorized") === sTitle && item.status.toLowerCase() === "approved") {
+        seriesGroups[sTitle].approved = (seriesGroups[sTitle].approved || 0) + 1
+      }
+    })
   })
   
-  const activeProgress = Object.entries(seriesGroups).map(([title, stats]) => ({
-    title,
-    percentage: Math.round((stats.approved / stats.total) * 100)
-  }))
+  const activeProgress = Object.entries(seriesGroups).map(([title, stats]) => {
+    const total = displayedTasks.filter(item => (item.seriesTitle || "Uncategorized") === title).length
+    const approved = displayedTasks.filter(item => (item.seriesTitle || "Uncategorized") === title && item.status.toLowerCase() === "approved").length
+    return {
+      title,
+      percentage: Math.round(total > 0 ? (approved / total) * 100 : 0)
+    }
+  })
 
   // Recent Milestones: show completed or submitted tasks sorted by updatedAt
-  const milestones = [...tasks]
+  const milestones = [...displayedTasks]
     .filter(t => t.status.toLowerCase() === "approved" || t.status.toLowerCase() === "submitted" || t.status.toLowerCase() === "revision")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 3)
 
   // Filtering
-  const filteredTasks = tasks.filter(t => {
+  const filteredTasks = displayedTasks.filter(t => {
     if (activeFilter === "all") return true
     if (activeFilter === "todo") return t.status.toLowerCase() === "pending"
     return t.status.toLowerCase() === activeFilter.toLowerCase()
@@ -318,6 +544,16 @@ export default function AssistantTasksPage() {
       .join(" ")
   }
 
+  const getTaskTypeIcon = (typeStr: string) => {
+    const t = typeStr.toLowerCase()
+    if (t.includes("color")) return Paintbrush
+    if (t.includes("line") || t.includes("sketch") || t.includes("draw")) return PenTool
+    if (t.includes("type") || t.includes("text")) return Type
+    if (t.includes("translate")) return Languages
+    if (t.includes("clean") || t.includes("erase")) return Eraser
+    return FileText
+  }
+
   const getStatusBadgeClass = (statusStr: string) => {
     const s = statusStr.toLowerCase()
     if (s === "in_progress") return "bg-purple-950/40 text-purple-400 border border-purple-800/30"
@@ -329,38 +565,232 @@ export default function AssistantTasksPage() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-10">
+      {selectedSeries !== null && (
+        <button
+          onClick={() => {
+            setSelectedSeries(null)
+            setActiveFilter("all")
+          }}
+          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors group font-semibold cursor-pointer mb-2"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Series Selection
+        </button>
+      )}
+
       <div className="mb-6">
-        <h1 className="text-3xl font-extrabold text-white tracking-tight" id="main-tasks-heading">My Tasks</h1>
-        <p className="text-sm text-zinc-400 mt-1">Manage your assigned production tasks across active series.</p>
+        <h1 className="text-3xl font-extrabold text-white tracking-tight" id="main-tasks-heading">
+          {selectedSeries ? `${selectedSeries} Tasks` : "My Tasks"}
+        </h1>
+        <p className="text-sm text-zinc-400 mt-1">
+          {selectedSeries 
+            ? `Manage your assigned production tasks for ${selectedSeries}.`
+            : "Select a manga series to view and manage your assigned tasks."}
+        </p>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Main tasks list (8 cols) */}
-        <div className="col-span-12 lg:col-span-8 space-y-6">
-          {/* Filters and Sorting Toolbar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-zinc-950/40 p-3 rounded-xl border border-zinc-850">
-            <div className="flex flex-wrap gap-1">
-              {["all", "todo", "in_progress", "submitted", "approved", "revision"].map((filter) => (
-                <Button
-                  key={filter}
-                  id={`filter-btn-${filter}`}
-                  onClick={() => setActiveFilter(filter)}
-                  variant={activeFilter === filter ? "default" : "ghost"}
-                  className={`text-xs font-semibold px-3 py-1.5 h-auto capitalize ${
-                    activeFilter === filter 
-                      ? "bg-primary text-primary-foreground" 
-                      : "text-zinc-400 hover:text-white hover:bg-zinc-900"
+      {selectedSeries === null ? (
+        seriesList.length === 0 ? (
+          <Card className="bg-card border-border p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <Sparkles className="w-8 h-8" />
+            </div>
+            <h2 className="text-lg font-bold text-white">No Series Found</h2>
+            <p className="text-zinc-400 text-sm max-w-sm">
+              You currently have no tasks assigned to any manga series.
+            </p>
+          </Card>
+        ) : (
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-900 bg-zinc-950/50 text-[11px] text-zinc-500 uppercase font-extrabold tracking-wider">
+                    <th className="py-4 px-6 w-20">Cover</th>
+                    <th className="py-4 px-6">Manga Series</th>
+                    <th className="py-4 px-6 w-60">Task Completion</th>
+                    <th className="py-4 px-6 text-center w-24">Todo</th>
+                    <th className="py-4 px-6 text-center w-24">Doing</th>
+                    <th className="py-4 px-6 text-center w-24">Review</th>
+                    <th className="py-4 px-6 text-center w-24">Revision</th>
+                    <th className="py-4 px-6 text-center w-24">Total</th>
+                    <th className="py-4 px-6 text-right w-32">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-900/60">
+                  {seriesList.map((series) => {
+                    const hasRevision = series.stats.revision > 0
+
+                    return (
+                    <tr
+                      key={series.title}
+                      onClick={() => setSelectedSeries(series.title)}
+                      className={`group transition-colors duration-250 cursor-pointer text-sm ${
+                        hasRevision
+                          ? "bg-red-950/15 hover:bg-red-950/30 ring-1 ring-inset ring-red-900/50"
+                          : "hover:bg-zinc-900/40"
+                      }`}
+                    >
+                      {/* Cover image cell */}
+                      <td className="py-4 px-6">
+                        {series.coverImageUrl ? (
+                          <div className={`w-10 h-14 relative rounded-lg overflow-hidden border bg-zinc-950 shadow-inner ${
+                            hasRevision ? "border-red-600/70 shadow-red-950/50" : "border-zinc-800"
+                          }`}>
+                            <img
+                              src={series.coverImageUrl.startsWith("http") ? series.coverImageUrl : `${API_BASE_URL}${series.coverImageUrl}`}
+                              alt={series.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        ) : (
+                          <div className={`w-10 h-14 rounded-lg border bg-zinc-950/60 flex items-center justify-center shadow-inner ${
+                            hasRevision ? "border-red-600/70 text-red-400" : "border-zinc-850 text-zinc-650"
+                          }`}>
+                            <BookOpen className="w-4 h-4 opacity-50" />
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Series Title cell */}
+                      <td className={`py-4 px-6 font-bold transition-colors ${
+                        hasRevision
+                          ? "text-red-100 group-hover:text-red-200"
+                          : "text-zinc-200 group-hover:text-primary"
+                      }`}>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-base line-clamp-1">{series.title}</span>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 ${
+                            hasRevision ? "text-red-300/80" : "text-zinc-500"
+                          }`}>
+                            <Library className={`w-3 h-3 opacity-70 ${
+                              hasRevision ? "text-red-400" : "text-primary"
+                            }`} /> Manga Series
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Progress bar cell */}
+                      <td className="py-4 px-6">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex justify-between text-xs font-semibold text-zinc-400">
+                            <span className={`font-mono ${hasRevision ? "text-red-400" : "text-primary"}`}>
+                              {series.percentage}%
+                            </span>
+                          </div>
+                          <Progress
+                            value={series.percentage}
+                            className={`h-1.5 bg-zinc-950 ${hasRevision ? "[&>div]:bg-red-500" : ""}`}
+                          />
+                        </div>
+                      </td>
+
+                      {/* Counts cells */}
+                      <td className="py-4 px-6 text-center font-semibold text-zinc-400 font-mono">
+                        {series.stats.pending > 0 ? (
+                          <span className="text-zinc-300 bg-zinc-900/60 border border-zinc-850 px-2 py-0.5 rounded text-xs">
+                            {series.stats.pending}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-center font-semibold text-zinc-400 font-mono">
+                        {series.stats.inProgress > 0 ? (
+                          <span className="text-purple-400 bg-purple-950/20 border border-purple-900/30 px-2 py-0.5 rounded text-xs animate-pulse">
+                            {series.stats.inProgress}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-center font-semibold text-zinc-400 font-mono">
+                        {series.stats.submitted > 0 ? (
+                          <span className="text-cyan-400 bg-cyan-950/20 border border-cyan-900/30 px-2 py-0.5 rounded text-xs">
+                            {series.stats.submitted}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-center font-semibold font-mono">
+                        {series.stats.revision > 0 ? (
+                          <span className="inline-flex min-w-7 items-center justify-center rounded border border-red-600/70 bg-red-950/70 px-2 py-0.5 text-xs font-extrabold text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.28)]">
+                            {series.stats.revision}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 text-center font-semibold text-zinc-300 font-mono">
+                        <span className={`px-2 py-0.5 rounded border text-xs ${
+                          hasRevision
+                            ? "border-red-800/60 bg-red-950/40 text-red-200"
+                            : "border-zinc-850 bg-zinc-900 text-zinc-400"
+                        }`}>
+                          {series.stats.total}
+                        </span>
+                      </td>
+
+                      {/* Action cell */}
+                      <td className="py-4 px-6 text-right">
+                        <button className={`inline-flex items-center gap-1 text-xs font-bold group-hover:underline transition-all ${
+                          hasRevision ? "text-red-300 hover:text-red-200" : "text-primary"
+                        }`}>
+                          <span>View Tasks</span>
+                          <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                      </td>
+                    </tr>
+                  )})}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : (
+        <div className="space-y-4">
+          {/* Gmail-Style Tabs */}
+          <div className="flex border-b border-zinc-850 bg-zinc-950/20 px-2 overflow-x-auto">
+            {[
+              { id: "all", label: "All Tasks", icon: ListTodo },
+              { id: "todo", label: "Todo", icon: Clock },
+              { id: "in_progress", label: "In Progress", icon: Play },
+              { id: "submitted", label: "Submitted", icon: FileCheck },
+              { id: "approved", label: "Approved", icon: Check },
+              { id: "revision", label: "Revision", icon: AlertCircle },
+            ].map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeFilter === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveFilter(tab.id)}
+                  className={`flex items-center gap-2 px-5 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    isActive 
+                      ? "border-primary text-primary bg-primary/5" 
+                      : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30"
                   }`}
                 >
-                  {filter === "todo" ? "Todo" : filter.replace("_", " ")}
-                </Button>
-              ))}
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Gmail-Style Action Bar */}
+          <div className="flex items-center justify-between py-2 px-4 bg-zinc-950/20 border border-zinc-850 rounded-xl text-xs text-zinc-400">
+            <div className="flex items-center gap-4">
+              <span className="font-semibold text-zinc-300">
+                {filteredTasks.length} {filteredTasks.length === 1 ? "task" : "tasks"} listed
+              </span>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-zinc-400 font-medium">Sort:</span>
+              <span className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider">Sort:</span>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger id="sort-select-trigger" className="bg-zinc-950 border-zinc-850 text-white text-xs h-9 w-44">
+                <SelectTrigger id="sort-select-trigger" className="bg-zinc-950 border-zinc-850 text-white text-xs h-7 w-36">
                   <SelectValue placeholder="Sort tasks" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-950 border-zinc-850 text-white">
@@ -382,75 +812,102 @@ export default function AssistantTasksPage() {
               </p>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xl divide-y divide-zinc-900/60">
               {sortedTasks.map((task) => {
                 const s = task.status.toLowerCase()
+                const isCompleted = s === "approved"
+                
                 return (
-                  <Card key={task.taskId} className="bg-card border-border hover:border-primary/40 hover:shadow-[0_0_15px_rgba(73,252,220,0.05)] transition-all flex flex-col gap-4 p-5 group relative overflow-hidden">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className={`text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 ${getStatusBadgeClass(task.status)}`}>
-                            {task.status.replace("_", " ")}
-                          </Badge>
-                          <span className="text-zinc-500 text-[10px] font-mono">Page #{task.pageNumber}</span>
-                        </div>
-                        <h3 className="text-base font-bold text-zinc-150 group-hover:text-primary transition-colors mt-1.5 leading-snug line-clamp-1">{task.title}</h3>
-                        <p className="text-xs font-semibold text-primary">{task.seriesTitle || "No Series Specified"}</p>
-                        <p className="text-[10px] text-zinc-400 truncate max-w-[200px]">
-                          Chapter {task.chapterNumber} {task.chapterTitle ? `: ${task.chapterTitle}` : ""}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-primary font-bold text-base font-mono">${task.paymentAmount.toFixed(2)}</p>
-                        <p className="text-[9px] text-zinc-500 uppercase tracking-widest">Payout</p>
-                      </div>
+                  <div 
+                    key={task.taskId}
+                    className="group/row flex items-center justify-between py-3.5 px-4 hover:bg-zinc-900/35 transition-colors duration-150 text-xs"
+                  >
+                    {/* Left: Status/TaskType Badge, Page Info */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      {activeFilter === "all" ? (
+                        /* Status Badge when showing all */
+                        <Badge variant="secondary" className={`text-[9px] uppercase font-extrabold tracking-wider px-1.5 py-0.5 rounded ${getStatusBadgeClass(task.status)}`}>
+                          {task.status.replace("_", " ")}
+                        </Badge>
+                      ) : (
+                        /* Task Type Badge with Icon when status is pre-filtered */
+                        (() => {
+                          const TypeIcon = getTaskTypeIcon(task.type)
+                          return (
+                            <div className="flex items-center gap-1.5 bg-zinc-900/60 border border-zinc-850 text-zinc-400 text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                              <TypeIcon className="w-3 h-3 text-zinc-550" />
+                              <span>{formatTaskType(task.type)}</span>
+                            </div>
+                          )
+                        })()
+                      )}
+
+                      {/* Page Info */}
+                      <span className="text-zinc-500 font-mono text-[10px] min-w-[55px]">
+                        P. #{task.pageNumber}
+                      </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 py-3.5 border-y border-zinc-900/60 text-xs">
-                      <div>
-                        <p className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">Type</p>
-                        <p className="font-semibold text-zinc-300 mt-0.5">{formatTaskType(task.type)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">Due Date</p>
-                        <p className="font-semibold text-zinc-300 mt-0.5 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                          {formatDueDate(task.dueDate)}
-                        </p>
-                      </div>
+                    {/* Middle: Title & Description snippet */}
+                    <div className="flex-1 min-w-0 mx-4 flex items-baseline gap-2">
+                      <span className={`text-zinc-200 truncate font-semibold text-[13px] ${isCompleted ? "line-through text-zinc-500" : ""}`}>
+                        {task.title}
+                      </span>
+                      <span className="text-zinc-550 truncate text-[11px] font-normal">
+                        — {task.description || "No description provided."}
+                      </span>
                     </div>
 
-                    <div className="flex items-center justify-between mt-auto pt-2.5">
-                      <div className="flex items-center gap-2">
-                        {s === "in_progress" && (
-                          <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                        )}
-                        <span className="text-xs font-semibold text-zinc-300">
-                          {s === "pending" && "Status: Todo"}
-                          {s === "in_progress" && "Status: In Progress"}
-                          {s === "submitted" && "Status: Submitted"}
-                          {s === "approved" && "Status: Approved"}
-                          {s === "revision" && "Status: Revision Required"}
-                          {s === "cancelled" && "Status: Cancelled"}
-                        </span>
-                      </div>
+                    {/* Right: Chapter, Payout, Date & Quick Hover Actions */}
+                    <div className="flex items-center gap-4 shrink-0 ml-auto justify-end">
+                      {/* Chapter Info */}
+                      <span className="text-[10px] text-zinc-500 font-mono">
+                        Ch. {task.chapterNumber}
+                      </span>
 
-                      {/* Action buttons based on task state */}
-                      <div className="flex items-center gap-2">
+                      {/* Payout */}
+                      <span className="text-primary font-bold font-mono text-xs min-w-[65px] text-right">
+                        ${task.paymentAmount.toFixed(2)}
+                      </span>
+
+                      {s === "revision" && (
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDownloadReviewCopy(task)}
+                          disabled={downloadingReviewTaskId === task.taskId}
+                          title="Download the page with editor marks and reasons"
+                          className="h-7 border-red-800/70 bg-red-950/30 px-2 text-[10px] font-bold text-red-300 hover:bg-red-950/60 hover:text-red-200"
+                        >
+                          {downloadingReviewTaskId === task.taskId ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <Download className="mr-1 h-3 w-3" />
+                          )}
+                          Review Copy
+                        </Button>
+                      )}
+
+                      {/* Date (visible when not hovered) */}
+                      <span className="text-xs text-zinc-500 font-semibold w-[90px] text-right group-hover/row:hidden">
+                        {formatDueDate(task.dueDate)}
+                      </span>
+
+                      {/* Actions (visible on hover) */}
+                      <div className="hidden group-hover/row:flex items-center gap-1.5 min-w-[90px] justify-end">
                         {s !== "cancelled" && (
                           <Button
-                            variant="outline"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleOpenResources(task.taskId)}
                             disabled={loadingResource && loadingTaskId === task.taskId}
-                            className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-semibold text-xs h-8 px-3 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                            title="View Resources"
+                            className="h-7 w-7 text-zinc-400 hover:text-white hover:bg-zinc-800/80 rounded-lg cursor-pointer"
                           >
                             {loadingResource && loadingTaskId === task.taskId ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                              <Loader2 className="w-3 h-3 animate-spin text-primary" />
                             ) : (
                               <Download className="w-3.5 h-3.5" />
                             )}
-                            Resources
                           </Button>
                         )}
 
@@ -459,14 +916,15 @@ export default function AssistantTasksPage() {
                             id={`start-task-btn-${task.taskId}`}
                             onClick={() => handleStartTask(task.taskId)}
                             disabled={startingTaskId === task.taskId}
-                            className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all cursor-pointer"
+                            size="sm"
+                            className="bg-primary hover:bg-primary-container text-background font-extrabold text-[10px] h-7 px-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
                           >
                             {startingTaskId === task.taskId ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
                               <>
-                                <Play className="w-3.5 h-3.5 mr-1" />
-                                Start Task
+                                <Play className="w-3 h-3 mr-1" />
+                                Start
                               </>
                             )}
                           </Button>
@@ -478,21 +936,21 @@ export default function AssistantTasksPage() {
                               variant="outline"
                               onClick={() => handleAskMangaka(task)}
                               disabled={askingTaskId === task.taskId}
-                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-semibold text-xs h-8 px-3 rounded-lg transition-all"
+                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-semibold text-[10px] h-7 px-2 rounded-lg transition-all"
                             >
                               {askingTaskId === task.taskId ? (
-                                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                               ) : (
-                                <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                                <MessageCircle className="w-3 h-3 mr-1" />
                               )}
                               Ask
                             </Button>
                             <Link href={`/submit?taskId=${task.taskId}`} passHref>
                               <Button
                                 id={`open-files-btn-${task.taskId}`}
-                                className="bg-primary hover:bg-primary-container text-background font-bold text-xs h-8 px-4 rounded-lg shadow-sm transition-all cursor-pointer"
+                                className="bg-primary hover:bg-primary-container text-background font-bold text-[10px] h-7 px-2 rounded-lg shadow-sm transition-all cursor-pointer"
                               >
-                                Open Files
+                                Open
                               </Button>
                             </Link>
                           </>
@@ -503,126 +961,22 @@ export default function AssistantTasksPage() {
                             <Button
                               id={`view-submission-btn-${task.taskId}`}
                               variant="outline"
-                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-bold text-xs h-8 px-4 rounded-lg transition-all cursor-pointer"
+                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-bold text-[10px] h-7 px-2 rounded-lg transition-all cursor-pointer"
                             >
-                              <Eye className="w-3.5 h-3.5 mr-1" />
-                              View Submission
+                              <Eye className="w-3 h-3 mr-1" />
+                              View
                             </Button>
                           </Link>
                         )}
-
-                        {s === "cancelled" && (
-                          <Button
-                            disabled
-                            variant="ghost"
-                            className="text-zinc-500 cursor-default opacity-50 font-bold text-xs h-8 px-4"
-                          >
-                            <Lock className="w-3.5 h-3.5 mr-1" />
-                            Cancelled
-                          </Button>
-                        )}
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 )
               })}
             </div>
           )}
         </div>
-
-        {/* Right side progress panel (4 cols) */}
-        <aside className="col-span-12 lg:col-span-4 space-y-6">
-          {/* Weekly Earnings Card */}
-          <Card className="bg-card border-border overflow-hidden relative">
-            <div className="h-1.5 bg-primary w-full"></div>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <Coins className="w-5 h-5 text-primary" />
-                Weekly Earnings
-              </CardTitle>
-              <CardDescription className="text-zinc-550 text-xs">Accumulated task payouts for this review cycle.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-zinc-950/40 border border-zinc-900/60 p-4 rounded-xl space-y-1">
-                <p className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">Approved Payout</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-primary font-mono">${approvedPayout.toFixed(2)}</span>
-                </div>
-                <div className="w-full bg-zinc-900 h-1.5 rounded-full mt-2.5 overflow-hidden">
-                  {/* Visual ratio of approved compared to total active */}
-                  <div 
-                    className="bg-primary h-full transition-all duration-550" 
-                    style={{ width: `${tasks.length > 0 ? (approvedTasks.length / tasks.length) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              <div className="bg-zinc-950/40 border border-zinc-900/60 p-4 rounded-xl">
-                <p className="text-[9px] text-zinc-500 uppercase font-semibold tracking-wider">Pending Review</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-2xl font-bold text-zinc-300 font-mono">${pendingReview.toFixed(2)}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Active Series Progress */}
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                Active Progress
-              </CardTitle>
-              <CardDescription className="text-zinc-550 text-xs">Your task completion percentage per active series.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {activeProgress.length === 0 ? (
-                <div className="text-center py-6 text-xs text-zinc-500">No active progress data.</div>
-              ) : (
-                activeProgress.map((series) => (
-                  <div key={series.title} className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs font-semibold text-zinc-300">
-                      <span className="truncate max-w-[200px]">{series.title}</span>
-                      <span className="text-primary font-mono">{series.percentage}%</span>
-                    </div>
-                    <Progress value={series.percentage} className="h-1.5 bg-zinc-900" />
-                  </div>
-                ))
-              )}
-
-              {/* Recent Milestones inside side panel */}
-              {milestones.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-zinc-900/60 space-y-4">
-                  <h4 className="text-xs font-bold text-zinc-250 uppercase tracking-wider border-l-2 border-primary pl-2.5">
-                    Recent Milestones
-                  </h4>
-                  <div className="space-y-4">
-                    {milestones.map((task) => (
-                      <div key={task.taskId} className="flex gap-3 items-start text-xs">
-                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
-                          task.status.toLowerCase() === "approved" 
-                            ? "bg-primary animate-pulse" 
-                            : task.status.toLowerCase() === "submitted"
-                            ? "bg-cyan-400"
-                            : "bg-red-400"
-                        }`} />
-                        <div>
-                          <p className="font-semibold text-zinc-250 leading-tight">
-                            {task.status.toLowerCase() === "approved" ? "Approved" : task.status.toLowerCase() === "submitted" ? "Submitted" : "Revision"}: {task.title}
-                          </p>
-                          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                            {task.seriesTitle} • Ch. {task.chapterNumber}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+      )}
 
       {/* Confirmation and Preview Modal */}
       <Dialog open={isResourceModalOpen} onOpenChange={setIsResourceModalOpen}>
@@ -699,6 +1053,69 @@ export default function AssistantTasksPage() {
             >
               <Download className="w-3.5 h-3.5" />
               Download Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ask Clarification Dialog */}
+      <Dialog open={isAskDialogOpen} onOpenChange={setIsAskDialogOpen}>
+        <DialogContent className="max-w-md bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="space-y-1.5 pb-2">
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-primary" />
+              Ask for Clarification
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 text-xs">
+              Send a clarification question to {taskToAsk?.assignerName || "Creator"}. They will be notified immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          {taskToAsk && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="ask-message" className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+                  Clarification Message
+                </Label>
+                <Textarea
+                  id="ask-message"
+                  value={askMessage}
+                  onChange={(e) => setAskMessage(e.target.value)}
+                  placeholder="Type your question here..."
+                  className="bg-zinc-900/60 border-zinc-800 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[100px] resize-none text-xs rounded-xl"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-4 flex gap-2 sm:gap-0 border-t border-zinc-800/50">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsAskDialogOpen(false)
+                setTaskToAsk(null)
+                setAskMessage("")
+              }}
+              className="text-zinc-400 hover:text-white hover:bg-zinc-800/60 rounded-xl font-semibold text-xs py-2 px-4 border border-transparent hover:border-zinc-800 transition-all cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitAsk}
+              disabled={askingTaskId === taskToAsk?.taskId || !askMessage.trim()}
+              className="bg-primary hover:bg-primary/95 text-background font-bold text-xs py-2 px-5 rounded-xl shadow-lg hover:shadow-primary/25 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              {askingTaskId === taskToAsk?.taskId ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  Send Question
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -29,8 +29,8 @@ public class ProposalDto
 /// <summary>DTO duyệt hoặc từ chối đề xuất bộ truyện.</summary>
 public class ReviewProposalDto
 {
-    [Required(ErrorMessage = "Quyết định duyệt là bắt buộc.")]
-    [RegularExpression("^(approved|rejected)$", ErrorMessage = "Decision chỉ được là 'approved' hoặc 'rejected'.")]
+    [Required(ErrorMessage = "Review decision is required.")]
+    [RegularExpression("^(approved|rejected)$", ErrorMessage = "Decision must be approved or rejected.")]
     public string Decision { get; set; } = null!;
 
     public string? Feedback { get; set; }
@@ -40,9 +40,9 @@ public class ReviewProposalDto
 
 public class ReviewChapterDto
 {
-    [Required(ErrorMessage = "Quyet dinh review chapter la bat buoc.")]
+    [Required(ErrorMessage = "Chapter review decision is required.")]
     [RegularExpression("^(approved|revision_requested|rejected)$",
-        ErrorMessage = "Decision chi duoc la: approved, revision_requested hoac rejected.")]
+        ErrorMessage = "Decision must be approved, revision_requested, or rejected.")]
     public string Decision { get; set; } = null!;
 
     public string? Note { get; set; }
@@ -80,7 +80,7 @@ public class PublishScheduleDto
 /// <summary>DTO tạo lịch xuất bản.</summary>
 public class CreatePublishScheduleDto
 {
-    [Required(ErrorMessage = "Ngày lên lịch là bắt buộc.")]
+    [Required(ErrorMessage = "Scheduled date is required.")]
     public DateTime ScheduledDate { get; set; }
 }
 

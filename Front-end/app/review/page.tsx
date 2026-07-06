@@ -133,6 +133,7 @@ function MangakaReviewPage() {
     return `${API_BASE_URL}${coverPath}`
   }
 
+
   // Handle page approval
   const handleApprovePage = async () => {
     if (!activePage || !token) return

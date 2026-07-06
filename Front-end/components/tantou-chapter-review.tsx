@@ -1,6 +1,6 @@
 "use client"
 
-import { type MouseEvent, useEffect, useMemo, useState } from "react"
+import { type PointerEvent, useEffect, useMemo, useState } from "react"
 import { AlertTriangle, BookOpen, Check, CheckCircle2, History, Loader2, MessageSquare, MousePointer2, Pencil, Square, X } from "lucide-react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { VersionCompareDialog } from "@/components/version-compare-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type Annotation = {
   id: string
@@ -70,11 +78,13 @@ export function TantouChapterReview() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tool, setTool] = useState<"pin" | "box">("box")
-  const [dragStart, setDragStart] = useState<{ x: number; y: number; pageId: string } | null>(null)
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; pageId: string; pointerId: number } | null>(null)
   const [draftAnnotation, setDraftAnnotation] = useState<DraftAnnotation | null>(null)
   const [annotationText, setAnnotationText] = useState("")
   const [reviewNote, setReviewNote] = useState("")
   const [savingAnnotation, setSavingAnnotation] = useState(false)
+  const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
+  const [deletingAnnotationId, setDeletingAnnotationId] = useState<string | null>(null)
   const [submittingDecision, setSubmittingDecision] = useState(false)
   const [versionDialogOpen, setVersionDialogOpen] = useState(false)
 
@@ -133,7 +143,7 @@ export function TantouChapterReview() {
     }
   }, [token, role, authLoading])
 
-  const measurePoint = (event: MouseEvent<HTMLDivElement>) => {
+  const measurePoint = (event: PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect()
     return {
       x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
@@ -141,17 +151,21 @@ export function TantouChapterReview() {
     }
   }
 
-  const handleMouseDown = (event: MouseEvent<HTMLDivElement>, pageId: string) => {
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>, pageId: string) => {
+    if (event.button !== 0) return
     const point = measurePoint(event)
     if (tool === "pin") {
       setDraftAnnotation({ pageId, x: point.x, y: point.y, width: 0, height: 0 })
+      setAnnotationDialogOpen(true)
       return
     }
-    setDragStart({ ...point, pageId })
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDragStart({ ...point, pageId, pointerId: event.pointerId })
+    setDraftAnnotation({ pageId, x: point.x, y: point.y, width: 0, height: 0 })
   }
 
-  const handleMouseUp = (event: MouseEvent<HTMLDivElement>, pageId: string) => {
-    if (tool !== "box" || !dragStart || dragStart.pageId !== pageId) return
+  const updateAreaDraft = (event: PointerEvent<HTMLDivElement>, pageId: string) => {
+    if (tool !== "box" || !dragStart || dragStart.pageId !== pageId || dragStart.pointerId !== event.pointerId) return
 
     const point = measurePoint(event)
     const x = Math.min(dragStart.x, point.x)
@@ -159,14 +173,27 @@ export function TantouChapterReview() {
     const width = Math.abs(point.x - dragStart.x)
     const height = Math.abs(point.y - dragStart.y)
 
-    setDraftAnnotation({
+    setDraftAnnotation({ pageId, x, y, width, height })
+  }
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>, pageId: string) => {
+    if (tool !== "box" || !dragStart || dragStart.pageId !== pageId) return
+    const point = measurePoint(event)
+    const completedDraft = {
       pageId,
-      x,
-      y,
-      width: Math.max(width, 2),
-      height: Math.max(height, 2),
-    })
+      x: Math.min(dragStart.x, point.x),
+      y: Math.min(dragStart.y, point.y),
+      width: Math.abs(point.x - dragStart.x),
+      height: Math.abs(point.y - dragStart.y),
+    }
+    event.currentTarget.releasePointerCapture(event.pointerId)
     setDragStart(null)
+    if (completedDraft.width < 0.5 || completedDraft.height < 0.5) {
+      setDraftAnnotation(null)
+      return
+    }
+    setDraftAnnotation(completedDraft)
+    setAnnotationDialogOpen(true)
   }
 
   const saveAnnotation = async () => {
@@ -190,24 +217,62 @@ export function TantouChapterReview() {
       })
 
       if (!res.ok) throw new Error("Failed to save annotation.")
-      const created = await res.json()
+      const payload = await res.json()
+      const created = { ...payload, id: payload.id || payload.annotationId }
 
       setChapters((current) =>
         current.map((chapter) => ({
           ...chapter,
           pages: chapter.pages.map((page) =>
             page.id === draftAnnotation.pageId
-              ? { ...page, annotations: [...(page.annotations || []), created] }
+              ? { ...page, status: "revision", annotations: [...(page.annotations || []), created] }
               : page
           ),
         }))
       )
       setDraftAnnotation(null)
       setAnnotationText("")
+      setAnnotationDialogOpen(false)
     } catch (err: any) {
       alert(err.message || "Could not save annotation.")
     } finally {
       setSavingAnnotation(false)
+    }
+  }
+
+  const cancelAnnotation = () => {
+    setDraftAnnotation(null)
+    setAnnotationText("")
+    setAnnotationDialogOpen(false)
+  }
+
+  const deleteAnnotation = async (pageId: string, annotationId: string) => {
+    if (!token || deletingAnnotationId) return
+    setDeletingAnnotationId(annotationId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/pages/annotations/${annotationId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.message || "Failed to delete the review mark.")
+      }
+
+      setChapters((current) =>
+        current.map((chapter) => ({
+          ...chapter,
+          pages: chapter.pages.map((page) => {
+            if (page.id !== pageId) return page
+            const annotations = (page.annotations || []).filter((annotation) => annotation.id !== annotationId)
+            return { ...page, annotations, status: annotations.some((annotation) => annotation.status === "open") ? page.status : "approved" }
+          }),
+        }))
+      )
+    } catch (err: any) {
+      alert(err.message || "Could not delete the review mark.")
+    } finally {
+      setDeletingAnnotationId(null)
     }
   }
 
@@ -248,6 +313,7 @@ export function TantouChapterReview() {
       setReviewNote("")
       setDraftAnnotation(null)
       setAnnotationText("")
+      setAnnotationDialogOpen(false)
     } catch (err: any) {
       alert(err.message || "Could not submit review decision.")
     } finally {
@@ -408,9 +474,14 @@ export function TantouChapterReview() {
             {selectedChapter.pages.map((page) => (
               <div
                 key={page.id}
-                className="group relative flex w-full flex-col items-center"
-                onMouseDown={(event) => handleMouseDown(event, page.id)}
-                onMouseUp={(event) => handleMouseUp(event, page.id)}
+                className="group relative flex w-full touch-none flex-col items-center"
+                onPointerDown={(event) => handlePointerDown(event, page.id)}
+                onPointerMove={(event) => updateAreaDraft(event, page.id)}
+                onPointerUp={(event) => handlePointerUp(event, page.id)}
+                onPointerCancel={() => {
+                  setDragStart(null)
+                  setDraftAnnotation(null)
+                }}
               >
                 {page.imageUrl ? (
                   <img
@@ -431,7 +502,7 @@ export function TantouChapterReview() {
                     <div
                       key={annotation.id}
                       title={annotation.body}
-                      className={isBox ? "absolute border-2 border-amber-400 bg-amber-300/15" : "absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-black shadow"}
+                      className={isBox ? "pointer-events-none absolute border-2 border-amber-400 bg-amber-300/15" : "pointer-events-none absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-black shadow"}
                       style={{
                         left: `${annotation.x}%`,
                         top: `${annotation.y}%`,
@@ -440,6 +511,22 @@ export function TantouChapterReview() {
                       }}
                     >
                       {!isBox && index + 1}
+                      {annotation.status === "open" && (
+                        <button
+                          type="button"
+                          title="Delete this review mark"
+                          aria-label={`Delete review mark on page ${page.number}`}
+                          disabled={deletingAnnotationId === annotation.id}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void deleteAnnotation(page.id, annotation.id)
+                          }}
+                          className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full border border-red-400 bg-red-600 text-white shadow-lg transition hover:bg-red-500 disabled:opacity-60"
+                        >
+                          {deletingAnnotationId === annotation.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
                     </div>
                   )
                 })}
@@ -456,6 +543,12 @@ export function TantouChapterReview() {
                   />
                 )}
 
+                {page.status === "revision" && (
+                  <Badge className="pointer-events-none absolute left-3 top-3 border border-orange-400/50 bg-orange-500 text-black shadow-lg">
+                    Revision
+                  </Badge>
+                )}
+
                 <div className="absolute bottom-3 right-4 rounded bg-black/75 px-2.5 py-1 text-[10px] font-mono text-zinc-300 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
                   Page {page.number} / {selectedChapter.pages.length}
                 </div>
@@ -465,7 +558,7 @@ export function TantouChapterReview() {
         </div>
       </main>
 
-      <aside className="space-y-4">
+      <aside className="sticky top-20 flex h-[calc(100vh-6rem)] min-h-0 self-start flex-col gap-3 overflow-hidden">
         <Card className="border-zinc-800 bg-[#1e2022] text-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Review Decision</CardTitle>
@@ -494,7 +587,7 @@ export function TantouChapterReview() {
               value={reviewNote}
               onChange={(event) => setReviewNote(event.target.value)}
               placeholder="Write chapter-level content note, dialogue issue, or required changes..."
-              className="min-h-[120px] border-zinc-800 bg-zinc-950 text-sm text-white placeholder:text-zinc-600"
+              className="min-h-[82px] resize-none border-zinc-800 bg-zinc-950 text-sm text-white placeholder:text-zinc-600"
             />
 
             <div className="grid grid-cols-2 gap-2">
@@ -523,64 +616,18 @@ export function TantouChapterReview() {
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-[#1e2022] text-white">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Pencil className="h-4 w-4 text-[#00dfc0]" />
-              Mark Required Change
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {draftAnnotation ? (
-              <>
-                <div className="rounded border border-[#00dfc0]/30 bg-[#00dfc0]/10 p-3 text-xs text-zinc-300">
-                  Selected point on page. Add a note and save it as an annotation.
-                </div>
-                <Textarea
-                  value={annotationText}
-                  onChange={(event) => setAnnotationText(event.target.value)}
-                  placeholder="Describe the exact content/dialogue/art correction..."
-                  className="min-h-[92px] border-zinc-800 bg-zinc-950 text-sm text-white placeholder:text-zinc-600"
-                />
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1 border-zinc-800 text-zinc-300 hover:bg-zinc-900"
-                    onClick={() => {
-                      setDraftAnnotation(null)
-                      setAnnotationText("")
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    disabled={savingAnnotation || !annotationText.trim()}
-                    onClick={saveAnnotation}
-                    className="flex-1 bg-[#00dfc0] font-bold text-black hover:bg-[#00dfc0]/90"
-                  >
-                    {savingAnnotation ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Mark"}
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="rounded border border-dashed border-zinc-800 p-4 text-center text-xs text-zinc-500">
-                Choose Pin or Area, then click or drag directly on a manga page.
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        <Card className="border-zinc-800 bg-[#1e2022] text-white">
+        <Card className="flex min-h-0 flex-1 flex-col border-zinc-800 bg-[#1e2022] text-white">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm">
               <MessageSquare className="h-4 w-4 text-amber-300" />
               Open Marks
             </CardTitle>
           </CardHeader>
-          <CardContent className="max-h-[320px] space-y-3 overflow-y-auto">
+          <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto">
             {selectedChapter.pages.flatMap((page) =>
               (page.annotations || []).map((annotation) => (
-                <div key={annotation.id} className="rounded border border-zinc-800 bg-zinc-950/50 p-3 text-xs">
+                <div key={annotation.id} className="rounded border border-zinc-800 bg-zinc-950/50 p-2.5 text-xs">
                   <div className="mb-1 flex items-center justify-between gap-2 text-zinc-500">
                     <span>Page {page.number}</span>
                     {annotation.status === "resolved" ? (
@@ -599,6 +646,36 @@ export function TantouChapterReview() {
           </CardContent>
         </Card>
       </aside>
+
+      <Dialog open={annotationDialogOpen} onOpenChange={(open) => !open && cancelAnnotation()}>
+        <DialogContent className="max-w-lg border-zinc-800 bg-[#151719] text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-[#00dfc0]" />
+              Add Review Reason
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Explain the required change for page {selectedChapter.pages.find((page) => page.id === draftAnnotation?.pageId)?.number ?? ""}. This reason will be sent to Mangaka and the assigned Assistant.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            value={annotationText}
+            onChange={(event) => setAnnotationText(event.target.value)}
+            placeholder="Describe the exact content, dialogue, or artwork correction..."
+            className="min-h-[140px] border-zinc-800 bg-zinc-950 text-sm text-white placeholder:text-zinc-600"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelAnnotation} className="border-zinc-800 text-zinc-300">
+              Cancel
+            </Button>
+            <Button disabled={savingAnnotation || !annotationText.trim()} onClick={saveAnnotation} className="bg-[#00dfc0] font-bold text-black hover:bg-[#00dfc0]/90">
+              {savingAnnotation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save Mark
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
