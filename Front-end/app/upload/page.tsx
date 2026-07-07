@@ -1,13 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Upload, X, ImageIcon, Folder, ChevronRight, Check, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react"
+import { Upload, ImageIcon, Folder, ChevronRight, Check, Plus, GripVertical } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import { toast } from "sonner"
@@ -44,6 +43,18 @@ interface ChapterPage {
   status: string
 }
 
+interface UploadHistoryItem {
+  pageVersionId: string
+  pageId: string
+  pageNumber: number
+  versionNumber: number
+  fileUrl: string
+  fileName: string
+  uploadedByName?: string
+  createdAt: string
+  isCurrent: boolean
+}
+
 const PAGE_FILE_PATTERN = /^page_(\d{3,})\.(png|jpe?g|psd|clip)$/i
 
 export default function UploadPage() {
@@ -58,8 +69,11 @@ export default function UploadPage() {
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [chapterPages, setChapterPages] = useState<ChapterPage[]>([])
+  const [uploadHistory, setUploadHistory] = useState<UploadHistoryItem[]>([])
   const [isLoadingPages, setIsLoadingPages] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState<string[]>([])
+  const [overwriteWarning, setOverwriteWarning] = useState<string[]>([])
+  const [pendingOverwriteFiles, setPendingOverwriteFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
   // Lấy danh sách bộ truyện thật từ database (gửi kèm JWT Token để xác thực)
@@ -121,9 +135,42 @@ export default function UploadPage() {
     }
   }, [selectedSeries, token])
 
+  const loadChapterUploadHistory = useCallback(async (chapterId: string) => {
+    if (!chapterId || !token) {
+      setUploadHistory([])
+      return
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/chapters/${chapterId}/versions`, {
+        headers: { "Authorization": `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error("Failed to fetch chapter upload history")
+      const data = await response.json()
+      const history = (data.pages || [])
+        .flatMap((page: any) => (page.versions || []).map((version: any) => ({
+          pageVersionId: version.pageVersionId,
+          pageId: version.pageId,
+          pageNumber: page.pageNumber,
+          versionNumber: version.versionNumber,
+          fileUrl: version.fileUrl,
+          fileName: version.fileName,
+          uploadedByName: version.uploadedByName,
+          createdAt: version.createdAt,
+          isCurrent: version.isCurrent,
+        })))
+        .sort((a: UploadHistoryItem, b: UploadHistoryItem) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setUploadHistory(history)
+    } catch (error) {
+      console.error("Failed to load chapter upload history:", error)
+      setUploadHistory([])
+    }
+  }, [token])
+
   const loadChapterPages = useCallback(async (chapterId: string) => {
     if (!chapterId || !token) {
       setChapterPages([])
+      setUploadHistory([])
       return
     }
 
@@ -135,14 +182,16 @@ export default function UploadPage() {
       if (!response.ok) throw new Error("Failed to fetch chapter pages")
       const pages = await response.json()
       setChapterPages([...pages].sort((a, b) => a.pageNumber - b.pageNumber))
+      await loadChapterUploadHistory(chapterId)
     } catch (error) {
       console.error("Failed to load chapter pages:", error)
       setChapterPages([])
+      setUploadHistory([])
       toast.error("Could not load the pages in this chapter.")
     } finally {
       setIsLoadingPages(false)
     }
-  }, [token])
+  }, [token, loadChapterUploadHistory])
 
   useEffect(() => {
     void loadChapterPages(selectedChapterId)
@@ -219,7 +268,7 @@ export default function UploadPage() {
   }
 
   // Validate and upload the complete ordered batch in one request.
-  const handleFiles = async (files: File[]) => {
+  const handleFiles = async (files: File[], allowOverwrite = false) => {
     if (!selectedChapterId) {
       toast.error("Please select or create a chapter before uploading pages.")
       return
@@ -235,12 +284,11 @@ export default function UploadPage() {
     const orderedFiles = parsedFiles
       .map(({ file, match }) => ({ file, pageNumber: Number(match![1]) }))
       .sort((a, b) => a.pageNumber - b.pageNumber)
-    const existingNames = new Set(chapterPages.map((page) => page.originalFileName?.toLowerCase()).filter(Boolean))
-    const seenNames = new Set<string>()
-    const duplicateNames = orderedFiles.flatMap(({ file }) => {
-      const normalizedName = file.name.toLowerCase()
-      if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) return [file.name]
-      seenNames.add(normalizedName)
+    const existingPageNumbers = new Set(chapterPages.map((page) => page.pageNumber))
+    const seenPageNumbers = new Set<number>()
+    const duplicateNames = orderedFiles.flatMap(({ file, pageNumber }) => {
+      if (seenPageNumbers.has(pageNumber)) return [file.name]
+      seenPageNumbers.add(pageNumber)
       return []
     })
     if (duplicateNames.length > 0) {
@@ -248,11 +296,13 @@ export default function UploadPage() {
       return
     }
 
-    for (let index = 1; index < orderedFiles.length; index++) {
-      if (orderedFiles[index].pageNumber !== orderedFiles[index - 1].pageNumber + 1) {
-        toast.error("Page names must use consecutive numbers (page_001, page_002, page_003...).")
-        return
-      }
+    const overwriteNames = orderedFiles
+      .filter(({ pageNumber }) => existingPageNumbers.has(pageNumber))
+      .map(({ file, pageNumber }) => `${file.name} -> Page ${pageNumber}`)
+    if (overwriteNames.length > 0 && !allowOverwrite) {
+      setPendingOverwriteFiles(files)
+      setOverwriteWarning(overwriteNames)
+      return
     }
 
     const queuedFiles: UploadedFile[] = orderedFiles.map(({ file }, index) => ({
@@ -292,6 +342,8 @@ export default function UploadPage() {
         return { ...item, status: "complete", progress: 100, preview: uploadedPage?.imageUrl || item.preview }
       }))
       await loadChapterPages(selectedChapterId)
+      setPendingOverwriteFiles([])
+      setOverwriteWarning([])
       toast.success(`${result.totalUploaded} pages uploaded successfully.`)
     } catch (err: any) {
       console.error("Error uploading image to API:", err)
@@ -317,19 +369,15 @@ export default function UploadPage() {
     }
   }
 
-  const removeFile = (id: string) => {
-    setUploadedFiles(uploadedFiles.filter((f) => f.id !== id))
+  const getFullImageUrl = (path?: string | null) => {
+    if (!path) return ""
+    if (path.startsWith("http")) return path
+    return `${API_BASE_URL}${path}`
   }
 
-  const moveFile = (index: number, direction: -1 | 1) => {
-    setUploadedFiles((current) => {
-      const next = [...current]
-      const targetIndex = index + direction
-      if (targetIndex < 0 || targetIndex >= next.length) return current
-      const [item] = next.splice(index, 1)
-      next.splice(targetIndex, 0, item)
-      return next
-    })
+  const formatUploadTime = (value?: string | null) => {
+    if (!value) return ""
+    return new Date(value).toLocaleString()
   }
 
   return (
@@ -476,81 +524,58 @@ export default function UploadPage() {
             </CardContent>
           </Card>
 
-          {/* Uploaded Files */}
-          {uploadedFiles.length > 0 && (
+          {/* Uploaded history */}
+          {selectedChapterId && (
             <Card className="bg-card border-border flex-none">
               <CardHeader>
-                <CardTitle>Uploaded Pages ({uploadedFiles.length})</CardTitle>
+                <CardTitle>Uploaded Pages ({uploadHistory.length})</CardTitle>
+                <CardDescription>Upload history for the selected chapter</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {uploadedFiles.map((file, index) => (
+                {uploadHistory.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                    No upload history for this chapter yet.
+                  </div>
+                ) : (
+                  <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                    {uploadHistory.map((item) => (
                     <div
-                      key={file.id}
+                      key={item.pageVersionId}
                       className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg"
                     >
                       <div className="flex flex-col items-center gap-1 text-muted-foreground">
                         <GripVertical className="h-4 w-4" />
-                        <span className="text-[10px] font-semibold">#{index + 1}</span>
+                        <span className="text-[10px] font-semibold">P{item.pageNumber}</span>
                       </div>
                       <div className="w-16 h-20 bg-muted rounded flex items-center justify-center overflow-hidden border border-border">
-                        {file.preview ? (
-                          <img src={file.preview} alt={file.name} className="h-full w-full object-cover" />
+                        {item.fileUrl ? (
+                          <img src={getFullImageUrl(item.fileUrl)} alt={item.fileName} className="h-full w-full object-cover" />
                         ) : (
                           <ImageIcon className="w-6 h-6 text-muted-foreground" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{file.name}</p>
-                        <p className="text-sm text-muted-foreground">{file.size}</p>
-                        <p className="text-[11px] text-muted-foreground mt-1">Preview order: page slot {index + 1}</p>
-                        {file.status === "uploading" && (
-                          <div className="mt-2">
-                            <Progress value={file.progress} className="h-1.5" />
-                          </div>
-                        )}
+                        <p className="font-medium truncate">{item.fileName}</p>
+                        <p className="text-sm text-muted-foreground">Version {item.versionNumber}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          {formatUploadTime(item.createdAt)}
+                          {item.uploadedByName ? ` by ${item.uploadedByName}` : ""}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => moveFile(index, -1)}
-                            disabled={index === 0}
-                            title="Move earlier"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => moveFile(index, 1)}
-                            disabled={index === uploadedFiles.length - 1}
-                            title="Move later"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        {file.status === "complete" && (
+                        {item.isCurrent ? (
                           <Badge className="bg-success/20 text-success">
                             <Check className="w-3 h-3 mr-1" />
-                            Uploaded
+                            Current
                           </Badge>
+                        ) : (
+                          <Badge variant="outline">History</Badge>
                         )}
-                        {file.status === "uploading" && (
-                          <Badge className="bg-primary/20 text-primary">{file.progress}%</Badge>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeFile(file.id)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -589,7 +614,7 @@ export default function UploadPage() {
                       </figcaption>
                       {page.currentImageUrl ? (
                         <img
-                          src={page.currentImageUrl}
+                          src={getFullImageUrl(page.currentImageUrl)}
                           alt={`Page ${page.pageNumber}`}
                           className="block h-auto w-full object-contain"
                           loading="lazy"
@@ -637,7 +662,7 @@ export default function UploadPage() {
                 <Badge className="bg-warning/20 text-warning">Draft</Badge>
               </div>
               <div className="pt-4 border-t border-border">
-                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || !selectedChapterId || uploadedFiles.length === 0}>
+                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || !selectedChapterId || chapterPages.length === 0}>
                   <ChevronRight className="w-4 h-4 mr-2" />
                   Continue to Region Selection
                 </Button>
@@ -662,15 +687,60 @@ export default function UploadPage() {
       <Dialog open={duplicateWarning.length > 0} onOpenChange={(open) => !open && setDuplicateWarning([])}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Duplicate page name</DialogTitle>
+            <DialogTitle>Duplicate page in selected files</DialogTitle>
             <DialogDescription>
-              The upload was stopped because these page names already exist in the chapter or were selected more than once.
+              The upload was stopped because the selected batch contains the same page slot more than once.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-destructive/30 bg-destructive/10 p-3">
             {duplicateWarning.map((name) => <p key={name} className="text-sm font-medium text-destructive">{name}</p>)}
           </div>
           <Button onClick={() => setDuplicateWarning([])}>Choose different files</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={overwriteWarning.length > 0}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOverwriteWarning([])
+            setPendingOverwriteFiles([])
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Overwrite existing pages?</DialogTitle>
+            <DialogDescription>
+              These uploads match pages already in this chapter. If you continue, each matched page will keep its history and receive a new current version.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-warning/30 bg-warning/10 p-3">
+            {overwriteWarning.map((name) => <p key={name} className="text-sm font-medium text-warning">{name}</p>)}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => {
+                setOverwriteWarning([])
+                setPendingOverwriteFiles([])
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 bg-primary text-primary-foreground"
+              onClick={() => {
+                const filesToUpload = pendingOverwriteFiles
+                setOverwriteWarning([])
+                setPendingOverwriteFiles([])
+                void handleFiles(filesToUpload, true)
+              }}
+            >
+              Overwrite and keep history
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
