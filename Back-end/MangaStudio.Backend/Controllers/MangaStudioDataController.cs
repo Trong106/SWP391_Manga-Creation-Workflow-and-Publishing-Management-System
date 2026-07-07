@@ -77,7 +77,11 @@ public class MangaStudioDataController : ControllerBase
                 ? 100 
                 : s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Any()
                     ? (int)Math.Round((double)s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "approved") / s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count() * 100)
-                    : 0
+                    : 0,
+            todoCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "pending"),
+            doingCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "in_progress"),
+            reviewCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "submitted" || t.Status == "revision"),
+            totalCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count()
         });
 
         return Ok(result);
