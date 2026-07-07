@@ -98,6 +98,19 @@ public class TaskResourceDto
     public string ImageUrl { get; set; } = null!;
     public string? SeriesTitle { get; set; }
     public int ChapterNumber { get; set; }
+    public List<TaskResourceAnnotationDto> ReviewAnnotations { get; set; } = new();
+}
+
+public class TaskResourceAnnotationDto
+{
+    public Guid AnnotationId { get; set; }
+    public decimal X { get; set; }
+    public decimal Y { get; set; }
+    public decimal? Width { get; set; }
+    public decimal? Height { get; set; }
+    public string Body { get; set; } = null!;
+    public string ReviewerName { get; set; } = null!;
+    public DateTime CreatedAt { get; set; }
 }
 
 public class AskClarificationDto

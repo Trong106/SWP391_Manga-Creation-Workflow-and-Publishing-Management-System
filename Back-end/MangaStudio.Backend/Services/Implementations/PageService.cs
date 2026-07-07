@@ -30,10 +30,17 @@ public class PageService : IPageService
         var page = await _context.MangaPages
             .Include(p => p.UploadedBy)
             .Include(p => p.PageAnnotations)
+                .ThenInclude(a => a.CreatedBy)
+            .Include(p => p.PageVersions)
             .FirstOrDefaultAsync(p => p.PageId == pageId)
             ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
 
         var taskCount = await _context.Tasks.CountAsync(t => t.PageId == pageId);
+        var currentVersionId = GetCurrentVersionId(page);
+        var currentAnnotations = page.PageAnnotations
+            .Where(a => a.Status == "open" && a.PageVersionId == currentVersionId)
+            .OrderBy(a => a.CreatedAt)
+            .ToList();
 
         return new PageDto
         {
@@ -45,7 +52,8 @@ public class PageService : IPageService
             UploadedById = page.UploadedById,
             UploadedByName = page.UploadedBy?.FullName,
             UploadedAt = page.UploadedAt,
-            AnnotationCount = page.PageAnnotations.Count,
+            AnnotationCount = currentAnnotations.Count,
+            Annotations = currentAnnotations.Select(MapAnnotationToDto).ToList(),
             TaskCount = taskCount
         };
     }
@@ -55,14 +63,22 @@ public class PageService : IPageService
     /// </summary>
     public async Task<List<AnnotationDto>> GetAnnotations(Guid pageId)
     {
+        var page = await _context.MangaPages
+            .Include(p => p.PageVersions)
+            .FirstOrDefaultAsync(p => p.PageId == pageId)
+            ?? throw new KeyNotFoundException($"Page with ID {pageId} was not found.");
+        var currentVersionId = GetCurrentVersionId(page);
+
         return await _context.PageAnnotations
             .Where(a => a.PageId == pageId)
+            .Where(a => a.Status == "open" && a.PageVersionId == currentVersionId)
             .Include(a => a.CreatedBy)
             .OrderBy(a => a.CreatedAt)
             .Select(a => new AnnotationDto
             {
                 AnnotationId = a.AnnotationId,
                 PageId = a.PageId,
+                PageVersionId = a.PageVersionId,
                 CreatedById = a.CreatedById,
                 CreatedByName = a.CreatedBy.FullName,
                 X = a.X,
@@ -82,13 +98,25 @@ public class PageService : IPageService
     /// </summary>
     public async Task<AnnotationDto> CreateAnnotation(Guid pageId, Guid createdById, CreateAnnotationDto dto)
     {
-        var page = await _context.MangaPages.FindAsync(pageId)
-            ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
+        var page = await _context.MangaPages
+            .Include(p => p.Chapter)
+                .ThenInclude(c => c.Series)
+            .Include(p => p.PageVersions)
+            .FirstOrDefaultAsync(p => p.PageId == pageId)
+            ?? throw new KeyNotFoundException($"Page {pageId} was not found.");
+
+        var isMangaka = page.Chapter.Series.MangakaId == createdById;
+        var isAssignedTantou = page.Chapter.Series.TantouId == createdById;
+        if (!isMangaka && !isAssignedTantou)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to annotate this page.");
+        }
 
         var annotation = new PageAnnotation
         {
             AnnotationId = Guid.NewGuid(),
             PageId = pageId,
+            PageVersionId = GetCurrentVersionId(page),
             CreatedById = createdById,
             X = dto.X,
             Y = dto.Y,
@@ -100,6 +128,12 @@ public class PageService : IPageService
         };
 
         _context.PageAnnotations.Add(annotation);
+
+        if (isAssignedTantou)
+        {
+            page.Status = "revision";
+            page.Chapter.UpdatedAt = DateTime.UtcNow;
+        }
         await _context.SaveChangesAsync();
 
         var creator = await _context.Users.FindAsync(createdById);
@@ -108,6 +142,7 @@ public class PageService : IPageService
         {
             AnnotationId = annotation.AnnotationId,
             PageId = annotation.PageId,
+            PageVersionId = annotation.PageVersionId,
             CreatedById = annotation.CreatedById,
             CreatedByName = creator?.FullName ?? "Unknown",
             X = annotation.X,
@@ -140,6 +175,7 @@ public class PageService : IPageService
         {
             AnnotationId = annotation.AnnotationId,
             PageId = annotation.PageId,
+            PageVersionId = annotation.PageVersionId,
             CreatedById = annotation.CreatedById,
             CreatedByName = annotation.CreatedBy.FullName,
             X = annotation.X,
@@ -151,6 +187,42 @@ public class PageService : IPageService
             CreatedAt = annotation.CreatedAt,
             ResolvedAt = annotation.ResolvedAt
         };
+    }
+
+    public async System.Threading.Tasks.Task DeleteAnnotation(Guid annotationId, Guid userId)
+    {
+        var annotation = await _context.PageAnnotations
+            .Include(a => a.Page)
+                .ThenInclude(page => page.Chapter)
+                    .ThenInclude(chapter => chapter.Series)
+            .FirstOrDefaultAsync(a => a.AnnotationId == annotationId)
+            ?? throw new KeyNotFoundException($"Annotation {annotationId} was not found.");
+
+        if (annotation.CreatedById != userId || annotation.Page.Chapter.Series.TantouId != userId)
+        {
+            throw new UnauthorizedAccessException("You can only delete your own review marks for an assigned series.");
+        }
+
+        if (annotation.Status != "open")
+        {
+            throw new InvalidOperationException("Only open review marks can be deleted.");
+        }
+
+        var hasOtherOpenMarks = await _context.PageAnnotations.AnyAsync(a =>
+            a.PageId == annotation.PageId &&
+            a.PageVersionId == annotation.PageVersionId &&
+            a.AnnotationId != annotationId &&
+            a.CreatedById == userId &&
+            a.Status == "open");
+
+        _context.PageAnnotations.Remove(annotation);
+        if (!hasOtherOpenMarks && annotation.Page.Chapter.Status == "tantou_review")
+        {
+            annotation.Page.Status = "approved";
+            annotation.Page.Chapter.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>
@@ -184,6 +256,8 @@ public class PageService : IPageService
         return await _context.PageVersions
             .Where(v => v.PageId == pageId)
             .Include(v => v.UploadedBy)
+            .Include(v => v.PageAnnotations)
+                .ThenInclude(a => a.CreatedBy)
             .OrderByDescending(v => v.VersionNumber)
             .Select(v => new PageVersionOptionDto
             {
@@ -198,7 +272,26 @@ public class PageService : IPageService
                 UploadedByName = v.UploadedBy.FullName,
                 CreatedAt = v.CreatedAt,
                 Note = v.Note,
-                IsCurrent = v.FileUrl == page.CurrentImageUrl
+                IsCurrent = v.FileUrl == page.CurrentImageUrl,
+                Annotations = v.PageAnnotations
+                    .OrderBy(a => a.CreatedAt)
+                    .Select(a => new AnnotationDto
+                    {
+                        AnnotationId = a.AnnotationId,
+                        PageId = a.PageId,
+                        PageVersionId = a.PageVersionId,
+                        CreatedById = a.CreatedById,
+                        CreatedByName = a.CreatedBy.FullName,
+                        X = a.X,
+                        Y = a.Y,
+                        Width = a.Width,
+                        Height = a.Height,
+                        Body = a.Body,
+                        Status = a.Status,
+                        CreatedAt = a.CreatedAt,
+                        ResolvedAt = a.ResolvedAt
+                    })
+                    .ToList()
             })
             .ToListAsync();
     }
@@ -317,6 +410,33 @@ public class PageService : IPageService
             Avatar = user?.Avatar,
             Body = comment.Body,
             CreatedAt = comment.CreatedAt.ToString("O")
+        };
+    }
+
+    private static Guid? GetCurrentVersionId(MangaPage page)
+    {
+        return page.PageVersions
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefault(v => v.FileUrl == page.CurrentImageUrl)?.PageVersionId;
+    }
+
+    private static AnnotationDto MapAnnotationToDto(PageAnnotation annotation)
+    {
+        return new AnnotationDto
+        {
+            AnnotationId = annotation.AnnotationId,
+            PageId = annotation.PageId,
+            PageVersionId = annotation.PageVersionId,
+            CreatedById = annotation.CreatedById,
+            CreatedByName = annotation.CreatedBy?.FullName ?? "",
+            X = annotation.X,
+            Y = annotation.Y,
+            Width = annotation.Width,
+            Height = annotation.Height,
+            Body = annotation.Body,
+            Status = annotation.Status,
+            CreatedAt = annotation.CreatedAt,
+            ResolvedAt = annotation.ResolvedAt
         };
     }
 }

@@ -15,6 +15,16 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+type PageAnnotation = {
+  annotationId: string
+  x: number
+  y: number
+  width?: number | null
+  height?: number | null
+  body: string
+  status: string
+}
+
 export default function ChapterReaderPage() {
   const params = useParams()
   const id = params?.id as string
@@ -91,6 +101,9 @@ export default function ChapterReaderPage() {
     if (path.startsWith("http")) return path
     return `${API_BASE_URL}${path}`
   }
+
+  const getOpenAnnotations = (page: any): PageAnnotation[] =>
+    (page.annotations || []).filter((annotation: PageAnnotation) => annotation.status?.toLowerCase() === "open")
 
   // Find current chapter index
   const currentIndex = allChapters.findIndex((c) => c.chapterId === id)
@@ -248,12 +261,60 @@ export default function ChapterReaderPage() {
                 key={page.pageId}
                 className="w-full relative flex flex-col items-center group transition-all duration-300"
               >
-                <img
-                  src={getFullImageUrl(page.currentImageUrl)}
-                  alt={`Page ${page.pageNumber}`}
-                  className="w-full h-auto object-contain select-none max-h-[1600px] border-b border-[#121416]"
-                  loading={index > 1 ? "lazy" : "eager"}
-                />
+                <div className="relative w-full">
+                  <img
+                    src={getFullImageUrl(page.currentImageUrl)}
+                    alt={`Page ${page.pageNumber}`}
+                    className="w-full h-auto object-contain select-none max-h-[1600px] border-b border-[#121416]"
+                    loading={index > 1 ? "lazy" : "eager"}
+                  />
+
+                  {getOpenAnnotations(page).map((annotation: PageAnnotation, markIndex: number) => {
+                    const isBox = Boolean(annotation.width && annotation.height)
+                    const isOpen = annotation.status?.toLowerCase() === "open"
+
+                    return (
+                      <div
+                        key={annotation.annotationId}
+                        title={annotation.body}
+                        className={
+                          isBox
+                            ? "pointer-events-none absolute border-2 border-amber-400 bg-amber-300/15 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]"
+                            : "pointer-events-none absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-black bg-amber-400 text-xs font-bold text-black shadow-lg"
+                        }
+                        style={{
+                          left: `${annotation.x}%`,
+                          top: `${annotation.y}%`,
+                          width: isBox ? `${annotation.width}%` : undefined,
+                          height: isBox ? `${annotation.height}%` : undefined,
+                          opacity: isOpen ? 1 : 0.55,
+                        }}
+                      >
+                        {isBox ? (
+                          <span className="absolute -left-2 -top-7 rounded bg-amber-400 px-2 py-0.5 text-xs font-bold text-black shadow">
+                            {markIndex + 1}
+                          </span>
+                        ) : (
+                          markIndex + 1
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {getOpenAnnotations(page).length > 0 && (
+                    <div className="absolute left-3 top-3 max-w-[min(28rem,calc(100%-1.5rem))] space-y-2 rounded border border-amber-400/40 bg-black/80 p-3 text-xs text-zinc-100 shadow-xl backdrop-blur">
+                      <div className="font-semibold text-amber-300">Revision marks on Page {page.pageNumber}</div>
+                      {getOpenAnnotations(page).map((annotation: PageAnnotation, markIndex: number) => (
+                        <div key={`${annotation.annotationId}-note`} className="flex gap-2 leading-relaxed">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-black">
+                            {markIndex + 1}
+                          </span>
+                          <span className="break-words">{annotation.body}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Floating Page Number Indicator */}
                 <div className="absolute bottom-3 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-black/75 backdrop-blur-sm text-zinc-300 text-[10px] px-2.5 py-1 rounded font-mono select-none pointer-events-none">

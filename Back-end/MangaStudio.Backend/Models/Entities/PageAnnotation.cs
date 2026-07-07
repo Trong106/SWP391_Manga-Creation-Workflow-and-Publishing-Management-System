@@ -9,6 +9,8 @@ public partial class PageAnnotation
 
     public Guid PageId { get; set; }
 
+    public Guid? PageVersionId { get; set; }
+
     public Guid CreatedById { get; set; }
 
     public decimal X { get; set; }
@@ -30,4 +32,6 @@ public partial class PageAnnotation
     public virtual User CreatedBy { get; set; } = null!;
 
     public virtual MangaPage Page { get; set; } = null!;
+
+    public virtual PageVersion? PageVersion { get; set; }
 }

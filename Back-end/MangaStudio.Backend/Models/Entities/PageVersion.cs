@@ -27,6 +27,8 @@ public partial class PageVersion
 
     public virtual MangaPage Page { get; set; } = null!;
 
+    public virtual ICollection<PageAnnotation> PageAnnotations { get; set; } = new List<PageAnnotation>();
+
     public virtual ICollection<TaskSubmission> TaskSubmissions { get; set; } = new List<TaskSubmission>();
 
     public virtual User UploadedBy { get; set; } = null!;

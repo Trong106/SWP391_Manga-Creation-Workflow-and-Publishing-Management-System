@@ -34,6 +34,8 @@ public interface IWorkflowService
     /// <summary>Lấy danh sách bản ghi lương của trợ lý (Mangaka xem).</summary>
     Task<List<PayrollDto>> GetPayrollRecords(Guid? assistantId = null, Guid? mangakaId = null);
 
+    Task<List<AssistantPayrollMonthDto>> GetAssistantPayrollMonths(Guid assistantId);
+
     /// <summary>Đánh dấu đã thanh toán lương cho trợ lý.</summary>
     Task<PayrollDto> MarkPayrollAsPaid(Guid payrollRecordId, Guid mangakaId);
 

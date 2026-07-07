@@ -222,6 +222,22 @@ public class WorkflowController : ControllerBase
         }
     }
 
+    [HttpGet("payroll/my-payroll/monthly")]
+    [Authorize(Roles = "assistant")]
+    public async Task<IActionResult> GetMyPayrollMonthly()
+    {
+        try
+        {
+            var assistantId = GetCurrentUserId();
+            var result = await _workflowService.GetAssistantPayrollMonths(assistantId);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// PUT /api/payroll/{id}/pay — Mangaka đánh dấu đã thanh toán lương cho trợ lý.
     /// </summary>

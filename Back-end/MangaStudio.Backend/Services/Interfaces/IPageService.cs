@@ -17,6 +17,8 @@ public interface IPageService
     /// <summary>Đánh dấu annotation là đã giải quyết.</summary>
     Task<AnnotationDto> ResolveAnnotation(Guid annotationId, Guid userId);
 
+    System.Threading.Tasks.Task DeleteAnnotation(Guid annotationId, Guid userId);
+
     /// <summary>Lấy danh sách review của trang.</summary>
     Task<List<PageReviewDto>> GetPageReviews(Guid pageId);
 

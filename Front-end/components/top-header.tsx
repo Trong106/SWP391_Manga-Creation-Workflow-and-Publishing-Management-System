@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Search, Bell, Menu } from "lucide-react"
+import { Search, Bell, Menu, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +22,14 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { AppSidebar } from "./app-sidebar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Notification {
   id: string
@@ -38,6 +46,7 @@ export function TopHeader() {
   const { token, logout } = useAuth()
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
 
   const fetchNotifications = () => {
     if (!token) return
@@ -70,7 +79,7 @@ export function TopHeader() {
     return () => clearInterval(interval)
   }, [token])
 
-  const handleMarkAsRead = async (id: string, link?: string) => {
+  const handleMarkAsRead = async (id: string) => {
     if (!token) return
     try {
       const res = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, {
@@ -89,9 +98,20 @@ export function TopHeader() {
     } catch (err) {
       console.error("Error marking notification as read:", err)
     }
-    if (link) {
-      router.push(link)
+  }
+
+  const handleOpenNotification = (notification: Notification) => {
+    setSelectedNotification(notification)
+    if (!notification.isRead) {
+      void handleMarkAsRead(notification.id)
     }
+  }
+
+  const handleOpenRelatedWork = () => {
+    if (!selectedNotification?.link) return
+    const link = selectedNotification.link
+    setSelectedNotification(null)
+    router.push(link)
   }
 
   const handleMarkAllAsRead = async () => {
@@ -130,6 +150,7 @@ export function TopHeader() {
   const unreadCount = notifications.filter((notification) => !notification.isRead).length
 
   return (
+    <>
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-sm border-b border-border">
       <div className="flex items-center gap-4">
         <Sheet>
@@ -187,7 +208,7 @@ export function TopHeader() {
                 notifications.map((notification) => (
                   <DropdownMenuItem
                     key={notification.id}
-                    onClick={() => handleMarkAsRead(notification.id, notification.link)}
+                    onClick={() => handleOpenNotification(notification)}
                     className="flex flex-col items-start gap-1 p-3 cursor-pointer"
                   >
                     <div className="flex items-center gap-2 w-full">
@@ -208,5 +229,41 @@ export function TopHeader() {
         </DropdownMenu>
       </div>
     </header>
+
+    <Dialog
+      open={selectedNotification !== null}
+      onOpenChange={(open) => !open && setSelectedNotification(null)}
+    >
+      <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-950 text-white shadow-2xl">
+        <DialogHeader className="pr-8">
+          <DialogTitle className="flex items-start gap-3 text-xl leading-snug">
+            <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
+            {selectedNotification?.title}
+          </DialogTitle>
+          <DialogDescription className="pl-5 text-xs text-zinc-500">
+            {selectedNotification ? getRelativeTime(selectedNotification.createdAt) : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[55vh] overflow-y-auto rounded-md border border-zinc-800 bg-zinc-900/45 p-5">
+          <p className="whitespace-pre-wrap break-words text-sm leading-7 text-zinc-200">
+            {selectedNotification?.message}
+          </p>
+        </div>
+
+        <DialogFooter className="border-t border-zinc-800 pt-4">
+          <Button variant="outline" onClick={() => setSelectedNotification(null)}>
+            Close
+          </Button>
+          {selectedNotification?.link && (
+            <Button onClick={handleOpenRelatedWork} className="gap-2 font-semibold">
+              Open Related Work
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

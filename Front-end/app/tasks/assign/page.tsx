@@ -102,7 +102,6 @@ interface CreateTaskForm {
   type: string
   assigneeId: string
   dueDate: string
-  bonusAmount: string
   pageId: string
 }
 
@@ -120,29 +119,24 @@ const TASK_PRICE_TABLE = TASK_TYPES.reduce<Record<string, number>>((acc, taskTyp
   return acc
 }, {})
 
-const MAX_TASK_BONUS = 50
-
 const TASK_TEMPLATES = [
   {
     label: "Background Cleanup",
     title: "Background cleanup",
     type: "background",
     description: "Clean perspective lines, remove rough sketch artifacts, and prepare the background layer for final review.",
-    bonusAmount: "0",
   },
   {
     label: "Line Art Polish",
     title: "Line art polish",
     type: "line_art",
     description: "Refine character line weight, close open strokes, and keep line art ready for screentone/coloring.",
-    bonusAmount: "0",
   },
   {
     label: "Lettering Pass",
     title: "Lettering and SFX pass",
     type: "lettering",
     description: "Place dialogue, sound effects, and balloon text while preserving panel readability.",
-    bonusAmount: "0",
   },
 ]
 
@@ -185,13 +179,13 @@ export default function TaskAssignPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const [form, setForm] = useState<CreateTaskForm>({
     title: "",
     description: "",
     type: "",
-    assigneeId: "unassigned",
+    assigneeId: "",
     dueDate: "",
-    bonusAmount: "0",
     pageId: "",
   })
 
@@ -303,29 +297,64 @@ export default function TaskAssignPage() {
   useEffect(() => { if (selectedSeriesId) loadChapters(selectedSeriesId) }, [selectedSeriesId, loadChapters])
   useEffect(() => { if (selectedChapterId) loadPages(selectedChapterId) }, [selectedChapterId, loadPages])
   useEffect(() => { if (selectedPageId) loadPageTasks(selectedPageId) }, [selectedPageId, loadPageTasks])
+  useEffect(() => {
+    if (!isDialogOpen) setFormError(null)
+  }, [isDialogOpen])
 
   // ── Create task ───────────────────────────────────────────────────────────
+  const getTodayInputDate = () => {
+    const now = new Date()
+    const month = `${now.getMonth() + 1}`.padStart(2, "0")
+    const day = `${now.getDate()}`.padStart(2, "0")
+    return `${now.getFullYear()}-${month}-${day}`
+  }
+  const formatInputDateForMessage = (dateValue: string) => {
+    const [year, month, day] = dateValue.split("-")
+    return `${month}/${day}/${year}`
+  }
+  const todayDate = getTodayInputDate()
+  const updateForm = (patch: Partial<CreateTaskForm>) => {
+    setFormError(null)
+    setForm((current) => ({ ...current, ...patch }))
+  }
+
   const handleCreateTask = async () => {
-    if (!form.title.trim() || !form.type || !selectedPageId) {
-      toast.error("Please fill in Title and Task Type.")
+    setFormError(null)
+
+    const missingFields = [
+      !form.title.trim() ? "Task Title" : null,
+      !form.type ? "Task Type" : null,
+      !form.assigneeId ? "Assign To" : null,
+    ].filter(Boolean)
+
+    if (missingFields.length > 0) {
+      const message = `Please fill in: ${missingFields.join(", ")}.`
+      setFormError(message)
+      toast.error(message)
       return
     }
-    const bonusAmount = Math.min(Math.max(parseFloat(form.bonusAmount) || 0, 0), MAX_TASK_BONUS)
-    if (Number(form.bonusAmount) > MAX_TASK_BONUS) {
-      toast.error(`Bonus cannot exceed $${MAX_TASK_BONUS}.`)
+    if (!selectedPageId) {
+      const message = "Please select a target page before creating a task."
+      setFormError(message)
+      toast.error(message)
+      return
+    }
+    if (form.dueDate && form.dueDate < todayDate) {
+      const message = `Value must be ${formatInputDateForMessage(todayDate)} or later.`
+      setFormError(message)
+      toast.error(message)
       return
     }
     const basePay = TASK_PRICE_TABLE[form.type] ?? 0
-    const totalPay = basePay + bonusAmount
     try {
       setSubmitting(true)
       const body = {
         title: form.title.trim(),
         description: form.description.trim() || null,
         type: form.type,
-        assigneeId: (form.assigneeId && form.assigneeId !== "unassigned") ? form.assigneeId : null,
+        assigneeId: form.assigneeId,
         dueDate: form.dueDate || null,
-        paymentAmount: totalPay,
+        paymentAmount: basePay,
       }
       const res = await fetch(`${API_BASE_URL}/api/pages/${selectedPageId}/tasks`, {
         method: "POST",
@@ -337,11 +366,14 @@ export default function TaskAssignPage() {
         throw new Error(err.message || "Failed to create task")
       }
       toast.success("Task created and assigned successfully!")
+      setFormError(null)
       setIsDialogOpen(false)
-      setForm({ title: "", description: "", type: "", assigneeId: "unassigned", dueDate: "", bonusAmount: "0", pageId: "" })
+      setForm({ title: "", description: "", type: "", assigneeId: "", dueDate: "", pageId: "" })
       loadPageTasks(selectedPageId)
     } catch (err: any) {
-      toast.error(err.message || "Failed to create task.")
+      const message = err.message || "Failed to create task."
+      setFormError(message)
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -370,8 +402,8 @@ export default function TaskAssignPage() {
       title: template.title,
       type: template.type,
       description: template.description,
-      bonusAmount: template.bonusAmount,
     }))
+    setFormError(null)
   }
 
   // ── Guard: only mangaka ───────────────────────────────────────────────────
@@ -393,12 +425,9 @@ export default function TaskAssignPage() {
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
   const selectedTaskType = TASK_TYPES.find(t => t.value === form.type)
   const formBasePay = selectedTaskType?.basePay ?? 0
-  const formBonusAmount = Math.min(Math.max(parseFloat(form.bonusAmount) || 0, 0), MAX_TASK_BONUS)
-  const formTotalPay = formBasePay + formBonusAmount
 
   const assignedTasks = pageTasks.filter(t => t.assigneeId)
   const unassignedTasks = pageTasks.filter(t => !t.assigneeId)
-  const totalPayout = pageTasks.reduce((sum, t) => sum + t.paymentAmount, 0)
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -573,7 +602,7 @@ export default function TaskAssignPage() {
                         <Input
                           placeholder="e.g., Color backgrounds for battle scene"
                           value={form.title}
-                          onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                          onChange={e => updateForm({ title: e.target.value })}
                           className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
                           id="task-title-input"
                         />
@@ -585,7 +614,7 @@ export default function TaskAssignPage() {
                         <Textarea
                           placeholder="Optional details for the assistant..."
                           value={form.description}
-                          onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                          onChange={e => updateForm({ description: e.target.value })}
                           className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 resize-none h-20"
                           id="task-desc-input"
                         />
@@ -595,7 +624,7 @@ export default function TaskAssignPage() {
                         {/* Type */}
                         <div className="space-y-1.5">
                           <Label className="text-sm text-zinc-300">Task Type <span className="text-red-400">*</span></Label>
-                          <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+                          <Select value={form.type} onValueChange={v => updateForm({ type: v })}>
                             <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white" id="task-type-select">
                               <SelectValue placeholder="Select type" />
                             </SelectTrigger>
@@ -611,15 +640,12 @@ export default function TaskAssignPage() {
 
                         {/* Assignee */}
                         <div className="space-y-1.5">
-                          <Label className="text-sm text-zinc-300">Assign To</Label>
-                          <Select value={form.assigneeId} onValueChange={v => setForm(f => ({ ...f, assigneeId: v }))}>
+                          <Label className="text-sm text-zinc-300">Assign To <span className="text-red-400">*</span></Label>
+                          <Select value={form.assigneeId || undefined} onValueChange={v => updateForm({ assigneeId: v })}>
                             <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white" id="task-assignee-select">
                               <SelectValue placeholder="Unassigned" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-700 text-white">
-                              <SelectItem value="unassigned" className="hover:bg-zinc-800 focus:bg-zinc-800 cursor-pointer text-zinc-400">
-                                Unassigned
-                              </SelectItem>
                               {assistants.filter(a => a.status === "active").map(a => (
                                 <SelectItem key={a.id} value={a.id} className="hover:bg-zinc-800 focus:bg-zinc-800 cursor-pointer">
                                   <div className="flex items-center gap-2">
@@ -636,24 +662,13 @@ export default function TaskAssignPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* Bonus */}
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {/* Default payment */}
                         <div className="space-y-1.5">
-                          <Label className="text-sm text-zinc-300">
-                            Bonus (USD)
-                            <span className="ml-1 text-xs text-zinc-500">max ${MAX_TASK_BONUS}</span>
-                          </Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max={MAX_TASK_BONUS}
-                            step="0.01"
-                            placeholder="0.00"
-                            value={form.bonusAmount}
-                            onChange={e => setForm(f => ({ ...f, bonusAmount: e.target.value }))}
-                            className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600"
-                            id="task-bonus-input"
-                          />
+                          <Label className="text-sm text-zinc-300">Default Task Payment</Label>
+                          <div className="flex h-11 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 font-mono font-bold text-primary">
+                            ${formBasePay.toFixed(2)}
+                          </div>
                         </div>
 
                         {/* Due Date */}
@@ -662,39 +677,31 @@ export default function TaskAssignPage() {
                           <Input
                             type="date"
                             value={form.dueDate}
-                            onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                            onChange={e => updateForm({ dueDate: e.target.value })}
                             className="bg-zinc-900 border-zinc-700 text-white"
                             id="task-duedate-input"
                           />
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                        <div className="grid grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <p className="text-xs text-zinc-500">Base Pay</p>
-                            <p className="font-bold text-white">${formBasePay.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-zinc-500">Bonus</p>
-                            <p className="font-bold text-emerald-400">${formBonusAmount.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-zinc-500">Total Pay</p>
-                            <p className="font-bold text-primary">${formTotalPay.toFixed(2)}</p>
-                          </div>
-                        </div>
-                      </div>
                     </div>
 
+                    {formError && (
+                      <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{formError}</span>
+                      </div>
+                    )}
+
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="border-zinc-700 text-zinc-300 hover:bg-zinc-900">
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="border-zinc-700 text-zinc-300 hover:bg-zinc-900">
                         Cancel
                       </Button>
                       <Button
+                        type="button"
                         className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
                         onClick={handleCreateTask}
-                        disabled={submitting || !form.title || !form.type}
+                        disabled={submitting}
                         id="confirm-create-task-btn"
                       >
                         {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
@@ -807,9 +814,6 @@ export default function TaskAssignPage() {
                 <DollarSign className="w-4 h-4 text-primary" />
                 Task Price Table
               </CardTitle>
-              <CardDescription className="text-xs">
-                Base pay is fixed by task type. Bonus is optional and capped at ${MAX_TASK_BONUS}.
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -852,11 +856,6 @@ export default function TaskAssignPage() {
                 <span className="text-zinc-400">Unassigned</span>
                 <span className="font-bold text-yellow-400">{unassignedTasks.length}</span>
               </div>
-              <div className="flex items-center justify-between text-sm pt-3 border-t border-zinc-800">
-                <span className="text-zinc-400">Total Payout</span>
-                <span className="font-bold text-primary text-lg font-mono">${totalPayout.toFixed(2)}</span>
-              </div>
-
               {/* Visual progress bar */}
               {pageTasks.length > 0 && (
                 <div className="mt-1">

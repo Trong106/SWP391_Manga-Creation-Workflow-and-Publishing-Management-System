@@ -116,30 +116,46 @@ public class ChapterService : IChapterService
     /// </summary>
     public async Task<List<PageDto>> GetPagesByChapter(Guid chapterId)
     {
-        return await _context.MangaPages
+        var pages = await _context.MangaPages
             .Where(p => p.ChapterId == chapterId)
             .Include(p => p.UploadedBy)
             .Include(p => p.PageAnnotations)
+                .ThenInclude(a => a.CreatedBy)
             .Include(p => p.PageRegions) // used for counting tasks
+            .Include(p => p.PageVersions)
             .OrderBy(p => p.PageNumber)
-            .Select(p => new PageDto
+            .ToListAsync();
+
+        return pages
+            .Select(p =>
             {
-                PageId = p.PageId,
-                ChapterId = p.ChapterId,
-                PageNumber = p.PageNumber,
-                CurrentImageUrl = p.CurrentImageUrl,
-                OriginalFileName = p.PageVersions
+                var currentVersionId = GetCurrentVersionId(p);
+                var annotations = p.PageAnnotations
+                    .Where(a => a.Status == "open" && a.PageVersionId == currentVersionId)
+                    .OrderBy(a => a.CreatedAt)
+                    .Select(MapAnnotationToDto)
+                    .ToList();
+
+                return new PageDto
+                {
+                    PageId = p.PageId,
+                    ChapterId = p.ChapterId,
+                    PageNumber = p.PageNumber,
+                    CurrentImageUrl = p.CurrentImageUrl,
+                    OriginalFileName = p.PageVersions
                     .OrderBy(v => v.VersionNumber)
                     .Select(v => v.FileName)
                     .FirstOrDefault(),
-                Status = p.Status,
-                UploadedById = p.UploadedById,
-                UploadedByName = p.UploadedBy != null ? p.UploadedBy.FullName : null,
-                UploadedAt = p.UploadedAt,
-                AnnotationCount = p.PageAnnotations.Count,
-                TaskCount = _context.Tasks.Count(t => t.PageId == p.PageId)
+                    Status = p.Status,
+                    UploadedById = p.UploadedById,
+                    UploadedByName = p.UploadedBy != null ? p.UploadedBy.FullName : null,
+                    UploadedAt = p.UploadedAt,
+                    AnnotationCount = annotations.Count,
+                    Annotations = annotations,
+                    TaskCount = _context.Tasks.Count(t => t.PageId == p.PageId)
+                };
             })
-            .ToListAsync();
+            .ToList();
     }
 
     /// <summary>
@@ -193,24 +209,17 @@ public class ChapterService : IChapterService
             }
         }
 
-        var duplicateInBatch = orderedFiles
-            .GroupBy(item => item.File.FileName, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(group => group.Count() > 1);
-        if (duplicateInBatch != null)
-        {
-            throw new InvalidOperationException($"Tên page bị trùng trong danh sách tải lên: {duplicateInBatch.Key}");
-        }
-
         var numberedFiles = orderedFiles
             .Select(item => new { item.File, Number = int.Parse(item.Match.Groups[1].Value) })
             .OrderBy(item => item.Number)
             .ToList();
-        for (var index = 1; index < numberedFiles.Count; index++)
+
+        var duplicateInBatch = numberedFiles
+            .GroupBy(item => item.Number)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateInBatch != null)
         {
-            if (numberedFiles[index].Number != numberedFiles[index - 1].Number + 1)
-            {
-                throw new ArgumentException("Các page phải được đặt số liên tiếp, ví dụ page_001, page_002, page_003...");
-            }
+            throw new InvalidOperationException($"Page {duplicateInBatch.Key:D3} bị trùng trong danh sách tải lên.");
         }
 
         var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
@@ -225,56 +234,82 @@ public class ChapterService : IChapterService
         await _uploadLock.WaitAsync();
         try
         {
-            var incomingNames = numberedFiles
-                .Select(item => item.File.FileName.ToLower())
-                .ToList();
-            var existingNames = await _context.PageVersions
-                .Where(version => version.Page.ChapterId == chapterId)
-                .Select(version => version.FileName.ToLower())
-                .Where(fileName => incomingNames.Contains(fileName))
-                .Distinct()
-                .ToListAsync();
-            if (existingNames.Count > 0)
-            {
-                throw new InvalidOperationException($"Chapter đã có page trùng tên: {string.Join(", ", existingNames)}");
-            }
-
-            var maxPageNumber = await _context.MangaPages
+            var existingPages = await _context.MangaPages
                 .Where(p => p.ChapterId == chapterId)
-                .Select(p => (int?)p.PageNumber)
-                .MaxAsync() ?? 0;
-
-            if (numberedFiles[0].Number != maxPageNumber + 1)
-            {
-                throw new ArgumentException($"Tên page tiếp theo phải bắt đầu từ page_{maxPageNumber + 1:D3}.");
-            }
+                .Include(p => p.PageVersions)
+                .ToListAsync();
+            var pagesByNumber = existingPages.ToDictionary(p => p.PageNumber);
+            var nextNewPageNumber = existingPages.Select(p => (int?)p.PageNumber).Max() ?? 0;
+            nextNewPageNumber++;
 
             foreach (var numberedFile in numberedFiles)
             {
                 var file = numberedFile.File;
-                maxPageNumber = numberedFile.Number;
+                var isReplacingExistingPage = pagesByNumber.TryGetValue(numberedFile.Number, out var page);
+                if (!isReplacingExistingPage && numberedFile.Number != nextNewPageNumber)
+                {
+                    throw new ArgumentException($"Page mới tiếp theo phải bắt đầu từ page_{nextNewPageNumber:D3}.");
+                }
 
                 // Tải hình vẽ trang truyện lên Cloudinary
                 var imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
-                var page = new MangaPage
+                if (page != null)
+                {
+                    var maxVersion = page.PageVersions
+                        .Select(v => (int?)v.VersionNumber)
+                        .Max() ?? 0;
+
+                    page.CurrentImageUrl = imageUrl;
+                    page.Status = "pending";
+                    page.UploadedById = uploadedById;
+                    page.UploadedAt = DateTime.UtcNow;
+
+                    var version = new PageVersion
+                    {
+                        PageVersionId = Guid.NewGuid(),
+                        PageId = page.PageId,
+                        VersionNumber = maxVersion + 1,
+                        FileUrl = imageUrl,
+                        FileName = file.FileName,
+                        FileSizeBytes = file.Length,
+                        MimeType = file.ContentType,
+                        UploadedById = uploadedById,
+                        CreatedAt = DateTime.UtcNow,
+                        Note = $"Ghi đè page_{numberedFile.Number:D3}"
+                    };
+
+                    _context.PageVersions.Add(version);
+
+                    resultDto.Pages.Add(new PageUploadResultDto
+                    {
+                        PageId = page.PageId,
+                        PageNumber = page.PageNumber,
+                        ImageUrl = imageUrl,
+                        OriginalFileName = file.FileName,
+                        Status = page.Status
+                    });
+
+                    continue;
+                }
+
+                var newPage = new MangaPage
                 {
                     PageId = Guid.NewGuid(),
                     ChapterId = chapterId,
-                    PageNumber = maxPageNumber,
-                    CurrentImageUrl = imageUrl, // URL tuyệt đối của Cloudinary
+                    PageNumber = numberedFile.Number,
+                    CurrentImageUrl = imageUrl,
                     Status = "pending",
                     UploadedById = uploadedById,
                     UploadedAt = DateTime.UtcNow
                 };
 
-                // Create initial version
-                var version = new PageVersion
+                var initialVersion = new PageVersion
                 {
                     PageVersionId = Guid.NewGuid(),
-                    PageId = page.PageId,
+                    PageId = newPage.PageId,
                     VersionNumber = 1,
-                    FileUrl = imageUrl, // URL tuyệt đối của Cloudinary
+                    FileUrl = imageUrl,
                     FileName = file.FileName,
                     FileSizeBytes = file.Length,
                     MimeType = file.ContentType,
@@ -283,16 +318,18 @@ public class ChapterService : IChapterService
                     Note = "Tải lên trang ban đầu"
                 };
 
-                _context.MangaPages.Add(page);
-                _context.PageVersions.Add(version);
+                _context.MangaPages.Add(newPage);
+                _context.PageVersions.Add(initialVersion);
+                pagesByNumber[newPage.PageNumber] = newPage;
+                nextNewPageNumber++;
 
                 resultDto.Pages.Add(new PageUploadResultDto
                 {
-                    PageId = page.PageId,
-                    PageNumber = page.PageNumber,
+                    PageId = newPage.PageId,
+                    PageNumber = newPage.PageNumber,
                     ImageUrl = imageUrl,
                     OriginalFileName = file.FileName,
-                    Status = page.Status
+                    Status = newPage.Status
                 });
             }
 
@@ -324,11 +361,11 @@ public class ChapterService : IChapterService
         }
 
         // Xóa các dữ liệu liên quan
-        var versions = _context.PageVersions.Where(v => v.PageId == pageId);
-        _context.PageVersions.RemoveRange(versions);
-
         var annotations = _context.PageAnnotations.Where(a => a.PageId == pageId);
         _context.PageAnnotations.RemoveRange(annotations);
+
+        var versions = _context.PageVersions.Where(v => v.PageId == pageId);
+        _context.PageVersions.RemoveRange(versions);
 
         var tasks = _context.Tasks.Where(t => t.PageId == pageId);
         _context.Tasks.RemoveRange(tasks);
@@ -390,6 +427,14 @@ public class ChapterService : IChapterService
             .Include(c => c.Series)
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.Tasks)
+                    .ThenInclude(t => t.TaskSubmissions)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.Tasks)
+                    .ThenInclude(t => t.PayrollRecords)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageAnnotations)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageVersions)
             .Include(c => c.TantouReviewedBy)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Khong tim thay chapter voi ID {chapterId}.");
@@ -422,14 +467,114 @@ public class ChapterService : IChapterService
         }
         else
         {
-            chapter.Status = "revision_requested";
-            foreach (var page in chapter.MangaPages)
-            {
-                if (page.Status == "approved")
+            var markedPages = chapter.MangaPages
+                .Where(page =>
                 {
-                    page.Status = "revision";
+                    var currentVersionId = GetCurrentVersionId(page);
+                    return page.PageAnnotations.Any(annotation =>
+                        annotation.CreatedById == tantouId &&
+                        annotation.Status == "open" &&
+                        annotation.PageVersionId == currentVersionId);
+                })
+                .OrderBy(page => page.PageNumber)
+                .ToList();
+
+            if (markedPages.Count == 0)
+            {
+                throw new InvalidOperationException("Add and save at least one page mark before requesting revision.");
+            }
+
+            chapter.Status = "revision_requested";
+            foreach (var page in markedPages)
+            {
+                page.Status = "revision";
+                var currentVersionId = GetCurrentVersionId(page);
+                var pageReasons = page.PageAnnotations
+                    .Where(annotation =>
+                        annotation.CreatedById == tantouId &&
+                        annotation.Status == "open" &&
+                        annotation.PageVersionId == currentVersionId)
+                    .OrderBy(annotation => annotation.CreatedAt)
+                    .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
+                    .Where(reason => !string.IsNullOrWhiteSpace(reason))
+                    .ToList();
+                var reasonText = pageReasons.Count > 0
+                    ? string.Join("; ", pageReasons)
+                    : "The page did not pass Tantou content review";
+
+                var revisableTasks = page.Tasks
+                    .Where(task => task.AssigneeId.HasValue
+                        && (task.Status == "approved"
+                            || task.Status == "submitted"
+                            || task.Status == "in_progress"))
+                    .ToList();
+
+                foreach (var task in revisableTasks)
+                {
+                    if (!task.AssigneeId.HasValue)
+                    {
+                        continue;
+                    }
+
+                    var assistantId = task.AssigneeId.Value;
+                    task.Status = "revision";
+                    task.UpdatedAt = DateTime.UtcNow;
+
+                    foreach (var submission in task.TaskSubmissions
+                        .Where(submission => submission.Status == "accepted" || submission.Status == "submitted"))
+                    {
+                        submission.Status = "revision_requested";
+                    }
+
+                    foreach (var payroll in task.PayrollRecords
+                        .Where(payroll => payroll.Status != "paid"))
+                    {
+                        payroll.Status = "failed";
+                    }
+
+                    _context.Notifications.Add(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        UserId = assistantId,
+                        Type = "review_needed",
+                        Title = $"Revision required: {chapter.Series.Title} - Chapter {chapter.ChapterNumber}",
+                        Message = $"Your accepted task \"{task.Title}\" on page {page.PageNumber} was returned by Tantou review. Reason: {reasonText}. Please revise and resubmit using the same task.",
+                        IsRead = false,
+                        Link = $"/tasks?taskId={task.TaskId}",
+                        CreatedAt = DateTime.UtcNow
+                    });
                 }
             }
+
+            var pageDetails = markedPages.Select(page =>
+            {
+                var currentVersionId = GetCurrentVersionId(page);
+                var reasons = page.PageAnnotations
+                    .Where(annotation =>
+                        annotation.CreatedById == tantouId &&
+                        annotation.Status == "open" &&
+                        annotation.PageVersionId == currentVersionId)
+                    .OrderBy(annotation => annotation.CreatedAt)
+                    .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
+                    .Where(reason => !string.IsNullOrWhiteSpace(reason));
+                return $"Page {page.PageNumber}: {string.Join("; ", reasons)}";
+            });
+
+            var chapterNote = string.IsNullOrWhiteSpace(dto.Note)
+                ? "No chapter note provided"
+                : dto.Note.Trim().TrimEnd('.', '!', '?');
+
+            _context.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = chapter.Series.MangakaId,
+                Type = "review_needed",
+                Title = $"Revision requested for {chapter.Series.Title} - Chapter {chapter.ChapterNumber}",
+                Message = $"Pages requiring revision: {string.Join(" | ", pageDetails)}. Chapter note: {chapterNote}.",
+                IsRead = false,
+                Link = $"/chapters/{chapter.ChapterId}",
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         await _context.SaveChangesAsync();
@@ -491,6 +636,10 @@ public class ChapterService : IChapterService
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.PageVersions)
                     .ThenInclude(v => v.UploadedBy)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageVersions)
+                    .ThenInclude(v => v.PageAnnotations)
+                        .ThenInclude(a => a.CreatedBy)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
 
@@ -530,7 +679,11 @@ public class ChapterService : IChapterService
                                 UploadedByName = v.UploadedBy?.FullName ?? "Unknown",
                                 CreatedAt = v.CreatedAt,
                                 Note = v.Note,
-                                IsCurrent = v.FileUrl == p.CurrentImageUrl
+                                IsCurrent = v.FileUrl == p.CurrentImageUrl,
+                                Annotations = v.PageAnnotations
+                                    .OrderBy(a => a.CreatedAt)
+                                    .Select(MapAnnotationToDto)
+                                    .ToList()
                             })
                             .ToList()
                     };
@@ -589,6 +742,33 @@ public class ChapterService : IChapterService
             ApprovedPageCount = c.MangaPages?.Count(p => p.Status == "approved") ?? 0,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
+        };
+    }
+
+    private static Guid? GetCurrentVersionId(MangaPage page)
+    {
+        return page.PageVersions
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefault(v => v.FileUrl == page.CurrentImageUrl)?.PageVersionId;
+    }
+
+    private static AnnotationDto MapAnnotationToDto(PageAnnotation annotation)
+    {
+        return new AnnotationDto
+        {
+            AnnotationId = annotation.AnnotationId,
+            PageId = annotation.PageId,
+            PageVersionId = annotation.PageVersionId,
+            CreatedById = annotation.CreatedById,
+            CreatedByName = annotation.CreatedBy?.FullName ?? "",
+            X = annotation.X,
+            Y = annotation.Y,
+            Width = annotation.Width,
+            Height = annotation.Height,
+            Body = annotation.Body,
+            Status = annotation.Status,
+            CreatedAt = annotation.CreatedAt,
+            ResolvedAt = annotation.ResolvedAt
         };
     }
 }

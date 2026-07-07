@@ -605,6 +605,7 @@ public class MangaStudioDataController : ControllerBase
 
         var pages = await query
             .Include(p => p.PageAnnotations)
+            .Include(p => p.PageVersions)
             .Include(p => p.ReviewComments)
                 .ThenInclude(c => c.User)
             .Include(p => p.Chapter)
@@ -612,7 +613,14 @@ public class MangaStudioDataController : ControllerBase
             .OrderBy(p => p.PageNumber)
             .ToListAsync();
 
-        var result = pages.Select(p => new
+        var result = pages.Select(p =>
+        {
+            var currentVersionId = GetCurrentVersionId(p);
+            var currentAnnotations = p.PageAnnotations
+                .Where(a => a.Status == "open" && a.PageVersionId == currentVersionId)
+                .ToList();
+
+            return new
         {
             id             = p.PageId.ToString(),
             number         = p.PageNumber,
@@ -622,10 +630,11 @@ public class MangaStudioDataController : ControllerBase
             chapterNumber  = p.Chapter.ChapterNumber,
             seriesId       = p.Chapter.SeriesId.ToString(),
             seriesTitle    = p.Chapter.Series.Title,
-            hasAnnotations = p.PageAnnotations.Any(),
-            annotations = p.PageAnnotations.Select(a => new
+            hasAnnotations = currentAnnotations.Any(),
+            annotations = currentAnnotations.Select(a => new
             {
                 id           = a.AnnotationId.ToString(),
+                pageVersionId = a.PageVersionId?.ToString(),
                 createdById  = a.CreatedById.ToString(),
                 x            = (double)a.X,
                 y            = (double)a.Y,
@@ -643,6 +652,7 @@ public class MangaStudioDataController : ControllerBase
                 body      = c.Body,
                 createdAt = c.CreatedAt
             })
+        };
         });
 
         return Ok(result);
@@ -662,6 +672,8 @@ public class MangaStudioDataController : ControllerBase
                 .ThenInclude(s => s.Mangaka)
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.PageAnnotations)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageVersions)
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.ReviewComments)
                     .ThenInclude(c => c.User)
@@ -685,17 +697,25 @@ public class MangaStudioDataController : ControllerBase
             pageCount = c.MangaPages.Count,
             pages = c.MangaPages
                 .OrderBy(p => p.PageNumber)
-                .Select(p => new
+                .Select(p =>
+                {
+                    var currentVersionId = GetCurrentVersionId(p);
+                    var currentAnnotations = p.PageAnnotations
+                        .Where(a => a.Status == "open" && a.PageVersionId == currentVersionId)
+                        .ToList();
+
+                    return new
                 {
                     id = p.PageId.ToString(),
                     number = p.PageNumber,
                     status = p.Status.ToLower(),
                     imageUrl = p.CurrentImageUrl,
                     chapterId = p.ChapterId.ToString(),
-                    hasAnnotations = p.PageAnnotations.Any(),
-                    annotations = p.PageAnnotations.Select(a => new
+                    hasAnnotations = currentAnnotations.Any(),
+                    annotations = currentAnnotations.Select(a => new
                     {
                         id = a.AnnotationId.ToString(),
+                        pageVersionId = a.PageVersionId?.ToString(),
                         createdById = a.CreatedById.ToString(),
                         x = (double)a.X,
                         y = (double)a.Y,
@@ -713,6 +733,7 @@ public class MangaStudioDataController : ControllerBase
                         body = rc.Body,
                         createdAt = rc.CreatedAt
                     })
+                };
                 })
         });
 
@@ -728,5 +749,12 @@ public class MangaStudioDataController : ControllerBase
             "payment" => "payment",
             _         => "system"
         };
+
+    private static Guid? GetCurrentVersionId(MangaPage page)
+    {
+        return page.PageVersions
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefault(v => v.FileUrl == page.CurrentImageUrl)?.PageVersionId;
+    }
 
 }

@@ -8,6 +8,7 @@ public class AnnotationDto
 {
     public Guid AnnotationId { get; set; }
     public Guid PageId { get; set; }
+    public Guid? PageVersionId { get; set; }
     public Guid CreatedById { get; set; }
     public string CreatedByName { get; set; } = null!;
     public decimal X { get; set; }
@@ -23,12 +24,12 @@ public class AnnotationDto
 /// <summary>DTO tạo annotation mới trên trang.</summary>
 public class CreateAnnotationDto
 {
-    [Required(ErrorMessage = "Tọa độ X là bắt buộc.")]
-    [Range(0, 99999, ErrorMessage = "Tọa độ X phải hợp lệ.")]
+    [Required(ErrorMessage = "X coordinate is required.")]
+    [Range(0, 99999, ErrorMessage = "X coordinate must be valid.")]
     public decimal X { get; set; }
 
-    [Required(ErrorMessage = "Tọa độ Y là bắt buộc.")]
-    [Range(0, 99999, ErrorMessage = "Tọa độ Y phải hợp lệ.")]
+    [Required(ErrorMessage = "Y coordinate is required.")]
+    [Range(0, 99999, ErrorMessage = "Y coordinate must be valid.")]
     public decimal Y { get; set; }
 
     [Range(0, 99999)]
@@ -37,7 +38,7 @@ public class CreateAnnotationDto
     [Range(0, 99999)]
     public decimal? Height { get; set; }
 
-    [Required(ErrorMessage = "Nội dung ghi chú là bắt buộc.")]
+    [Required(ErrorMessage = "Annotation content is required.")]
     public string Body { get; set; } = null!;
 }
 
@@ -56,9 +57,9 @@ public class PageReviewDto
 /// <summary>DTO tạo nhận xét review trang.</summary>
 public class CreatePageReviewDto
 {
-    [Required(ErrorMessage = "Quyết định review là bắt buộc.")]
+    [Required(ErrorMessage = "Review decision is required.")]
     [RegularExpression("^(approved|rejected|revision_requested|needs_revision)$",
-        ErrorMessage = "Decision phải là: approved, rejected, revision_requested hoặc needs_revision.")]
+        ErrorMessage = "Decision must be approved, rejected, revision_requested, or needs_revision.")]
     public string Decision { get; set; } = null!;
 
     public string? Note { get; set; }
