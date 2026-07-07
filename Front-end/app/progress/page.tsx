@@ -77,7 +77,7 @@ export default function ProgressPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-white">
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-foreground">
             <BarChart3 className="w-8 h-8 text-primary" />
             Studio Progress
           </h1>
@@ -89,7 +89,7 @@ export default function ProgressPage() {
 
       {/* Series Progress Cards section */}
       <div>
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-primary" />
           Active Series Portfolio
         </h2>
@@ -118,7 +118,7 @@ export default function ProgressPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg font-bold text-white">{series.title}</CardTitle>
+                      <CardTitle className="text-lg font-bold text-foreground">{series.title}</CardTitle>
                       <CardDescription className="text-xs text-muted-foreground mt-1">
                         {series.genre}
                       </CardDescription>
@@ -135,7 +135,7 @@ export default function ProgressPage() {
                         <Clock className="w-3.5 h-3.5" />
                         Ch. {series.chapters} Development Progress
                       </span>
-                      <span className="font-semibold text-white">{series.progress}%</span>
+                      <span className="font-semibold text-foreground">{series.progress}%</span>
                     </div>
                     <Progress value={series.progress} className="h-2" />
                   </div>
@@ -145,7 +145,7 @@ export default function ProgressPage() {
                       <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
                       Active Chapter Cycle
                     </span>
-                    <span className="flex items-center gap-1 text-white">
+                    <span className="flex items-center gap-1 text-foreground">
                       <TrendingUp className="w-3.5 h-3.5 text-success" />
                       On Track
                     </span>

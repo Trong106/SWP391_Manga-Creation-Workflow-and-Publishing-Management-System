@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { ThemeSwitcher } from "@/components/theme-switcher"
 
 const demoUsers = [
   { role: "mangaka", name: "Yuki Tanaka (Mangaka)", email: "yuki@mangaflow.com", color: "border-primary text-primary" },
@@ -47,10 +48,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen w-screen items-center justify-center bg-[#09090b] overflow-hidden px-4">
-      {/* Background Decorative Glowing Orbs */}
-      <div className="absolute top-1/4 left-1/4 w-80 h-80 rounded-full bg-primary/10 blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-chart-2/10 blur-[150px] pointer-events-none"></div>
+    <div className="relative flex min-h-screen w-screen items-center justify-center overflow-hidden px-4 py-10">
+      <div className="absolute right-5 top-5 z-20">
+        <ThemeSwitcher />
+      </div>
 
       <div className="w-full max-w-[480px] z-10 space-y-6">
         {/* Logo and Brand */}
@@ -62,15 +63,15 @@ export default function LoginPage() {
             height={64}
             className="rounded-xl object-contain drop-shadow-[0_0_18px_rgba(0,200,180,0.35)]"
           />
-          <h2 className="text-3xl font-bold tracking-tight text-white mt-3">MangaFlow</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground mt-3">MangaFlow</h2>
           <p className="text-muted-foreground text-sm">Professional Manga Production Workflow Management System</p>
         </div>
 
         {/* Login Card */}
-        <Card className="bg-zinc-900/60 border-zinc-800 backdrop-blur-xl shadow-2xl">
+        <Card className="surface-glass shadow-2xl">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl font-semibold text-white">Sign In</CardTitle>
-            <CardDescription className="text-zinc-400">
+            <CardTitle className="text-xl font-semibold text-foreground">Sign In</CardTitle>
+            <CardDescription>
               Enter your email and password to access the system
             </CardDescription>
           </CardHeader>
@@ -84,9 +85,9 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-zinc-300">Email</Label>
+                <Label htmlFor="email" className="text-foreground/82">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
@@ -94,23 +95,23 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="pl-9 bg-zinc-950/40 border-zinc-800 text-white placeholder-zinc-600 focus-visible:ring-primary"
+                    className="pl-9 bg-input/70 border-border/80 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-zinc-300">Password</Label>
+                <Label htmlFor="password" className="text-foreground/82">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="pl-9 bg-zinc-950/40 border-zinc-800 text-white placeholder-zinc-600 focus-visible:ring-primary"
+                    className="pl-9 bg-input/70 border-border/80 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary"
                   />
                 </div>
               </div>
@@ -132,9 +133,9 @@ export default function LoginPage() {
             </form>
 
             <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-zinc-800"></div>
-              <span className="flex-shrink mx-4 text-xs text-zinc-500 uppercase tracking-widest font-mono">Demo Accounts</span>
-              <div className="flex-grow border-t border-zinc-800"></div>
+              <div className="flex-grow border-t border-border/80"></div>
+              <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase tracking-widest font-mono">Demo Accounts</span>
+              <div className="flex-grow border-t border-border/80"></div>
             </div>
 
             {/* Quick Demo Login Grid */}
@@ -144,11 +145,11 @@ export default function LoginPage() {
                   key={user.email}
                   type="button"
                   onClick={() => handleQuickLogin(user.email)}
-                  className="flex items-center justify-between p-2.5 bg-zinc-950/20 hover:bg-zinc-800/40 border border-zinc-800 hover:border-zinc-700 rounded-lg text-left text-xs transition-all group"
+                  className="group flex items-center justify-between rounded-lg border border-border/80 bg-secondary/35 p-2.5 text-left text-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/45 hover:bg-secondary/60"
                 >
                   <div className="flex flex-col">
-                    <span className="font-medium text-zinc-300 group-hover:text-white transition-colors">{user.name}</span>
-                    <span className="text-zinc-500">{user.email}</span>
+                    <span className="font-medium text-foreground/82 transition-colors group-hover:text-foreground">{user.name}</span>
+                    <span className="text-muted-foreground">{user.email}</span>
                   </div>
                   <Badge variant="outline" className={`text-[10px] uppercase font-mono px-2 py-0.5 ${user.color}`}>
                     Quick Select

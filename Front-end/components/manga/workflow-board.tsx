@@ -421,7 +421,7 @@ export function WorkflowBoard() {
     <div className="mt-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
             Production Pipeline
           </h2>
@@ -449,7 +449,7 @@ export function WorkflowBoard() {
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center min-h-[160px] gap-2 text-center text-muted-foreground">
             <Activity className="h-8 w-8 text-primary/70" />
-            <p className="text-sm font-medium text-zinc-300">No active production tasks</p>
+            <p className="text-sm font-medium text-foreground">No active production tasks</p>
             <p className="text-xs">New, submitted, revision, and in-progress tasks will appear here.</p>
           </CardContent>
         </Card>
@@ -461,14 +461,14 @@ export function WorkflowBoard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                    <CardTitle className="text-base text-white font-semibold">{column.title}</CardTitle>
-                    <Badge variant="secondary" className="ml-2 bg-secondary text-zinc-300 border-none">{column.tasks.length}</Badge>
+                    <CardTitle className="text-base text-foreground font-semibold">{column.title}</CardTitle>
+                    <Badge variant="secondary" className="ml-2 bg-secondary text-secondary-foreground border-none">{column.tasks.length}</Badge>
                   </div>
                   {isMangaka && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-2 text-xs text-muted-foreground hover:bg-zinc-800/70 hover:text-white"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                       onClick={() => openNewTaskDialog(mapColumnIdToType(column.id))}
                     >
                       <Plus className="mr-1 h-3.5 w-3.5 text-primary" />
@@ -492,13 +492,13 @@ export function WorkflowBoard() {
                             {statusLabels[status] || task.status}
                           </Badge>
                         </div>
-                        <h4 className="font-semibold text-sm text-zinc-100 mb-1 leading-snug">{task.title}</h4>
+                        <h4 className="font-semibold text-sm text-foreground mb-1 leading-snug">{task.title}</h4>
                         <p className="text-xs text-muted-foreground mb-2">{task.chapter}</p>
                         {task.progress !== undefined && (
                           <div className="mb-2.5">
                             <div className="flex items-center justify-between text-[11px] mb-1">
                               <span className="text-muted-foreground">Progress</span>
-                              <span className="text-zinc-200 font-medium">{task.progress}%</span>
+                              <span className="text-foreground font-medium">{task.progress}%</span>
                             </div>
                             <Progress value={task.progress} className="h-1.5" />
                           </div>
