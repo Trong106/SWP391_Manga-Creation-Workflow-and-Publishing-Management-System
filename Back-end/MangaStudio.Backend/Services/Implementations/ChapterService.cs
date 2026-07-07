@@ -209,24 +209,17 @@ public class ChapterService : IChapterService
             }
         }
 
-        var duplicateInBatch = orderedFiles
-            .GroupBy(item => item.File.FileName, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(group => group.Count() > 1);
-        if (duplicateInBatch != null)
-        {
-            throw new InvalidOperationException($"Tên page bị trùng trong danh sách tải lên: {duplicateInBatch.Key}");
-        }
-
         var numberedFiles = orderedFiles
             .Select(item => new { item.File, Number = int.Parse(item.Match.Groups[1].Value) })
             .OrderBy(item => item.Number)
             .ToList();
-        for (var index = 1; index < numberedFiles.Count; index++)
+
+        var duplicateInBatch = numberedFiles
+            .GroupBy(item => item.Number)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateInBatch != null)
         {
-            if (numberedFiles[index].Number != numberedFiles[index - 1].Number + 1)
-            {
-                throw new ArgumentException("Các page phải được đặt số liên tiếp, ví dụ page_001, page_002, page_003...");
-            }
+            throw new InvalidOperationException($"Page {duplicateInBatch.Key:D3} bị trùng trong danh sách tải lên.");
         }
 
         var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
@@ -241,56 +234,82 @@ public class ChapterService : IChapterService
         await _uploadLock.WaitAsync();
         try
         {
-            var incomingNames = numberedFiles
-                .Select(item => item.File.FileName.ToLower())
-                .ToList();
-            var existingNames = await _context.PageVersions
-                .Where(version => version.Page.ChapterId == chapterId)
-                .Select(version => version.FileName.ToLower())
-                .Where(fileName => incomingNames.Contains(fileName))
-                .Distinct()
-                .ToListAsync();
-            if (existingNames.Count > 0)
-            {
-                throw new InvalidOperationException($"Chapter đã có page trùng tên: {string.Join(", ", existingNames)}");
-            }
-
-            var maxPageNumber = await _context.MangaPages
+            var existingPages = await _context.MangaPages
                 .Where(p => p.ChapterId == chapterId)
-                .Select(p => (int?)p.PageNumber)
-                .MaxAsync() ?? 0;
-
-            if (numberedFiles[0].Number != maxPageNumber + 1)
-            {
-                throw new ArgumentException($"Tên page tiếp theo phải bắt đầu từ page_{maxPageNumber + 1:D3}.");
-            }
+                .Include(p => p.PageVersions)
+                .ToListAsync();
+            var pagesByNumber = existingPages.ToDictionary(p => p.PageNumber);
+            var nextNewPageNumber = existingPages.Select(p => (int?)p.PageNumber).Max() ?? 0;
+            nextNewPageNumber++;
 
             foreach (var numberedFile in numberedFiles)
             {
                 var file = numberedFile.File;
-                maxPageNumber = numberedFile.Number;
+                var isReplacingExistingPage = pagesByNumber.TryGetValue(numberedFile.Number, out var page);
+                if (!isReplacingExistingPage && numberedFile.Number != nextNewPageNumber)
+                {
+                    throw new ArgumentException($"Page mới tiếp theo phải bắt đầu từ page_{nextNewPageNumber:D3}.");
+                }
 
                 // Tải hình vẽ trang truyện lên Cloudinary
                 var imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
-                var page = new MangaPage
+                if (page != null)
+                {
+                    var maxVersion = page.PageVersions
+                        .Select(v => (int?)v.VersionNumber)
+                        .Max() ?? 0;
+
+                    page.CurrentImageUrl = imageUrl;
+                    page.Status = "pending";
+                    page.UploadedById = uploadedById;
+                    page.UploadedAt = DateTime.UtcNow;
+
+                    var version = new PageVersion
+                    {
+                        PageVersionId = Guid.NewGuid(),
+                        PageId = page.PageId,
+                        VersionNumber = maxVersion + 1,
+                        FileUrl = imageUrl,
+                        FileName = file.FileName,
+                        FileSizeBytes = file.Length,
+                        MimeType = file.ContentType,
+                        UploadedById = uploadedById,
+                        CreatedAt = DateTime.UtcNow,
+                        Note = $"Ghi đè page_{numberedFile.Number:D3}"
+                    };
+
+                    _context.PageVersions.Add(version);
+
+                    resultDto.Pages.Add(new PageUploadResultDto
+                    {
+                        PageId = page.PageId,
+                        PageNumber = page.PageNumber,
+                        ImageUrl = imageUrl,
+                        OriginalFileName = file.FileName,
+                        Status = page.Status
+                    });
+
+                    continue;
+                }
+
+                var newPage = new MangaPage
                 {
                     PageId = Guid.NewGuid(),
                     ChapterId = chapterId,
-                    PageNumber = maxPageNumber,
-                    CurrentImageUrl = imageUrl, // URL tuyệt đối của Cloudinary
+                    PageNumber = numberedFile.Number,
+                    CurrentImageUrl = imageUrl,
                     Status = "pending",
                     UploadedById = uploadedById,
                     UploadedAt = DateTime.UtcNow
                 };
 
-                // Create initial version
-                var version = new PageVersion
+                var initialVersion = new PageVersion
                 {
                     PageVersionId = Guid.NewGuid(),
-                    PageId = page.PageId,
+                    PageId = newPage.PageId,
                     VersionNumber = 1,
-                    FileUrl = imageUrl, // URL tuyệt đối của Cloudinary
+                    FileUrl = imageUrl,
                     FileName = file.FileName,
                     FileSizeBytes = file.Length,
                     MimeType = file.ContentType,
@@ -299,16 +318,18 @@ public class ChapterService : IChapterService
                     Note = "Tải lên trang ban đầu"
                 };
 
-                _context.MangaPages.Add(page);
-                _context.PageVersions.Add(version);
+                _context.MangaPages.Add(newPage);
+                _context.PageVersions.Add(initialVersion);
+                pagesByNumber[newPage.PageNumber] = newPage;
+                nextNewPageNumber++;
 
                 resultDto.Pages.Add(new PageUploadResultDto
                 {
-                    PageId = page.PageId,
-                    PageNumber = page.PageNumber,
+                    PageId = newPage.PageId,
+                    PageNumber = newPage.PageNumber,
                     ImageUrl = imageUrl,
                     OriginalFileName = file.FileName,
-                    Status = page.Status
+                    Status = newPage.Status
                 });
             }
 
