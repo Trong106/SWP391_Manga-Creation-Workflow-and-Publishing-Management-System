@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Eye, Check, CheckCheck, X, MessageSquare, ChevronLeft, ChevronRight, Pencil, ArrowLeft, BookOpen, Clock, History } from "lucide-react"
+import { useState, useEffect, type PointerEvent } from "react"
+import { Eye, Check, CheckCheck, X, MessageSquare, ChevronLeft, ChevronRight, Pencil, ArrowLeft, BookOpen, Clock, History, MousePointer2, Square, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { TantouChapterReview } from "@/components/tantou-chapter-review"
@@ -56,6 +75,8 @@ function MangakaReviewPage() {
   const [bulkApproving, setBulkApproving] = useState(false)
   const [versionDialogOpen, setVersionDialogOpen] = useState(false)
   const [versionMode, setVersionMode] = useState<"page" | "chapter">("page")
+  const [bulkApproveConfirmOpen, setBulkApproveConfirmOpen] = useState(false)
+  const [bulkApproveTargetCount, setBulkApproveTargetCount] = useState(0)
   const now = useNow()
 
   const refreshSidebarBadges = () => {
@@ -147,29 +168,25 @@ function MangakaReviewPage() {
         body: JSON.stringify({ decision: "approved", note: "Page approved" })
       })
       if (res.ok) {
-        alert("Page approved successfully!")
+        toast.success("Page approved successfully!")
         // Refresh pages
         const updated = pages.filter((p) => p.id !== activePage.id)
         setPages(updated)
         setCurrentPageIndex((current) => Math.min(current, Math.max(updated.length - 1, 0)))
         refreshSidebarBadges()
       } else {
-        alert("Failed to approve page")
+        toast.error("Failed to approve page")
       }
     } catch (err) {
       console.error(err)
-      alert("Server connection error")
+      toast.error("Server connection error")
     }
   }
 
   const handleBulkApproveDisplayed = async () => {
-    if (!token || displayedPages.length === 0) return
+    setBulkApproveConfirmOpen(false)
     const targets = displayedPages.filter((p) => p.status !== "approved")
-    if (targets.length === 0) {
-      alert("All visible pages are already approved.")
-      return
-    }
-    if (!window.confirm(`Approve ${targets.length} visible page(s)?`)) return
+    if (targets.length === 0) return
 
     setBulkApproving(true)
     try {
@@ -192,10 +209,14 @@ function MangakaReviewPage() {
         return updated
       })
       refreshSidebarBadges()
-      alert(failed ? `Bulk approve completed with ${failed} failed page(s).` : "Bulk approve completed successfully.")
+      if (failed) {
+        toast.error(`Bulk approve completed with ${failed} failed page(s).`)
+      } else {
+        toast.success("All pages approved successfully!")
+      }
     } catch (err) {
       console.error(err)
-      alert("Connection error while bulk approving pages.")
+      toast.error("Connection error while bulk approving pages.")
     } finally {
       setBulkApproving(false)
     }
@@ -214,51 +235,152 @@ function MangakaReviewPage() {
         body: JSON.stringify({ decision: "revision_requested", note: "Revision requested" })
       })
       if (res.ok) {
-        alert("Revision requested successfully!")
+        toast.success("Revision requested successfully!")
         const updated = pages.filter((p) => p.id !== activePage.id)
         setPages(updated)
         setCurrentPageIndex((current) => Math.min(current, Math.max(updated.length - 1, 0)))
         refreshSidebarBadges()
       } else {
-        alert("Failed")
+        toast.error("Failed to request revision")
       }
     } catch (err) {
       console.error(err)
-      alert("Connection error")
+      toast.error("Server connection error")
     }
   }
 
-  // Handle annotation click/placement
-  const handlePageClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!annotationMode || !activePage || !token) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 100
-    const y = ((e.clientY - rect.top) / rect.height) * 100
+  const [tool, setTool] = useState<"pin" | "box">("box")
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; pageId: string; pointerId: number } | null>(null)
+  const [draftAnnotation, setDraftAnnotation] = useState<any | null>(null)
+  const [annotationText, setAnnotationText] = useState("")
+  const [savingAnnotation, setSavingAnnotation] = useState(false)
+  const [annotationDialogOpen, setAnnotationDialogOpen] = useState(false)
+  const [deletingAnnotationId, setDeletingAnnotationId] = useState<string | null>(null)
 
-    const body = prompt("Enter revision note content:")
-    if (!body) return
+  const measurePoint = (event: PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return {
+      x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)),
+    }
+  }
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>, pageId: string) => {
+    if (event.button !== 0) return
+    const point = measurePoint(event)
+    if (tool === "pin") {
+      setDraftAnnotation({ pageId, x: point.x, y: point.y, width: 0, height: 0 })
+      setAnnotationDialogOpen(true)
+      return
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDragStart({ ...point, pageId, pointerId: event.pointerId })
+    setDraftAnnotation({ pageId, x: point.x, y: point.y, width: 0, height: 0 })
+  }
+
+  const updateAreaDraft = (event: PointerEvent<HTMLDivElement>, pageId: string) => {
+    if (tool !== "box" || !dragStart || dragStart.pageId !== pageId || dragStart.pointerId !== event.pointerId) return
+
+    const point = measurePoint(event)
+    const x = Math.min(dragStart.x, point.x)
+    const y = Math.min(dragStart.y, point.y)
+    const width = Math.abs(point.x - dragStart.x)
+    const height = Math.abs(point.y - dragStart.y)
+
+    setDraftAnnotation({ pageId, x, y, width, height })
+  }
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>, pageId: string) => {
+    if (tool !== "box" || !dragStart || dragStart.pageId !== pageId) return
+    const point = measurePoint(event)
+    const completedDraft = {
+      pageId,
+      x: Math.min(dragStart.x, point.x),
+      y: Math.min(dragStart.y, point.y),
+      width: Math.abs(point.x - dragStart.x),
+      height: Math.abs(point.y - dragStart.y),
+    }
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    setDragStart(null)
+    if (completedDraft.width < 0.5 || completedDraft.height < 0.5) {
+      setDraftAnnotation(null)
+      return
+    }
+    setDraftAnnotation(completedDraft)
+    setAnnotationDialogOpen(true)
+  }
+
+  const saveAnnotation = async () => {
+    if (!token || !draftAnnotation || !annotationText.trim()) return
+    setSavingAnnotation(true)
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/pages/${activePage.id}/annotations`, {
+      const res = await fetch(`${API_BASE_URL}/api/pages/${draftAnnotation.pageId}/annotations`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ x, y, body })
+        body: JSON.stringify({
+          x: draftAnnotation.x,
+          y: draftAnnotation.y,
+          width: draftAnnotation.width,
+          height: draftAnnotation.height,
+          body: annotationText.trim(),
+        }),
       })
-      if (res.ok) {
-        const newAnn = await res.json()
-        const updated = pages.map((p) => {
-          if (p.id === activePage.id) {
-            return { ...p, annotations: [...(p.annotations || []), newAnn] }
-          }
-          return p
-        })
-        setPages(updated)
+
+      if (!res.ok) throw new Error("Failed to save annotation.")
+      const payload = await res.json()
+      const created = { ...payload, id: payload.id || payload.annotationId }
+
+      setPages((current) =>
+        current.map((page) =>
+          page.id === draftAnnotation.pageId
+            ? { ...page, annotations: [...(page.annotations || []), created] }
+            : page
+        )
+      )
+      setDraftAnnotation(null)
+      setAnnotationText("")
+      setAnnotationDialogOpen(false)
+    } catch (err: any) {
+      alert(err.message || "Could not save annotation.")
+    } finally {
+      setSavingAnnotation(false)
+    }
+  }
+
+  const cancelAnnotation = () => {
+    setDraftAnnotation(null)
+    setAnnotationText("")
+    setAnnotationDialogOpen(false)
+  }
+
+  const deleteAnnotation = async (pageId: string, annotationId: string) => {
+    if (!token || deletingAnnotationId) return
+    setDeletingAnnotationId(annotationId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/pages/annotations/${annotationId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.message || "Failed to delete the review mark.")
       }
-    } catch (err) {
-      console.error(err)
+
+      setPages((current) =>
+        current.map((page) => {
+          if (page.id !== pageId) return page
+          const annotations = (page.annotations || []).filter((ann: any) => (ann.id || ann.annotationId) !== annotationId)
+          return { ...page, annotations }
+        })
+      )
+    } catch (err: any) {
+      alert(err.message || "Could not delete the review mark.")
+    } finally {
+      setDeletingAnnotationId(null)
     }
   }
 
@@ -434,7 +556,15 @@ function MangakaReviewPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={handleBulkApproveDisplayed}
+                      onClick={() => {
+                        const targets = displayedPages.filter((p) => p.status !== "approved")
+                        if (targets.length === 0) {
+                          toast("All visible pages are already approved.")
+                          return
+                        }
+                        setBulkApproveTargetCount(targets.length)
+                        setBulkApproveConfirmOpen(true)
+                      }}
                       disabled={bulkApproving || displayedPages.length === 0}
                       className="border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
                     >
@@ -472,12 +602,37 @@ function MangakaReviewPage() {
                     <Button
                       size="sm"
                       variant={annotationMode ? "default" : "outline"}
-                      onClick={() => setAnnotationMode(!annotationMode)}
+                      onClick={() => {
+                        setAnnotationMode(!annotationMode)
+                        setDraftAnnotation(null)
+                      }}
                       className={annotationMode ? "bg-primary text-primary-foreground font-semibold" : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"}
                     >
                       <Pencil className="w-4 h-4 mr-2" />
-                      {annotationMode ? "Drawing Note..." : "Draw Revision Note"}
+                      {annotationMode ? "Drawing Mode On" : "Draw Revision Note"}
                     </Button>
+                    {annotationMode && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant={tool === "pin" ? "default" : "outline"}
+                          onClick={() => setTool("pin")}
+                          className={tool === "pin" ? "bg-[#00dfc0] text-black hover:bg-[#00dfc0]/90" : "border-zinc-800 text-zinc-300 hover:bg-zinc-850"}
+                        >
+                          <MousePointer2 className="mr-1.5 h-4 w-4" />
+                          Pin
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={tool === "box" ? "default" : "outline"}
+                          onClick={() => setTool("box")}
+                          className={tool === "box" ? "bg-[#00dfc0] text-black hover:bg-[#00dfc0]/90" : "border-zinc-800 text-zinc-300 hover:bg-zinc-855"}
+                        >
+                          <Square className="mr-1.5 h-4 w-4" />
+                          Area
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -495,8 +650,20 @@ function MangakaReviewPage() {
                     </div>
                   ) : (
                     <div
-                      onClick={handlePageClick}
-                      className={`aspect-[3/4] bg-zinc-950 rounded-lg flex items-center justify-center relative overflow-hidden ${
+                      onPointerDown={(event) => {
+                        if (annotationMode && activePage) handlePointerDown(event, activePage.id)
+                      }}
+                      onPointerMove={(event) => {
+                        if (annotationMode && activePage) updateAreaDraft(event, activePage.id)
+                      }}
+                      onPointerUp={(event) => {
+                        if (annotationMode && activePage) handlePointerUp(event, activePage.id)
+                      }}
+                      onPointerCancel={() => {
+                        setDragStart(null)
+                        setDraftAnnotation(null)
+                      }}
+                      className={`aspect-[3/4] bg-zinc-950 rounded-lg flex items-center justify-center relative overflow-hidden touch-none ${
                         annotationMode ? "cursor-crosshair border border-primary/50" : ""
                       }`}
                     >
@@ -505,6 +672,7 @@ function MangakaReviewPage() {
                           src={getFullCoverUrl(activePage.imageUrl)}
                           alt={`Page ${activePage.number}`}
                           className="max-h-full max-w-full object-contain select-none"
+                          draggable={false}
                         />
                       ) : (
                         <div className="text-center p-4">
@@ -514,19 +682,65 @@ function MangakaReviewPage() {
                       )}
 
                       {/* Render annotations overlay */}
-                      {activePage?.annotations?.map((ann: any, index: number) => (
+                      {activePage?.annotations?.map((ann: any, index: number) => {
+                        const isBox = Boolean(ann.width && ann.height)
+                        return (
+                          <div
+                            key={ann.id || ann.annotationId || index}
+                            title={ann.body}
+                            className={
+                              isBox
+                                ? "pointer-events-none absolute border-2 border-amber-400 bg-amber-300/15"
+                                : "pointer-events-none absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-yellow-500 text-xs font-bold text-black border border-black shadow-lg"
+                            }
+                            style={{
+                              left: `${ann.x}%`,
+                              top: `${ann.y}%`,
+                              width: isBox ? `${ann.width}%` : undefined,
+                              height: isBox ? `${ann.height}%` : undefined,
+                            }}
+                          >
+                            {isBox ? (
+                              <span className="absolute -left-2 -top-7 rounded bg-amber-400 px-2 py-0.5 text-xs font-bold text-black shadow">
+                                {index + 1}
+                              </span>
+                            ) : (
+                              index + 1
+                            )}
+                            {ann.status === "open" && (
+                              <button
+                                type="button"
+                                title="Delete this review mark"
+                                disabled={deletingAnnotationId === (ann.id || ann.annotationId)}
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  void deleteAnnotation(activePage.id, ann.id || ann.annotationId)
+                                }}
+                                className="pointer-events-auto absolute -right-3 -top-3 flex h-5 w-5 items-center justify-center rounded-full border border-red-400 bg-red-600 text-white shadow-lg transition hover:bg-red-500 disabled:opacity-60 text-[10px]"
+                              >
+                                {deletingAnnotationId === (ann.id || ann.annotationId) ? (
+                                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                ) : (
+                                  <X className="h-3 w-3" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {draftAnnotation && activePage && draftAnnotation.pageId === activePage.id && (
                         <div
-                          key={ann.id || ann.annotationId || index}
+                          className={draftAnnotation.width ? "absolute border-2 border-[#00dfc0] bg-[#00dfc0]/15" : "absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#00dfc0] text-xs font-bold text-black border border-black shadow-lg"}
                           style={{
-                            left: `${ann.x}%`,
-                            top: `${ann.y}%`,
+                            left: `${draftAnnotation.x}%`,
+                            top: `${draftAnnotation.y}%`,
+                            width: draftAnnotation.width ? `${draftAnnotation.width}%` : undefined,
+                            height: draftAnnotation.height ? `${draftAnnotation.height}%` : undefined,
                           }}
-                          title={ann.body}
-                          className="absolute w-6 h-6 bg-yellow-500 text-black rounded-full flex items-center justify-center cursor-pointer -translate-x-1/2 -translate-y-1/2 text-xs font-bold shadow-lg border border-black"
-                        >
-                          {index + 1}
-                        </div>
-                      ))}
+                        />
+                      )}
                     </div>
                   )}
 
@@ -682,6 +896,61 @@ function MangakaReviewPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={annotationDialogOpen} onOpenChange={(open) => !open && cancelAnnotation()}>
+        <DialogContent className="max-w-lg border-zinc-800 bg-[#151719] text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-[#00dfc0]" />
+              Add Review Reason
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Explain the required change for this page. This reason will be sent to the assigned Assistant.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            value={annotationText}
+            onChange={(event) => setAnnotationText(event.target.value)}
+            placeholder="Describe the exact content, dialogue, or artwork correction..."
+            className="min-h-[140px] border-zinc-800 bg-zinc-950 text-sm text-white placeholder:text-zinc-600"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelAnnotation} className="border-zinc-800 text-zinc-300">
+              Cancel
+            </Button>
+            <Button disabled={savingAnnotation || !annotationText.trim()} onClick={saveAnnotation} className="bg-[#00dfc0] font-bold text-black hover:bg-[#00dfc0]/90">
+              {savingAnnotation ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save Mark
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={bulkApproveConfirmOpen} onOpenChange={setBulkApproveConfirmOpen}>
+        <AlertDialogContent className="border-zinc-800 bg-[#151719] text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <CheckCheck className="w-5 h-5 text-emerald-400" />
+              Bulk Approve Pages
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              Are you sure you want to approve all <strong>{bulkApproveTargetCount}</strong> visible page(s) in this chapter? This will mark them as approved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-zinc-800 bg-transparent text-zinc-300 hover:bg-zinc-800 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkApproveDisplayed}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold"
+            >
+              Approve All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
