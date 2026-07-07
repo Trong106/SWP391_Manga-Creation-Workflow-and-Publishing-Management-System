@@ -200,6 +200,10 @@ public partial class MangaStudioContext : DbContext
                 .HasForeignKey(d => d.PageId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_PageAnnotations_Page");
+
+            entity.HasOne(d => d.PageVersion).WithMany(p => p.PageAnnotations)
+                .HasForeignKey(d => d.PageVersionId)
+                .HasConstraintName("FK_PageAnnotations_PageVersion");
         });
 
         modelBuilder.Entity<PageRegion>(entity =>

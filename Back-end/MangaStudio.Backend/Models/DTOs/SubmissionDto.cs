@@ -48,4 +48,5 @@ public class PageVersionDto
     public string UploadedByName { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     public string? Note { get; set; }
+    public List<AnnotationDto> Annotations { get; set; } = new();
 }

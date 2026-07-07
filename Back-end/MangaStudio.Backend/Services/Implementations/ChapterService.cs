@@ -116,49 +116,46 @@ public class ChapterService : IChapterService
     /// </summary>
     public async Task<List<PageDto>> GetPagesByChapter(Guid chapterId)
     {
-        return await _context.MangaPages
+        var pages = await _context.MangaPages
             .Where(p => p.ChapterId == chapterId)
             .Include(p => p.UploadedBy)
             .Include(p => p.PageAnnotations)
+                .ThenInclude(a => a.CreatedBy)
             .Include(p => p.PageRegions) // used for counting tasks
+            .Include(p => p.PageVersions)
             .OrderBy(p => p.PageNumber)
-            .Select(p => new PageDto
+            .ToListAsync();
+
+        return pages
+            .Select(p =>
             {
-                PageId = p.PageId,
-                ChapterId = p.ChapterId,
-                PageNumber = p.PageNumber,
-                CurrentImageUrl = p.CurrentImageUrl,
-                OriginalFileName = p.PageVersions
+                var currentVersionId = GetCurrentVersionId(p);
+                var annotations = p.PageAnnotations
+                    .Where(a => a.Status == "open" && a.PageVersionId == currentVersionId)
+                    .OrderBy(a => a.CreatedAt)
+                    .Select(MapAnnotationToDto)
+                    .ToList();
+
+                return new PageDto
+                {
+                    PageId = p.PageId,
+                    ChapterId = p.ChapterId,
+                    PageNumber = p.PageNumber,
+                    CurrentImageUrl = p.CurrentImageUrl,
+                    OriginalFileName = p.PageVersions
                     .OrderBy(v => v.VersionNumber)
                     .Select(v => v.FileName)
                     .FirstOrDefault(),
-                Status = p.Status,
-                UploadedById = p.UploadedById,
-                UploadedByName = p.UploadedBy != null ? p.UploadedBy.FullName : null,
-                UploadedAt = p.UploadedAt,
-                AnnotationCount = p.PageAnnotations.Count(a => a.Status == "open"),
-                Annotations = p.PageAnnotations
-                    .Where(a => a.Status == "open")
-                    .OrderBy(a => a.CreatedAt)
-                    .Select(a => new AnnotationDto
-                    {
-                        AnnotationId = a.AnnotationId,
-                        PageId = a.PageId,
-                        CreatedById = a.CreatedById,
-                        CreatedByName = a.CreatedBy != null ? a.CreatedBy.FullName : "",
-                        X = a.X,
-                        Y = a.Y,
-                        Width = a.Width,
-                        Height = a.Height,
-                        Body = a.Body,
-                        Status = a.Status,
-                        CreatedAt = a.CreatedAt,
-                        ResolvedAt = a.ResolvedAt
-                    })
-                    .ToList(),
-                TaskCount = _context.Tasks.Count(t => t.PageId == p.PageId)
+                    Status = p.Status,
+                    UploadedById = p.UploadedById,
+                    UploadedByName = p.UploadedBy != null ? p.UploadedBy.FullName : null,
+                    UploadedAt = p.UploadedAt,
+                    AnnotationCount = annotations.Count,
+                    Annotations = annotations,
+                    TaskCount = _context.Tasks.Count(t => t.PageId == p.PageId)
+                };
             })
-            .ToListAsync();
+            .ToList();
     }
 
     /// <summary>
@@ -343,11 +340,11 @@ public class ChapterService : IChapterService
         }
 
         // Xóa các dữ liệu liên quan
-        var versions = _context.PageVersions.Where(v => v.PageId == pageId);
-        _context.PageVersions.RemoveRange(versions);
-
         var annotations = _context.PageAnnotations.Where(a => a.PageId == pageId);
         _context.PageAnnotations.RemoveRange(annotations);
+
+        var versions = _context.PageVersions.Where(v => v.PageId == pageId);
+        _context.PageVersions.RemoveRange(versions);
 
         var tasks = _context.Tasks.Where(t => t.PageId == pageId);
         _context.Tasks.RemoveRange(tasks);
@@ -415,6 +412,8 @@ public class ChapterService : IChapterService
                     .ThenInclude(t => t.PayrollRecords)
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.PageAnnotations)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageVersions)
             .Include(c => c.TantouReviewedBy)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Khong tim thay chapter voi ID {chapterId}.");
@@ -448,8 +447,14 @@ public class ChapterService : IChapterService
         else
         {
             var markedPages = chapter.MangaPages
-                .Where(page => page.PageAnnotations.Any(annotation =>
-                    annotation.CreatedById == tantouId && annotation.Status == "open"))
+                .Where(page =>
+                {
+                    var currentVersionId = GetCurrentVersionId(page);
+                    return page.PageAnnotations.Any(annotation =>
+                        annotation.CreatedById == tantouId &&
+                        annotation.Status == "open" &&
+                        annotation.PageVersionId == currentVersionId);
+                })
                 .OrderBy(page => page.PageNumber)
                 .ToList();
 
@@ -462,8 +467,12 @@ public class ChapterService : IChapterService
             foreach (var page in markedPages)
             {
                 page.Status = "revision";
+                var currentVersionId = GetCurrentVersionId(page);
                 var pageReasons = page.PageAnnotations
-                    .Where(annotation => annotation.CreatedById == tantouId && annotation.Status == "open")
+                    .Where(annotation =>
+                        annotation.CreatedById == tantouId &&
+                        annotation.Status == "open" &&
+                        annotation.PageVersionId == currentVersionId)
                     .OrderBy(annotation => annotation.CreatedAt)
                     .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
                     .Where(reason => !string.IsNullOrWhiteSpace(reason))
@@ -518,8 +527,12 @@ public class ChapterService : IChapterService
 
             var pageDetails = markedPages.Select(page =>
             {
+                var currentVersionId = GetCurrentVersionId(page);
                 var reasons = page.PageAnnotations
-                    .Where(annotation => annotation.CreatedById == tantouId && annotation.Status == "open")
+                    .Where(annotation =>
+                        annotation.CreatedById == tantouId &&
+                        annotation.Status == "open" &&
+                        annotation.PageVersionId == currentVersionId)
                     .OrderBy(annotation => annotation.CreatedAt)
                     .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
                     .Where(reason => !string.IsNullOrWhiteSpace(reason));
@@ -602,6 +615,10 @@ public class ChapterService : IChapterService
             .Include(c => c.MangaPages)
                 .ThenInclude(p => p.PageVersions)
                     .ThenInclude(v => v.UploadedBy)
+            .Include(c => c.MangaPages)
+                .ThenInclude(p => p.PageVersions)
+                    .ThenInclude(v => v.PageAnnotations)
+                        .ThenInclude(a => a.CreatedBy)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
 
@@ -641,7 +658,11 @@ public class ChapterService : IChapterService
                                 UploadedByName = v.UploadedBy?.FullName ?? "Unknown",
                                 CreatedAt = v.CreatedAt,
                                 Note = v.Note,
-                                IsCurrent = v.FileUrl == p.CurrentImageUrl
+                                IsCurrent = v.FileUrl == p.CurrentImageUrl,
+                                Annotations = v.PageAnnotations
+                                    .OrderBy(a => a.CreatedAt)
+                                    .Select(MapAnnotationToDto)
+                                    .ToList()
                             })
                             .ToList()
                     };
@@ -700,6 +721,33 @@ public class ChapterService : IChapterService
             ApprovedPageCount = c.MangaPages?.Count(p => p.Status == "approved") ?? 0,
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
+        };
+    }
+
+    private static Guid? GetCurrentVersionId(MangaPage page)
+    {
+        return page.PageVersions
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefault(v => v.FileUrl == page.CurrentImageUrl)?.PageVersionId;
+    }
+
+    private static AnnotationDto MapAnnotationToDto(PageAnnotation annotation)
+    {
+        return new AnnotationDto
+        {
+            AnnotationId = annotation.AnnotationId,
+            PageId = annotation.PageId,
+            PageVersionId = annotation.PageVersionId,
+            CreatedById = annotation.CreatedById,
+            CreatedByName = annotation.CreatedBy?.FullName ?? "",
+            X = annotation.X,
+            Y = annotation.Y,
+            Width = annotation.Width,
+            Height = annotation.Height,
+            Body = annotation.Body,
+            Status = annotation.Status,
+            CreatedAt = annotation.CreatedAt,
+            ResolvedAt = annotation.ResolvedAt
         };
     }
 }
