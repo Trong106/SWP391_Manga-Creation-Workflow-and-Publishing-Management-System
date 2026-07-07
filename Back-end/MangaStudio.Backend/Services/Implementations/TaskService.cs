@@ -219,7 +219,6 @@ public class TaskService : ITaskService
     {
         var task = await _context.Tasks
             .Include(t => t.Page)
-                .ThenInclude(p => p.PageAnnotations)
             .FirstOrDefaultAsync(t => t.TaskId == taskId)
             ?? throw new KeyNotFoundException($"Công việc với ID {taskId} không tồn tại.");
 
@@ -271,12 +270,6 @@ public class TaskService : ITaskService
             task.Page.CurrentImageUrl = fileUrl;
             task.Page.UploadedAt = DateTime.UtcNow;
             task.Page.UploadedById = assistantId;
-
-            foreach (var annotation in task.Page.PageAnnotations.Where(a => a.Status == "open"))
-            {
-                annotation.Status = "resolved";
-                annotation.ResolvedAt = DateTime.UtcNow;
-            }
         }
 
         // Cập nhật trạng thái
@@ -547,6 +540,8 @@ public class TaskService : ITaskService
                 .ThenInclude(p => p.PageAnnotations)
                     .ThenInclude(annotation => annotation.CreatedBy)
             .Include(t => t.Page)
+                .ThenInclude(p => p.PageVersions)
+            .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId);
@@ -557,6 +552,9 @@ public class TaskService : ITaskService
         }
 
         var tantouId = task.Page.Chapter?.Series?.TantouId;
+        var currentVersionId = task.Page.PageVersions
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefault(v => v.FileUrl == task.Page.CurrentImageUrl)?.PageVersionId;
 
         return new TaskResourceDto
         {
@@ -569,6 +567,7 @@ public class TaskService : ITaskService
             ReviewAnnotations = task.Page.PageAnnotations
                 .Where(annotation =>
                     annotation.Status == "open" &&
+                    annotation.PageVersionId == currentVersionId &&
                     tantouId.HasValue &&
                     annotation.CreatedById == tantouId.Value)
                 .OrderBy(annotation => annotation.CreatedAt)

@@ -23,6 +23,17 @@ type PageVersion = {
   createdAt: string
   note?: string | null
   isCurrent: boolean
+  annotations?: VersionAnnotation[]
+}
+
+type VersionAnnotation = {
+  annotationId: string
+  x: number
+  y: number
+  width?: number | null
+  height?: number | null
+  body: string
+  status: string
 }
 
 type ChapterVersionPage = {
@@ -62,6 +73,67 @@ function fullUrl(path?: string | null) {
 function formatDate(value?: string | null) {
   if (!value) return ""
   return new Date(value).toLocaleString()
+}
+
+function VersionImage({
+  version,
+  alt,
+  showAnnotations = false,
+}: {
+  version?: PageVersion
+  alt: string
+  showAnnotations?: boolean
+}) {
+  const annotations = showAnnotations ? version?.annotations || [] : []
+
+  return (
+    <div className="mx-auto w-full max-w-[980px]">
+      <div className="relative">
+        <img src={fullUrl(version?.fileUrl)} alt={alt} className="h-auto w-full object-contain" />
+        {annotations.map((annotation, index) => {
+          const isBox = Boolean(annotation.width && annotation.height)
+          return (
+            <div
+              key={annotation.annotationId}
+              title={annotation.body}
+              className={
+                isBox
+                  ? "pointer-events-none absolute border-2 border-amber-400 bg-amber-300/15 shadow-[0_0_0_9999px_rgba(0,0,0,0.12)]"
+                  : "pointer-events-none absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-black bg-amber-400 text-xs font-bold text-black shadow-lg"
+              }
+              style={{
+                left: `${annotation.x}%`,
+                top: `${annotation.y}%`,
+                width: isBox ? `${annotation.width}%` : undefined,
+                height: isBox ? `${annotation.height}%` : undefined,
+              }}
+            >
+              {isBox ? (
+                <span className="absolute -left-2 -top-7 rounded bg-amber-400 px-2 py-0.5 text-xs font-bold text-black shadow">
+                  {index + 1}
+                </span>
+              ) : (
+                index + 1
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {annotations.length > 0 && (
+        <div className="mt-3 space-y-2 rounded border border-amber-400/40 bg-black/70 p-3 text-xs text-zinc-100">
+          <div className="font-semibold text-amber-300">Revision notes saved on this version</div>
+          {annotations.map((annotation, index) => (
+            <div key={`${annotation.annotationId}-note`} className="flex gap-2 leading-relaxed">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-black">
+                {index + 1}
+              </span>
+              <span className="break-words">{annotation.body}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function VersionCompareDialog({ open, onOpenChange, mode, pageId, chapterId, title, token }: Props) {
@@ -283,7 +355,7 @@ export function VersionCompareDialog({ open, onOpenChange, mode, pageId, chapter
                   <span className="text-xs text-zinc-500">{selectedVersion?.uploadedByName}</span>
                 </div>
                 <div ref={leftRef} onScroll={() => syncScroll("left")} className="h-[calc(100vh-211px)] overflow-auto bg-[#050607] p-4">
-                  <img src={fullUrl(selectedVersion?.fileUrl)} alt="Selected version" className="mx-auto h-auto w-full max-w-[980px] object-contain" />
+                  <VersionImage version={selectedVersion} alt="Selected version" showAnnotations />
                 </div>
               </div>
               <div className="min-h-0 bg-zinc-950">
@@ -292,7 +364,7 @@ export function VersionCompareDialog({ open, onOpenChange, mode, pageId, chapter
                   <span className="text-xs text-zinc-500">{currentVersion?.uploadedByName}</span>
                 </div>
                 <div ref={rightRef} onScroll={() => syncScroll("right")} className="h-[calc(100vh-211px)] overflow-auto bg-[#050607] p-4">
-                  <img src={fullUrl(currentVersion?.fileUrl)} alt="Latest version" className="mx-auto h-auto w-full max-w-[980px] object-contain" />
+                  <VersionImage version={currentVersion} alt="Latest version" />
                 </div>
               </div>
             </div>

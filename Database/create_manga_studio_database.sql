@@ -242,6 +242,7 @@ CREATE TABLE dbo.PageAnnotations
 (
     AnnotationId    UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_PageAnnotations PRIMARY KEY DEFAULT NEWID(),
     PageId          UNIQUEIDENTIFIER NOT NULL,
+    PageVersionId   UNIQUEIDENTIFIER NULL,
     CreatedById     UNIQUEIDENTIFIER NOT NULL,
     X               DECIMAL(9,2) NOT NULL,
     Y               DECIMAL(9,2) NOT NULL,
@@ -253,6 +254,7 @@ CREATE TABLE dbo.PageAnnotations
     ResolvedAt      DATETIME2(0) NULL,
     CONSTRAINT CK_PageAnnotations_Status CHECK (Status IN ('open','resolved')),
     CONSTRAINT FK_PageAnnotations_Page FOREIGN KEY (PageId) REFERENCES dbo.MangaPages(PageId),
+    CONSTRAINT FK_PageAnnotations_PageVersion FOREIGN KEY (PageVersionId) REFERENCES dbo.PageVersions(PageVersionId),
     CONSTRAINT FK_PageAnnotations_CreatedBy FOREIGN KEY (CreatedById) REFERENCES dbo.Users(UserId)
 );
 
@@ -345,4 +347,3 @@ CREATE INDEX IX_PayrollRecords_AssistantId_Status ON dbo.PayrollRecords(Assistan
 CREATE INDEX IX_ReaderVotes_Week_Rank ON dbo.ReaderVotes(YearNumber, WeekNumber, RankNumber);
 CREATE INDEX IX_AuditLogs_Entity ON dbo.AuditLogs(EntityType, EntityId, CreatedAt DESC);
 GO
-

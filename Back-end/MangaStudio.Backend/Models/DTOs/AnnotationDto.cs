@@ -8,6 +8,7 @@ public class AnnotationDto
 {
     public Guid AnnotationId { get; set; }
     public Guid PageId { get; set; }
+    public Guid? PageVersionId { get; set; }
     public Guid CreatedById { get; set; }
     public string CreatedByName { get; set; } = null!;
     public decimal X { get; set; }
