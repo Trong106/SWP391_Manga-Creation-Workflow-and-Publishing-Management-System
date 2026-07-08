@@ -28,22 +28,10 @@ const themeOptions = [
     swatches: ["#ffffff", "#111827", "#d85c9f"],
   },
   {
-    name: "nocturne",
-    label: "Nocturne",
-    description: "Deep studio focus",
-    swatches: ["#0d1118", "#2dd4bf", "#c084fc"],
-  },
-  {
     name: "sakura",
     label: "Sakura",
     description: "Soft daylight calm",
     swatches: ["#f8f3ee", "#e879a6", "#2f6f73"],
-  },
-  {
-    name: "aurora",
-    label: "Aurora",
-    description: "Clean editorial energy",
-    swatches: ["#071514", "#2ee8bd", "#f5c86a"],
   },
 ]
 

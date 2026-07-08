@@ -556,11 +556,11 @@ export default function AssistantTasksPage() {
 
   const getStatusBadgeClass = (statusStr: string) => {
     const s = statusStr.toLowerCase()
-    if (s === "in_progress") return "bg-purple-950/40 text-purple-400 border border-purple-800/30"
-    if (s === "submitted") return "bg-cyan-950/40 text-cyan-400 border border-cyan-800/30"
-    if (s === "approved") return "bg-emerald-950/40 text-emerald-400 border border-emerald-800/30"
-    if (s === "revision") return "bg-red-950/40 text-red-400 border border-red-800/30"
-    return "bg-zinc-900 text-zinc-400 border border-zinc-800"
+    if (s === "in_progress") return "bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800/30"
+    if (s === "submitted") return "bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800/30"
+    if (s === "approved") return "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/30"
+    if (s === "revision") return "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/30"
+    return "bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800"
   }
 
   return (
@@ -931,29 +931,14 @@ export default function AssistantTasksPage() {
                         )}
 
                         {s === "in_progress" && (
-                          <>
+                          <Link href={`/submit?taskId=${task.taskId}`} passHref>
                             <Button
-                              variant="outline"
-                              onClick={() => handleAskMangaka(task)}
-                              disabled={askingTaskId === task.taskId}
-                              className="border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 font-semibold text-[10px] h-7 px-2 rounded-lg transition-all"
+                              id={`open-files-btn-${task.taskId}`}
+                              className="bg-primary hover:bg-primary-container text-background font-bold text-[10px] h-7 px-2 rounded-lg shadow-sm transition-all cursor-pointer"
                             >
-                              {askingTaskId === task.taskId ? (
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <MessageCircle className="w-3 h-3 mr-1" />
-                              )}
-                              Ask
+                              Open
                             </Button>
-                            <Link href={`/submit?taskId=${task.taskId}`} passHref>
-                              <Button
-                                id={`open-files-btn-${task.taskId}`}
-                                className="bg-primary hover:bg-primary-container text-background font-bold text-[10px] h-7 px-2 rounded-lg shadow-sm transition-all cursor-pointer"
-                              >
-                                Open
-                              </Button>
-                            </Link>
-                          </>
+                          </Link>
                         )}
 
                         {(s === "submitted" || s === "approved") && (

@@ -98,11 +98,11 @@ const statusLabels: Record<string, string> = {
 }
 
 const statusStyles: Record<string, string> = {
-  pending: "border-zinc-700 bg-zinc-900/70 text-zinc-300",
-  assigned: "border-blue-800/40 bg-blue-950/30 text-blue-300",
-  in_progress: "border-purple-800/40 bg-purple-950/30 text-purple-300",
-  submitted: "border-cyan-800/40 bg-cyan-950/30 text-cyan-300",
-  revision: "border-red-800/40 bg-red-950/30 text-red-300",
+  pending: "border-zinc-300 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300",
+  assigned: "border-blue-200 dark:border-blue-900/30 bg-blue-100/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300",
+  in_progress: "border-purple-200 dark:border-purple-900/30 bg-purple-100/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300",
+  submitted: "border-cyan-200 dark:border-cyan-900/30 bg-cyan-100/50 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-300",
+  revision: "border-red-200 dark:border-red-900/30 bg-red-100/50 dark:bg-red-950/20 text-red-700 dark:text-red-300",
 }
 
 function getColumnIdFromTaskType(type: string): string {
@@ -145,6 +145,7 @@ export function WorkflowBoard() {
   const [columns, setColumns] = useState<Column[]>(DEFAULT_COLUMNS.map(col => ({ ...col, tasks: [] })))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<"table" | "board">("table")
 
   // Dialog & form fields state
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -430,6 +431,34 @@ export function WorkflowBoard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* View Mode Toggle Buttons */}
+          <div className="flex items-center gap-1 border border-zinc-800 bg-zinc-950 p-1 rounded-lg mr-2 h-9 text-xs">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setViewMode("table")}
+              className={`h-7 px-2.5 text-xs ${
+                viewMode === "table"
+                  ? "bg-[#00dfc0] text-black font-semibold hover:bg-[#00dfc0]"
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-900"
+              }`}
+            >
+              Table
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setViewMode("board")}
+              className={`h-7 px-2.5 text-xs ${
+                viewMode === "board"
+                  ? "bg-[#00dfc0] text-black font-semibold hover:bg-[#00dfc0]"
+                  : "text-zinc-400 hover:text-white hover:bg-zinc-900"
+              }`}
+            >
+              Kanban
+            </Button>
+          </div>
+
           <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
             {activeTaskCount} active
           </Badge>
@@ -453,6 +482,103 @@ export function WorkflowBoard() {
             <p className="text-xs">New, submitted, revision, and in-progress tasks will appear here.</p>
           </CardContent>
         </Card>
+      ) : viewMode === "table" ? (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-zinc-900 bg-zinc-950/50 text-[11px] text-zinc-500 uppercase font-extrabold tracking-wider">
+                  <th className="py-4 px-6">Task Title</th>
+                  <th className="py-4 px-6 w-48">Manga / Chapter</th>
+                  <th className="py-4 px-6 w-32">Stage</th>
+                  <th className="py-4 px-6 w-24 text-center">Priority</th>
+                  <th className="py-4 px-6 w-32">Status</th>
+                  <th className="py-4 px-6 w-48">Progress</th>
+                  <th className="py-4 px-6 w-40">Assignee</th>
+                  <th className="py-4 px-6 w-28">Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900/60 text-zinc-300">
+                {columns.flatMap((col) =>
+                  col.tasks.map((task) => {
+                    const status = task.status.toLowerCase()
+                    return (
+                      <tr
+                        key={task.id}
+                        className="group hover:bg-zinc-900/40 transition-colors duration-250 text-sm"
+                      >
+                        {/* Title */}
+                        <td className="py-4 px-6 font-semibold text-zinc-200">
+                          {task.title}
+                        </td>
+
+                        {/* Manga / Chapter */}
+                        <td className="py-4 px-6 text-zinc-400">
+                          {task.chapter}
+                        </td>
+
+                        {/* Stage */}
+                        <td className="py-4 px-6">
+                          <span className="flex items-center gap-1.5 font-semibold text-zinc-300">
+                            <span className={`w-2 h-2 rounded-full ${col.color}`} />
+                            {col.title}
+                          </span>
+                        </td>
+
+                        {/* Priority */}
+                        <td className="py-4 px-6 text-center">
+                          <Badge className={`${priorityColors[task.priority]} capitalize`}>
+                            {task.priority}
+                          </Badge>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-4 px-6">
+                          <Badge variant="outline" className={`text-[11px] font-medium ${statusStyles[status] || "border-zinc-700 bg-zinc-900/70 text-zinc-300"}`}>
+                            {statusLabels[status] || task.status}
+                          </Badge>
+                        </td>
+
+                        {/* Progress */}
+                        <td className="py-4 px-6">
+                          {task.progress !== undefined ? (
+                            <div className="flex items-center gap-3 w-36">
+                              <span className="font-semibold text-zinc-200 text-xs w-8">{task.progress}%</span>
+                              <Progress value={task.progress} className="h-1.5 flex-1 bg-zinc-950" />
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+
+                        {/* Assignee */}
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="w-6 h-6 border border-zinc-800">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/notionists/svg?seed=${task.assignee.avatar}`} />
+                              <AvatarFallback>{task.assignee.name[0]}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-zinc-300 font-medium text-xs truncate max-w-[100px]">
+                              {task.assignee.name}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Due Date */}
+                        <td className="py-4 px-6 text-zinc-400">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            {task.dueDate}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
           {activeColumns.map((column) => (

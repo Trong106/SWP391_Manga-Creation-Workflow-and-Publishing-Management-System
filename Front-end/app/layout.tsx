@@ -44,7 +44,7 @@ export default function RootLayout({
           attribute="class"
           defaultTheme="dark"
           enableSystem={false}
-          themes={["dark", "white", "nocturne", "sakura", "aurora"]}
+          themes={["dark", "white", "sakura"]}
         >
           <AuthProvider>
             <LayoutWrapper>
