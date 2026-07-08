@@ -162,20 +162,20 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case "completed": return "bg-green-500/20 text-green-400 border-green-500/30"
-      case "hiatus": return "bg-orange-500/20 text-orange-400 border-orange-500/30"
-      case "cancelled": return "bg-red-500/20 text-red-400 border-red-500/30"
-      default: return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+      case "completed": return "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/30"
+      case "hiatus": return "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/30"
+      case "cancelled": return "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30"
+      default: return "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30"
     }
   }
 
   const getChapterStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case "editorial_ready": return "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-      case "tantou_review": return "bg-amber-500/20 text-amber-300 border-amber-500/30"
-      case "revision_requested": return "bg-orange-500/20 text-orange-300 border-orange-500/30"
-      case "published": return "bg-green-500/20 text-green-300 border-green-500/30"
-      default: return "bg-zinc-700/50 text-zinc-300 border-zinc-700"
+      case "editorial_ready": return "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30"
+      case "tantou_review": return "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30"
+      case "revision_requested": return "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/30"
+      case "published": return "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-500/30"
+      default: return "bg-zinc-100 dark:bg-zinc-700/50 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700"
     }
   }
 
@@ -366,14 +366,14 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
             </div>
 
             {series.riskLevel && series.riskLevel !== "normal" && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 dark:border-red-900/30 dark:bg-red-950/20">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
                   <div>
-                    <h3 className="text-sm font-semibold text-amber-100">
+                    <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">
                       {series.riskLevel === "cancelled" ? "Cancelled by Editorial Board" : "Editorial risk notice"}
                     </h3>
-                    <p className="mt-1 text-sm text-amber-100/80">
+                    <p className="mt-1 text-sm text-red-700 dark:text-red-300 font-medium">
                       {series.cancellationReason || series.riskReason || "This series needs attention before the next editorial review."}
                     </p>
                   </div>
