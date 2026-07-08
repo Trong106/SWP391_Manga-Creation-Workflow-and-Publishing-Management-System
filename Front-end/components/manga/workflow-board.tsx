@@ -98,11 +98,11 @@ const statusLabels: Record<string, string> = {
 }
 
 const statusStyles: Record<string, string> = {
-  pending: "border-zinc-700 bg-zinc-900/70 text-zinc-300",
-  assigned: "border-blue-800/40 bg-blue-950/30 text-blue-300",
-  in_progress: "border-purple-800/40 bg-purple-950/30 text-purple-300",
-  submitted: "border-cyan-800/40 bg-cyan-950/30 text-cyan-300",
-  revision: "border-red-800/40 bg-red-950/30 text-red-300",
+  pending: "border-zinc-300 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900/70 text-zinc-700 dark:text-zinc-300",
+  assigned: "border-blue-200 dark:border-blue-900/30 bg-blue-100/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300",
+  in_progress: "border-purple-200 dark:border-purple-900/30 bg-purple-100/50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300",
+  submitted: "border-cyan-200 dark:border-cyan-900/30 bg-cyan-100/50 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-300",
+  revision: "border-red-200 dark:border-red-900/30 bg-red-100/50 dark:bg-red-950/20 text-red-700 dark:text-red-300",
 }
 
 function getColumnIdFromTaskType(type: string): string {
@@ -422,7 +422,7 @@ export function WorkflowBoard() {
     <div className="mt-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
             Production Pipeline
           </h2>
@@ -478,7 +478,7 @@ export function WorkflowBoard() {
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center min-h-[160px] gap-2 text-center text-muted-foreground">
             <Activity className="h-8 w-8 text-primary/70" />
-            <p className="text-sm font-medium text-zinc-300">No active production tasks</p>
+            <p className="text-sm font-medium text-foreground">No active production tasks</p>
             <p className="text-xs">New, submitted, revision, and in-progress tasks will appear here.</p>
           </CardContent>
         </Card>
@@ -587,14 +587,14 @@ export function WorkflowBoard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${column.color}`} />
-                    <CardTitle className="text-base text-white font-semibold">{column.title}</CardTitle>
-                    <Badge variant="secondary" className="ml-2 bg-secondary text-zinc-300 border-none">{column.tasks.length}</Badge>
+                    <CardTitle className="text-base text-foreground font-semibold">{column.title}</CardTitle>
+                    <Badge variant="secondary" className="ml-2 bg-secondary text-secondary-foreground border-none">{column.tasks.length}</Badge>
                   </div>
                   {isMangaka && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-2 text-xs text-muted-foreground hover:bg-zinc-800/70 hover:text-white"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                       onClick={() => openNewTaskDialog(mapColumnIdToType(column.id))}
                     >
                       <Plus className="mr-1 h-3.5 w-3.5 text-primary" />
@@ -618,13 +618,13 @@ export function WorkflowBoard() {
                             {statusLabels[status] || task.status}
                           </Badge>
                         </div>
-                        <h4 className="font-semibold text-sm text-zinc-100 mb-1 leading-snug">{task.title}</h4>
+                        <h4 className="font-semibold text-sm text-foreground mb-1 leading-snug">{task.title}</h4>
                         <p className="text-xs text-muted-foreground mb-2">{task.chapter}</p>
                         {task.progress !== undefined && (
                           <div className="mb-2.5">
                             <div className="flex items-center justify-between text-[11px] mb-1">
                               <span className="text-muted-foreground">Progress</span>
-                              <span className="text-zinc-200 font-medium">{task.progress}%</span>
+                              <span className="text-foreground font-medium">{task.progress}%</span>
                             </div>
                             <Progress value={task.progress} className="h-1.5" />
                           </div>

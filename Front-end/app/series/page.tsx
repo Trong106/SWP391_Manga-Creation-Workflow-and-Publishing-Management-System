@@ -355,13 +355,13 @@ export default function SeriesPage() {
       </div>
 
       {riskSeries.length > 0 && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+        <div className="rounded-lg border border-warning/35 bg-warning/10 p-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
             <div className="space-y-2">
               <div>
-                <h2 className="text-sm font-semibold text-amber-100">Series requiring attention</h2>
-                <p className="text-xs text-amber-100/75">
+                <h2 className="text-sm font-semibold text-foreground">Series requiring attention</h2>
+                <p className="text-xs text-muted-foreground">
                   Editorial decisions are based on ranking and reader votes. Review these series before the next release cycle.
                 </p>
               </div>
@@ -371,10 +371,10 @@ export default function SeriesPage() {
                     key={s.id}
                     type="button"
                     onClick={() => handleCardClick(s.id)}
-                    className="rounded-md border border-amber-400/30 bg-black/20 px-3 py-2 text-left text-xs text-amber-50 hover:bg-amber-500/15"
+                    className="rounded-md border border-warning/35 bg-card/80 px-3 py-2 text-left text-xs text-foreground shadow-sm transition-colors hover:border-warning/60 hover:bg-warning/15"
                   >
                     <span className="block font-semibold">{s.title}</span>
-                    <span className="block text-amber-100/70">
+                    <span className="block text-muted-foreground">
                       {s.cancellationReason || s.riskReason || "Needs editorial attention"}
                     </span>
                   </button>

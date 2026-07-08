@@ -6,6 +6,7 @@ import { Search, Bell, Menu, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { ThemeSwitcher } from "@/components/theme-switcher"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import {
@@ -151,7 +152,7 @@ export function TopHeader() {
 
   return (
     <>
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/80 backdrop-blur-sm border-b border-border">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/72 backdrop-blur-xl border-b border-border/70 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
       <div className="flex items-center gap-4">
         <Sheet>
           <SheetTrigger asChild>
@@ -174,6 +175,8 @@ export function TopHeader() {
       </div>
 
       <div className="flex items-center gap-2">
+        <ThemeSwitcher />
+
         <Button variant="ghost" size="icon" className="md:hidden">
           <Search className="w-5 h-5" />
         </Button>

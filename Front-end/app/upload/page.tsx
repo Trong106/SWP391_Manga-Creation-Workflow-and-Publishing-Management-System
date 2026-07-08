@@ -357,8 +357,11 @@ export default function UploadPage() {
     setIsDragging(true)
   }
 
-  const handleDragLeave = () => {
-    setIsDragging(false)
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only reset if leaving the dropzone itself, not a child element
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false)
+    }
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -489,17 +492,23 @@ export default function UploadPage() {
             </CardHeader>
             <CardContent>
               <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
                   isDragging
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
+                    ? "dropzone-active"
+                    : "border-border hover:border-primary/50 hover:bg-primary/3"
                 }`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
               >
-                <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-lg font-medium mb-2">Drop your pages here</p>
+                <Upload className={`w-12 h-12 mx-auto mb-4 transition-all duration-300 ${
+                  isDragging ? "text-primary scale-125 animate-bounce" : "text-muted-foreground"
+                }`} />
+                <p className={`text-lg font-medium mb-2 transition-colors duration-200 ${
+                  isDragging ? "text-primary" : ""
+                }`}>
+                  {isDragging ? "Release to upload!" : "Drop your pages here"}
+                </p>
                 <p className="text-sm text-muted-foreground mb-4">
                   Support: PNG, JPG, PSD, CLIP (max 50MB per file)
                 </p>
@@ -516,7 +525,11 @@ export default function UploadPage() {
                     }
                   }}
                 />
-                <Button variant="outline" onClick={() => document.getElementById("file-browse")?.click()}>
+                <Button
+                  variant="outline"
+                  className="btn-magnetic"
+                  onClick={() => document.getElementById("file-browse")?.click()}
+                >
                   <Folder className="w-4 h-4 mr-2" />
                   Browse Files
                 </Button>
@@ -538,10 +551,11 @@ export default function UploadPage() {
                   </div>
                 ) : (
                   <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
-                    {uploadHistory.map((item) => (
+                    {uploadHistory.map((item, idx) => (
                     <div
                       key={item.pageVersionId}
-                      className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg"
+                      className="file-item-enter flex items-center gap-4 p-3 bg-secondary/50 rounded-lg border border-border/40 hover:border-primary/20 transition-all duration-200 group"
+                      style={{ animationDelay: `${idx * 50}ms` }}
                     >
                       <div className="flex flex-col items-center gap-1 text-muted-foreground">
                         <GripVertical className="h-4 w-4" />

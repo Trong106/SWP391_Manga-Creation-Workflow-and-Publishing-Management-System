@@ -262,7 +262,7 @@ export function AppSidebar() {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300",
+          "fixed left-0 top-0 z-40 h-screen bg-sidebar/88 backdrop-blur-xl border-r border-sidebar-border/80 shadow-[18px_0_60px_rgba(0,0,0,0.16)] transition-all duration-300",
           collapsed ? "w-16" : "w-64"
         )}
       >
@@ -318,13 +318,13 @@ export function AppSidebar() {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                      "group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
                       isActive
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-border/70"
+                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground hover:translate-x-0.5"
                     )}
                   >
-                    <NavIcon className={cn("w-5 h-5 shrink-0", isActive && "text-primary")} />
+                    <NavIcon className={cn("w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105", isActive && "text-primary")} />
                     {!collapsed && (
                       <>
                         <span className="flex-1 text-sm font-medium">{item.title}</span>

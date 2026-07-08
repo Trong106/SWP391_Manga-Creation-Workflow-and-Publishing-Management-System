@@ -433,7 +433,7 @@ export default function TaskAssignPage() {
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
       {/* Page Header */}
-      <div className="mb-2">
+      <div className="mb-2 stagger-item">
         <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3" id="task-assign-heading">
           <Layers className="w-8 h-8 text-primary" />
           Task Assignment
@@ -448,7 +448,7 @@ export default function TaskAssignPage() {
         <div className="lg:col-span-2 space-y-5">
 
           {/* Series / Chapter / Page Selector */}
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border stagger-item">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-primary" />
@@ -535,7 +535,7 @@ export default function TaskAssignPage() {
           </Card>
 
           {/* Task List for Selected Page */}
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border stagger-item">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -561,7 +561,7 @@ export default function TaskAssignPage() {
                   <DialogTrigger asChild>
                     <Button
                       size="sm"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold btn-magnetic"
                       id="add-task-btn"
                     >
                       <Plus className="w-4 h-4 mr-1.5" />
@@ -588,7 +588,7 @@ export default function TaskAssignPage() {
                               type="button"
                               variant="outline"
                               onClick={() => applyTaskTemplate(template)}
-                              className="h-auto justify-start border-zinc-800 bg-zinc-900/60 px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                              className="h-auto justify-start border-zinc-800 bg-zinc-900/60 px-3 py-2 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white btn-magnetic"
                             >
                               {template.label}
                             </Button>
@@ -699,7 +699,7 @@ export default function TaskAssignPage() {
                       </Button>
                       <Button
                         type="button"
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold btn-magnetic"
                         onClick={handleCreateTask}
                         disabled={submitting}
                         id="confirm-create-task-btn"
@@ -808,7 +808,7 @@ export default function TaskAssignPage() {
           </Card>
 
           {/* Fixed Price Table */}
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border stagger-item">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-primary" />
@@ -835,7 +835,7 @@ export default function TaskAssignPage() {
         <div className="space-y-5">
 
           {/* Assignment Summary */}
-          <Card className="bg-card border-border overflow-hidden">
+          <Card className="bg-card border-border overflow-hidden stagger-item">
             <div className="h-1 bg-primary w-full" />
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Assignment Summary</CardTitle>
@@ -858,7 +858,7 @@ export default function TaskAssignPage() {
               </div>
               {/* Visual progress bar */}
               {pageTasks.length > 0 && (
-                <div className="mt-1">
+                <div className="mt-1 progress-animated">
                   <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
                     <span>Assignment Progress</span>
                     <span>{Math.round((assignedTasks.length / pageTasks.length) * 100)}%</span>
@@ -875,7 +875,7 @@ export default function TaskAssignPage() {
           </Card>
 
           {/* Available Assistants */}
-          <Card className="bg-card border-border">
+          <Card className="bg-card border-border stagger-item">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Users className="w-4 h-4 text-primary" />
