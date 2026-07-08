@@ -98,7 +98,7 @@ export function ProjectList() {
                   )}
 
                   {/* Time Badge top-left */}
-                  <div className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded bg-[#000000]/70 text-white font-medium border border-zinc-800/40">
+                  <div className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded bg-[#000000]/70 text-white font-medium border border-zinc-800/40 keep-white">
                     {updatedTime}
                   </div>
 

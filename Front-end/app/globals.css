@@ -282,19 +282,23 @@
   animation: page-rise 400ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
 
-.white :where(.text-white, .text-zinc-50, .text-zinc-100, .text-zinc-200, .text-zinc-300),
-.sakura :where(.text-white, .text-zinc-50, .text-zinc-100, .text-zinc-200, .text-zinc-300) {
+.white :where(.text-white, .text-zinc-50, .text-zinc-100, .text-zinc-200, .text-zinc-300):not(.keep-white):not(.keep-white *),
+.sakura :where(.text-white, .text-zinc-50, .text-zinc-100, .text-zinc-200, .text-zinc-300):not(.keep-white):not(.keep-white *) {
   color: var(--foreground) !important;
 }
 
-.white :where(.text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700),
-.sakura :where(.text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700) {
+.white :where(.text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700):not(.keep-white):not(.keep-white *),
+.sakura :where(.text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700):not(.keep-white):not(.keep-white *) {
   color: var(--muted-foreground) !important;
 }
 
-.white :where(.text-amber-50, .text-amber-100, .text-amber-200, .text-amber-300, .text-yellow-300, .text-yellow-400),
-.sakura :where(.text-amber-50, .text-amber-100, .text-amber-200, .text-amber-300, .text-yellow-300, .text-yellow-400) {
+.white :where(.text-amber-50, .text-amber-100, .text-amber-200, .text-amber-300, .text-yellow-300, .text-yellow-400):not(.keep-white):not(.keep-white *),
+.sakura :where(.text-amber-50, .text-amber-100, .text-amber-200, .text-amber-300, .text-yellow-300, .text-yellow-400):not(.keep-white):not(.keep-white *) {
   color: var(--foreground) !important;
+}
+
+.keep-white {
+  color-scheme: dark;
 }
 
 .white :where(.border-zinc-700, .border-zinc-800, .border-zinc-850, .border-zinc-900),
@@ -313,13 +317,22 @@
 .white [class*="bg-[#18181b]"],
 .white [class*="bg-[#121416]"],
 .white [class*="bg-[#0c0e10]"],
+.white [class*="bg-[#202023]"],
+.white [class*="bg-[#1e1e21]"],
 .sakura [class*="bg-zinc-900/"],
 .sakura [class*="bg-zinc-950/"],
 .sakura [class*="bg-[#1e2022]"],
 .sakura [class*="bg-[#18181b]"],
 .sakura [class*="bg-[#121416]"],
-.sakura [class*="bg-[#0c0e10]"] {
+.sakura [class*="bg-[#0c0e10]"],
+.sakura [class*="bg-[#202023]"],
+.sakura [class*="bg-[#1e1e21]"] {
   background-color: color-mix(in oklab, var(--card) 88%, transparent) !important;
+}
+
+.white :where(.border-zinc-800, .border-zinc-700, .border-zinc-850),
+.sakura :where(.border-zinc-800, .border-zinc-700, .border-zinc-850) {
+  border-color: var(--border) !important;
 }
 
 /* Custom scrollbar */
@@ -475,9 +488,7 @@
   }
 }
 
-[role="dialog"][data-state="open"] {
-  animation: dialog-spring 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
-}
+
 
 /* ── 8. Drag & Drop Task Assign ─────────────────────────────────────────────── */
 @keyframes task-assign-flash {
