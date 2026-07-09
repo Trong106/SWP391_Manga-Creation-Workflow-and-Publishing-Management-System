@@ -87,6 +87,11 @@ const statusColors = {
   danger: "text-destructive",
 }
 
+const stripHtml = (html: string | null) => {
+  if (!html) return ""
+  return html.replace(/<[^>]*>/g, "")
+}
+
 export function EditorialDashboard() {
   return (
     <div className="space-y-6">
@@ -127,7 +132,7 @@ export function EditorialDashboard() {
                   ))}
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mb-4">{proposal.synopsis}</p>
+              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{stripHtml(proposal.synopsis)}</p>
               <div className="flex items-center justify-end gap-2">
                 <Button variant="outline" size="sm">
                   <Eye className="w-4 h-4 mr-2" />

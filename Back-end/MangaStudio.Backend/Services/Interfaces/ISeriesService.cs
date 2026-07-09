@@ -19,6 +19,8 @@ public interface ISeriesService
 
     Task<SeriesDto> ApplyEditorialDecision(Guid seriesId, Guid editorialId, EditorialSeriesDecisionDto dto);
 
+    Task<SeriesDto> ResubmitSeries(Guid seriesId, Guid mangakaId);
+
     /// <summary>Lấy danh sách chương của bộ truyện.</summary>
     Task<List<ChapterDto>> GetChaptersBySeries(Guid seriesId, Guid requestUserId);
 

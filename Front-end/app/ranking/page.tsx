@@ -149,6 +149,12 @@ export default function SeriesRankingPage() {
     return new Intl.NumberFormat().format(num)
   }
 
+  const getFullCoverUrl = (coverPath?: string | null) => {
+    if (!coverPath) return ""
+    if (coverPath.startsWith("http")) return coverPath
+    return `${API_BASE_URL}${coverPath}`
+  }
+
   const formatVotesMetric = (num?: number | null) => {
     if (num === undefined || num === null) return "0"
     if (num >= 1000000) {
@@ -392,7 +398,7 @@ export default function SeriesRankingPage() {
                           <div className="flex items-center gap-4">
                             {item.coverImageUrl ? (
                               <img 
-                                src={`${API_BASE_URL}${item.coverImageUrl}`} 
+                                src={getFullCoverUrl(item.coverImageUrl)} 
                                 alt={item.title} 
                                 className="w-12 h-16 rounded object-cover border border-[#1A1D1F]"
                               />

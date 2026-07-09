@@ -152,6 +152,33 @@ public class SeriesController : ControllerBase
     }
 
     /// <summary>
+    /// POST /api/series/{id}/resubmit - Mangaka gui lai de xuat sau khi bi tu choi.
+    /// </summary>
+    [HttpPost("{id:guid}/resubmit")]
+    [Authorize(Roles = "mangaka")]
+    public async Task<IActionResult> ResubmitSeries(Guid id)
+    {
+        try
+        {
+            var mangakaId = GetCurrentUserId();
+            var result = await _seriesService.ResubmitSeries(id, mangakaId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// GET /api/series/{id}/chapters — Lấy danh sách chương của bộ truyện.
     /// </summary>
     [HttpGet("{id:guid}/chapters")]

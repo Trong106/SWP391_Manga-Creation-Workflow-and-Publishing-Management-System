@@ -42,6 +42,7 @@ public class MangaStudioDataController : ControllerBase
                 .ThenInclude(c => c.MangaPages)
                     .ThenInclude(p => p.Tasks)
                         .ThenInclude(t => t.Assignee)
+            .Include(s => s.SeriesProposals)
             .ToListAsync();
 
         var result = series.Select(s => new
@@ -66,6 +67,8 @@ public class MangaStudioDataController : ControllerBase
             revenue  = s.ReaderCount * 0.15,
             coverImageUrl = s.CoverImageUrl,
             synopsis = s.Synopsis,
+            proposalStatus = s.SeriesProposals.OrderByDescending(p => p.SubmittedAt).Select(p => p.Status).FirstOrDefault(),
+            proposalFeedback = s.SeriesProposals.OrderByDescending(p => p.SubmittedAt).Select(p => p.ReviewNote).FirstOrDefault(),
             team = s.Chapters
                 .SelectMany(c => c.MangaPages)
                 .SelectMany(p => p.Tasks)
