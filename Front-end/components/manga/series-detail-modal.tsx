@@ -31,6 +31,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [submittingChapterId, setSubmittingChapterId] = useState<string | null>(null)
+  const [resubmitting, setResubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -143,10 +144,42 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     }
   }
 
+  const handleResubmit = async () => {
+    if (!seriesId || !token) return
+    setResubmitting(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/series/${seriesId}/resubmit`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+      if (res.ok) {
+        alert("Series proposal resubmitted successfully!")
+        await fetchDetails()
+        if (onUpdate) onUpdate()
+      } else {
+        const errData = await res.json().catch(() => null)
+        alert(errData?.message || "Failed to resubmit proposal")
+      }
+    } catch (err) {
+      console.error(err)
+      alert("Server connection error")
+    } finally {
+      setResubmitting(false)
+    }
+  }
+
   const formatStatus = (status: string) => {
-    switch (status?.toLowerCase()) {
+    const s = status?.toLowerCase()
+    if (s === "proposal") {
+      const ps = series?.proposalStatus?.toLowerCase()
+      if (ps === "rejected") return "Rejected"
+      if (ps === "submitted") return "Pending Review"
+      return "Proposal"
+    }
+    switch (s) {
       case "active":
-      case "proposal":
       case "ongoing":
         return "In Progress"
       case "completed":
@@ -161,7 +194,14 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
   }
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
+    const s = status?.toLowerCase()
+    if (s === "proposal") {
+      const ps = series?.proposalStatus?.toLowerCase()
+      if (ps === "rejected") return "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30"
+      if (ps === "submitted") return "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-750 dark:text-yellow-400 border-yellow-250 dark:border-yellow-500/30"
+      return "bg-zinc-100 dark:bg-zinc-700/50 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700"
+    }
+    switch (s) {
       case "completed": return "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/30"
       case "hiatus": return "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/30"
       case "cancelled": return "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30"
@@ -347,23 +387,80 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
 
                 {/* Khối nút hành động */}
                 <div className="flex flex-wrap gap-3 pt-2">
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-500 text-white font-medium"
-                    onClick={() => {
-                      if (chapters.length > 0) {
-                        router.push(`/chapters/${chapters[chapters.length - 1].chapterId}`)
-                        onClose()
-                      } else {
-                        alert("No chapters uploaded yet.")
-                      }
-                    }}
-                  >
-                    Read First Chapter
-                  </Button>
+                  {series.status?.toLowerCase() !== "proposal" && (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-500 text-white font-medium"
+                      onClick={() => {
+                        if (chapters.length > 0) {
+                          router.push(`/chapters/${chapters[chapters.length - 1].chapterId}`)
+                          onClose()
+                        } else {
+                          alert("No chapters uploaded yet.")
+                        }
+                      }}
+                    >
+                      Read First Chapter
+                    </Button>
+                  )}
+
+                  {role === "mangaka" && series.status?.toLowerCase() === "proposal" && series.proposalStatus?.toLowerCase() === "rejected" && (
+                    <Button
+                      size="sm"
+                      disabled={resubmitting}
+                      onClick={handleResubmit}
+                      className="bg-[#00dfc0] text-black hover:bg-[#00dfc0]/90 font-bold"
+                    >
+                      {resubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Resubmitting...
+                        </>
+                      ) : (
+                        "Resubmit Proposal"
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
+
+            {series.status?.toLowerCase() === "proposal" && series.proposalStatus?.toLowerCase() === "rejected" && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-red-200">
+                      Proposal Rejected by Editorial Board
+                    </h3>
+                    <p className="mt-1 text-sm text-red-350 font-medium">
+                      Feedback: &ldquo;{series.proposalFeedback || "No feedback provided."}&rdquo;
+                    </p>
+                    {role === "mangaka" && (
+                      <p className="mt-2 text-xs text-zinc-400">
+                        Please update your series details if needed and click "Resubmit Proposal" above to send it back for review.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {series.status?.toLowerCase() === "proposal" && series.proposalStatus?.toLowerCase() === "submitted" && (
+              <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <Info className="mt-0.5 h-5 w-5 shrink-0 text-yellow-450" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-yellow-200">
+                      Proposal Submitted
+                    </h3>
+                    <p className="mt-1 text-sm text-yellow-350">
+                      This series is currently awaiting approval from the Editorial Board. You will be notified once a decision is made.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {series.riskLevel && series.riskLevel !== "normal" && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 dark:border-red-900/30 dark:bg-red-950/20">

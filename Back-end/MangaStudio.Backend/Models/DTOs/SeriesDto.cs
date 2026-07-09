@@ -23,6 +23,8 @@ public class SeriesDto
     public string? CancellationReason { get; set; }
     public List<string> Genres { get; set; } = new();
     public int ChapterCount { get; set; }
+    public string? ProposalStatus { get; set; }
+    public string? ProposalFeedback { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

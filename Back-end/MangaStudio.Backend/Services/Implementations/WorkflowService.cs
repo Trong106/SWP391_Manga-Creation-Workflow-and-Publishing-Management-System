@@ -98,6 +98,24 @@ public class WorkflowService : IWorkflowService
 
         proposal.Series.UpdatedAt = DateTime.UtcNow;
 
+        // Create notification for Mangaka
+        var notificationTitle = decision == "approved" ? "Series Proposal Approved!" : "Series Proposal Rejected";
+        var notificationMessage = decision == "approved"
+            ? $"Your series proposal '{proposal.Series.Title}' has been approved. Tantou Editor has been assigned."
+            : $"Your series proposal '{proposal.Series.Title}' was rejected. Reason: {dto.Feedback}";
+
+        _context.Notifications.Add(new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = proposal.SubmittedById,
+            Type = "system",
+            Title = notificationTitle,
+            Message = notificationMessage,
+            IsRead = false,
+            Link = "/series",
+            CreatedAt = DateTime.UtcNow
+        });
+
         await _context.SaveChangesAsync();
 
         // Load reviewer details

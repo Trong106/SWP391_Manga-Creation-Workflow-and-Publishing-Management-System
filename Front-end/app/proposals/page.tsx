@@ -81,6 +81,11 @@ const statusLabels: Record<string, string> = {
   draft: "Draft",
 }
 
+const stripHtml = (html: string | null) => {
+  if (!html) return ""
+  return html.replace(/<[^>]*>/g, "")
+}
+
 export default function ProposalsPage() {
   const { token, logout } = useAuth()
   const [proposals, setProposals] = useState<Proposal[]>([])
@@ -469,8 +474,8 @@ export default function ProposalsPage() {
                     </div>
 
                     {/* Synopsis */}
-                    <p className="text-sm text-zinc-300 leading-relaxed font-normal">
-                      {proposal.seriesSynopsis || "No synopsis available for this series."}
+                    <p className="text-sm text-zinc-300 leading-relaxed font-normal line-clamp-3">
+                      {stripHtml(proposal.seriesSynopsis) || "No synopsis available for this series."}
                     </p>
 
                     {/* Database Specs Row */}

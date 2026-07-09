@@ -28,15 +28,17 @@ public class SeriesService : ISeriesService
     /// </summary>
     public async Task<List<SeriesDto>> GetSeriesByMangaka(Guid mangakaId)
     {
-        return await _context.Series
+        var list = await _context.Series
             .Where(s => s.MangakaId == mangakaId)
             .Include(s => s.SeriesGenres)
             .Include(s => s.Chapters)
             .Include(s => s.Mangaka)
             .Include(s => s.Tantou)
+            .Include(s => s.SeriesProposals)
             .OrderByDescending(s => s.UpdatedAt)
-            .Select(s => MapToDto(s))
             .ToListAsync();
+
+        return list.Select(s => MapToDto(s)).ToList();
     }
 
     /// <summary>
@@ -49,6 +51,7 @@ public class SeriesService : ISeriesService
             .Include(s => s.Chapters)
             .Include(s => s.Mangaka)
             .Include(s => s.Tantou)
+            .Include(s => s.SeriesProposals)
             .FirstOrDefaultAsync(s => s.SeriesId == seriesId)
             ?? throw new KeyNotFoundException($"Series với ID {seriesId} không tồn tại.");
 
@@ -271,6 +274,7 @@ public class SeriesService : ISeriesService
 
     private static SeriesDto MapToDto(Series series)
     {
+        var latestProposal = series.SeriesProposals?.OrderByDescending(p => p.SubmittedAt).FirstOrDefault();
         return new SeriesDto
         {
             SeriesId = series.SeriesId,
@@ -291,6 +295,8 @@ public class SeriesService : ISeriesService
             CancellationReason = series.CancellationReason,
             Genres = series.SeriesGenres.Select(g => g.Genre).ToList(),
             ChapterCount = series.Chapters?.Count ?? 0,
+            ProposalStatus = latestProposal?.Status,
+            ProposalFeedback = latestProposal?.ReviewNote,
             CreatedAt = series.CreatedAt,
             UpdatedAt = series.UpdatedAt
         };
@@ -437,5 +443,55 @@ public class SeriesService : ISeriesService
         if (growth > 5) return "Trending";
         if (growth < -5) return "Declining";
         return "Stable";
+    }
+
+    public async Task<SeriesDto> ResubmitSeries(Guid seriesId, Guid mangakaId)
+    {
+        var series = await _context.Series
+            .Include(s => s.Mangaka)
+            .Include(s => s.SeriesProposals)
+            .FirstOrDefaultAsync(s => s.SeriesId == seriesId && s.MangakaId == mangakaId)
+            ?? throw new KeyNotFoundException("Không tìm thấy bộ truyện hoặc bạn không có quyền.");
+
+        if (series.Status != "proposal")
+        {
+            throw new InvalidOperationException("Chỉ có thể gửi lại đề xuất khi bộ truyện đang ở trạng thái Proposal.");
+        }
+
+        // Tạo đề xuất mới
+        var proposal = new SeriesProposal
+        {
+            ProposalId = Guid.NewGuid(),
+            SeriesId = series.SeriesId,
+            SubmittedById = mangakaId,
+            Status = "submitted",
+            SubmittedAt = DateTime.UtcNow
+        };
+        _context.SeriesProposals.Add(proposal);
+
+        series.UpdatedAt = DateTime.UtcNow;
+
+        // Gửi thông báo đến ban biên tập
+        var editorialUser = await _context.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);
+
+        if (editorialUser != null)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = editorialUser.UserId,
+                Type = "system",
+                Title = "Series Proposal Resubmitted",
+                Message = $"The series proposal '{series.Title}' has been resubmitted by {series.Mangaka.FullName}.",
+                IsRead = false,
+                Link = "/proposals",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        return MapToDto(series);
     }
 }
