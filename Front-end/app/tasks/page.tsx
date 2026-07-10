@@ -80,17 +80,6 @@ interface Task {
   updatedAt: string
 }
 
-interface ReviewAnnotation {
-  annotationId: string
-  x: number
-  y: number
-  width?: number | null
-  height?: number | null
-  body: string
-  reviewerName: string
-  createdAt: string
-}
-
 interface TaskResource {
   taskId: string
   pageId: string
@@ -98,7 +87,6 @@ interface TaskResource {
   imageUrl: string
   seriesTitle?: string | null
   chapterNumber: number
-  reviewAnnotations: ReviewAnnotation[]
 }
 
 export default function AssistantTasksPage() {
@@ -115,7 +103,6 @@ export default function AssistantTasksPage() {
   const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   const [loadingResource, setLoadingResource] = useState(false)
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null)
-  const [downloadingReviewTaskId, setDownloadingReviewTaskId] = useState<string | null>(null)
   const [askingTaskId, setAskingTaskId] = useState<string | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null)
 
@@ -173,136 +160,6 @@ export default function AssistantTasksPage() {
       const fullUrl = imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`
       window.open(fullUrl, "_blank")
       toast.info("Opening image in a new tab. Save it using Ctrl+S.")
-    }
-  }
-
-  const wrapCanvasText = (context: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-    const words = text.trim().split(/\s+/)
-    const lines: string[] = []
-    let line = ""
-
-    words.forEach((word) => {
-      const candidate = line ? `${line} ${word}` : word
-      if (line && context.measureText(candidate).width > maxWidth) {
-        lines.push(line)
-        line = word
-      } else {
-        line = candidate
-      }
-    })
-    if (line) lines.push(line)
-    return lines.length > 0 ? lines : [""]
-  }
-
-  const downloadReviewedPage = async (resource: TaskResource) => {
-    if (!resource.imageUrl) throw new Error("This page does not have an image to download.")
-    if (!resource.reviewAnnotations?.length) throw new Error("No open editor marks were found for this page.")
-
-    const fullUrl = resource.imageUrl.startsWith("http") ? resource.imageUrl : `${API_BASE_URL}${resource.imageUrl}`
-    const imageResponse = await fetch(fullUrl)
-    if (!imageResponse.ok) throw new Error("Could not load the reviewed page image.")
-    const bitmap = await createImageBitmap(await imageResponse.blob())
-    const canvas = document.createElement("canvas")
-    const context = canvas.getContext("2d")
-    if (!context) throw new Error("Your browser could not prepare the review copy.")
-
-    const fontSize = Math.max(16, Math.round(bitmap.width * 0.018))
-    const padding = Math.max(24, Math.round(bitmap.width * 0.03))
-    const lineHeight = Math.round(fontSize * 1.55)
-    context.font = `${fontSize}px Arial, sans-serif`
-
-    const annotationLines = resource.reviewAnnotations.map((annotation, index) => ({
-      annotation,
-      lines: wrapCanvasText(context, `${index + 1}. ${annotation.body}`, bitmap.width - padding * 2),
-    }))
-    const footerHeight = padding * 2 + lineHeight * 2 + annotationLines.reduce(
-      (height, item) => height + item.lines.length * lineHeight + Math.round(lineHeight * 0.55),
-      0
-    )
-
-    canvas.width = bitmap.width
-    canvas.height = bitmap.height + footerHeight
-    context.drawImage(bitmap, 0, 0)
-
-    resource.reviewAnnotations.forEach((annotation, index) => {
-      const x = (annotation.x / 100) * bitmap.width
-      const y = (annotation.y / 100) * bitmap.height
-      const width = ((annotation.width || 0) / 100) * bitmap.width
-      const height = ((annotation.height || 0) / 100) * bitmap.height
-      const markerSize = Math.max(24, Math.round(bitmap.width * 0.032))
-
-      context.save()
-      context.strokeStyle = "#f59e0b"
-      context.fillStyle = "rgba(245, 158, 11, 0.18)"
-      context.lineWidth = Math.max(4, Math.round(bitmap.width * 0.004))
-      if (width > 0 && height > 0) {
-        context.fillRect(x, y, width, height)
-        context.strokeRect(x, y, width, height)
-      }
-      context.beginPath()
-      context.arc(x, y, markerSize / 2, 0, Math.PI * 2)
-      context.fillStyle = "#f59e0b"
-      context.fill()
-      context.fillStyle = "#111827"
-      context.font = `bold ${Math.round(markerSize * 0.55)}px Arial, sans-serif`
-      context.textAlign = "center"
-      context.textBaseline = "middle"
-      context.fillText(String(index + 1), x, y)
-      context.restore()
-    })
-
-    context.fillStyle = "#111318"
-    context.fillRect(0, bitmap.height, canvas.width, footerHeight)
-    context.textAlign = "left"
-    context.textBaseline = "alphabetic"
-    context.fillStyle = "#f8fafc"
-    context.font = `bold ${Math.round(fontSize * 1.25)}px Arial, sans-serif`
-    let cursorY = bitmap.height + padding + lineHeight
-    context.fillText(`Editor Review - Page ${resource.pageNumber}`, padding, cursorY)
-    cursorY += lineHeight * 1.35
-
-    context.font = `${fontSize}px Arial, sans-serif`
-    annotationLines.forEach(({ annotation, lines }) => {
-      context.fillStyle = "#fbbf24"
-      lines.forEach((line) => {
-        context.fillText(line, padding, cursorY)
-        cursorY += lineHeight
-      })
-      context.fillStyle = "#9ca3af"
-      context.font = `${Math.max(13, Math.round(fontSize * 0.8))}px Arial, sans-serif`
-      context.fillText(`Reviewer: ${annotation.reviewerName}`, padding, cursorY)
-      cursorY += Math.round(lineHeight * 0.8)
-      context.font = `${fontSize}px Arial, sans-serif`
-    })
-
-    const output = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not export the review copy.")), "image/png")
-    })
-    const objectUrl = URL.createObjectURL(output)
-    const anchor = document.createElement("a")
-    const title = (resource.seriesTitle || "manga").replace(/[^a-z0-9]+/gi, "_")
-    anchor.href = objectUrl
-    anchor.download = `${title}_Ch${resource.chapterNumber}_Page${resource.pageNumber}_Editor_Review.png`
-    document.body.appendChild(anchor)
-    anchor.click()
-    anchor.remove()
-    URL.revokeObjectURL(objectUrl)
-  }
-
-  const handleDownloadReviewCopy = async (task: Task) => {
-    if (!token) return
-    try {
-      setDownloadingReviewTaskId(task.taskId)
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${task.taskId}/resources`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!response.ok) throw new Error("Failed to load the editor review marks.")
-      await downloadReviewedPage(await response.json())
-      toast.success("The marked review copy and editor reasons were downloaded.")
-    } catch (error: any) {
-      toast.error(error.message || "Could not download the review copy.")
-    } finally {
-      setDownloadingReviewTaskId(null)
     }
   }
 
@@ -869,23 +726,6 @@ export default function AssistantTasksPage() {
                       <span className="text-primary font-bold font-mono text-xs min-w-[65px] text-right">
                         ${task.paymentAmount.toFixed(2)}
                       </span>
-
-                      {s === "revision" && (
-                        <Button
-                          variant="outline"
-                          onClick={() => handleDownloadReviewCopy(task)}
-                          disabled={downloadingReviewTaskId === task.taskId}
-                          title="Download the page with editor marks and reasons"
-                          className="h-7 border-red-800/70 bg-red-950/30 px-2 text-[10px] font-bold text-red-300 hover:bg-red-950/60 hover:text-red-200"
-                        >
-                          {downloadingReviewTaskId === task.taskId ? (
-                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                          ) : (
-                            <Download className="mr-1 h-3 w-3" />
-                          )}
-                          Review Copy
-                        </Button>
-                      )}
 
                       {/* Date (visible when not hovered) */}
                       <span className="text-xs text-zinc-500 font-semibold w-[90px] text-right group-hover/row:hidden">

@@ -114,7 +114,6 @@ public class TaskService : ITaskService
             Type = "system",
             Title = "Task clarification requested",
             Message = message,
-            Link = $"/review?pageId={task.PageId}&taskId={task.TaskId}",
             IsRead = false,
             CreatedAt = DateTime.UtcNow
         };
@@ -537,11 +536,6 @@ public class TaskService : ITaskService
     {
         var task = await _context.Tasks
             .Include(t => t.Page)
-                .ThenInclude(p => p.PageAnnotations)
-                    .ThenInclude(annotation => annotation.CreatedBy)
-            .Include(t => t.Page)
-                .ThenInclude(p => p.PageVersions)
-            .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId);
@@ -551,11 +545,6 @@ public class TaskService : ITaskService
             return null;
         }
 
-        var tantouId = task.Page.Chapter?.Series?.TantouId;
-        var currentVersionId = task.Page.PageVersions
-            .OrderByDescending(v => v.VersionNumber)
-            .FirstOrDefault(v => v.FileUrl == task.Page.CurrentImageUrl)?.PageVersionId;
-
         return new TaskResourceDto
         {
             TaskId = task.TaskId,
@@ -563,26 +552,7 @@ public class TaskService : ITaskService
             PageNumber = task.Page.PageNumber,
             ImageUrl = task.Page.CurrentImageUrl ?? "",
             SeriesTitle = task.Page.Chapter?.Series?.Title,
-            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0,
-            ReviewAnnotations = task.Page.PageAnnotations
-                .Where(annotation =>
-                    annotation.Status == "open" &&
-                    annotation.PageVersionId == currentVersionId &&
-                    tantouId.HasValue &&
-                    annotation.CreatedById == tantouId.Value)
-                .OrderBy(annotation => annotation.CreatedAt)
-                .Select(annotation => new TaskResourceAnnotationDto
-                {
-                    AnnotationId = annotation.AnnotationId,
-                    X = annotation.X,
-                    Y = annotation.Y,
-                    Width = annotation.Width,
-                    Height = annotation.Height,
-                    Body = annotation.Body,
-                    ReviewerName = annotation.CreatedBy.FullName,
-                    CreatedAt = annotation.CreatedAt
-                })
-                .ToList()
+            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0
         };
     }
 
