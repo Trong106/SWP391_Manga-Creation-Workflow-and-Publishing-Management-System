@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import {
@@ -15,6 +16,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Upload, BookOpen, Heart, Eye, Bookmark, Calendar, User, Info, FileText, AlertTriangle } from "lucide-react"
 import { RichSynopsis } from "./rich-synopsis"
+import { toast } from "sonner"
+
+const SynopsisRichTextEditor = dynamic(
+  () => import("./synopsis-rich-text-editor"),
+  { ssr: false },
+)
 
 interface SeriesDetailModalProps {
   seriesId: string | null
@@ -33,6 +40,8 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
   const [submittingChapterId, setSubmittingChapterId] = useState<string | null>(null)
   const [resubmitting, setResubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [editedSynopsis, setEditedSynopsis] = useState("")
+  const [savingSynopsis, setSavingSynopsis] = useState(false)
 
   useEffect(() => {
     if (isOpen && seriesId && token) {
@@ -57,6 +66,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
       if (!seriesRes.ok) throw new Error("Failed to fetch series details")
       const seriesData = await seriesRes.json()
       setSeries(seriesData)
+      setEditedSynopsis(seriesData.synopsis || "")
 
       // Fetch chapters list
       const chaptersRes = await fetch(`${API_BASE_URL}/api/series/${seriesId}/chapters`, {
@@ -102,10 +112,11 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
         throw new Error("Cover image upload failed")
       }
 
+      toast.success("Cover image uploaded successfully!")
       await fetchDetails()
       if (onUpdate) onUpdate()
     } catch (err: any) {
-      alert(err.message || "Error uploading cover image")
+      toast.error(err.message || "Error uploading cover image")
     } finally {
       setUploading(false)
     }
@@ -136,11 +147,44 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
 
       await fetchDetails()
       if (onUpdate) onUpdate()
-      alert("Chapter submitted to Tantou Editor for content review.")
+      toast.success("Chapter submitted to Tantou Editor for content review.")
     } catch (err: any) {
-      alert(err.message || "Server connection error")
+      toast.error(err.message || "Server connection error")
     } finally {
       setSubmittingChapterId(null)
+    }
+  }
+
+  const handleSaveSynopsis = async (silent = false) => {
+    if (!seriesId || !token) return false
+    if (!silent) setSavingSynopsis(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/series/${seriesId}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ synopsis: editedSynopsis })
+      })
+
+      if (res.ok) {
+        const updated = await res.json()
+        setSeries(updated)
+        setEditedSynopsis(updated.synopsis || "")
+        if (!silent) toast.success("Synopsis saved successfully!")
+        return true
+      } else {
+        const errData = await res.json().catch(() => null)
+        toast.error(errData?.message || "Failed to save synopsis")
+        return false
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error("Server connection error when saving synopsis")
+      return false
+    } finally {
+      if (!silent) setSavingSynopsis(false)
     }
   }
 
@@ -148,6 +192,15 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     if (!seriesId || !token) return
     setResubmitting(true)
     try {
+      // If the synopsis was edited, save it first
+      if (editedSynopsis !== series?.synopsis) {
+        const saveSuccess = await handleSaveSynopsis(true)
+        if (!saveSuccess) {
+          setResubmitting(false)
+          return
+        }
+      }
+
       const res = await fetch(`${API_BASE_URL}/api/series/${seriesId}/resubmit`, {
         method: "POST",
         headers: {
@@ -155,16 +208,16 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
         }
       })
       if (res.ok) {
-        alert("Series proposal resubmitted successfully!")
+        toast.success("Series proposal resubmitted successfully!")
         await fetchDetails()
         if (onUpdate) onUpdate()
       } else {
         const errData = await res.json().catch(() => null)
-        alert(errData?.message || "Failed to resubmit proposal")
+        toast.error(errData?.message || "Failed to resubmit proposal")
       }
     } catch (err) {
       console.error(err)
-      alert("Server connection error")
+      toast.error("Server connection error")
     } finally {
       setResubmitting(false)
     }
@@ -396,7 +449,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                           router.push(`/chapters/${chapters[chapters.length - 1].chapterId}`)
                           onClose()
                         } else {
-                          alert("No chapters uploaded yet.")
+                          toast.info("No chapters uploaded yet.")
                         }
                       }}
                     >
@@ -479,15 +532,47 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
             )}
 
             {/* Giới thiệu truyện */}
-            <div className="space-y-2 border-t border-zinc-800 pt-4">
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                <Info className="w-4 h-4 text-primary" />
-                Synopsis
-              </h3>
-              <RichSynopsis
-                html={series.synopsis}
-                className="text-sm text-zinc-300 leading-relaxed bg-[#202023] p-4 rounded-lg border border-zinc-800/40 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-4"
-              />
+            <div className="space-y-3 border-t border-zinc-800 pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <Info className="w-4 h-4 text-primary" />
+                  Synopsis
+                </h3>
+                {role === "mangaka" &&
+                  series.status?.toLowerCase() === "proposal" &&
+                  series.proposalStatus?.toLowerCase() === "rejected" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={savingSynopsis || editedSynopsis === series.synopsis}
+                      onClick={() => handleSaveSynopsis()}
+                      className="h-8 border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-xs"
+                    >
+                      {savingSynopsis ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Synopsis"
+                      )}
+                    </Button>
+                  )}
+              </div>
+
+              {role === "mangaka" &&
+              series.status?.toLowerCase() === "proposal" &&
+              series.proposalStatus?.toLowerCase() === "rejected" ? (
+                <SynopsisRichTextEditor
+                  value={editedSynopsis}
+                  onChange={setEditedSynopsis}
+                />
+              ) : (
+                <RichSynopsis
+                  html={series.synopsis}
+                  className="text-sm text-zinc-300 leading-relaxed bg-[#202023] p-4 rounded-lg border border-zinc-800/40 [&_p]:mb-3 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-4"
+                />
+              )}
             </div>
 
             {/* Danh sách chương */}
