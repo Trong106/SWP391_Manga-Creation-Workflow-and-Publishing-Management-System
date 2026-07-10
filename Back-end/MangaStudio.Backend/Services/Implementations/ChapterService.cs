@@ -488,62 +488,6 @@ public class ChapterService : IChapterService
             foreach (var page in markedPages)
             {
                 page.Status = "revision";
-                var currentVersionId = GetCurrentVersionId(page);
-                var pageReasons = page.PageAnnotations
-                    .Where(annotation =>
-                        annotation.CreatedById == tantouId &&
-                        annotation.Status == "open" &&
-                        annotation.PageVersionId == currentVersionId)
-                    .OrderBy(annotation => annotation.CreatedAt)
-                    .Select(annotation => annotation.Body.Trim().TrimEnd('.', '!', '?'))
-                    .Where(reason => !string.IsNullOrWhiteSpace(reason))
-                    .ToList();
-                var reasonText = pageReasons.Count > 0
-                    ? string.Join("; ", pageReasons)
-                    : "The page did not pass Tantou content review";
-
-                var revisableTasks = page.Tasks
-                    .Where(task => task.AssigneeId.HasValue
-                        && (task.Status == "approved"
-                            || task.Status == "submitted"
-                            || task.Status == "in_progress"))
-                    .ToList();
-
-                foreach (var task in revisableTasks)
-                {
-                    if (!task.AssigneeId.HasValue)
-                    {
-                        continue;
-                    }
-
-                    var assistantId = task.AssigneeId.Value;
-                    task.Status = "revision";
-                    task.UpdatedAt = DateTime.UtcNow;
-
-                    foreach (var submission in task.TaskSubmissions
-                        .Where(submission => submission.Status == "accepted" || submission.Status == "submitted"))
-                    {
-                        submission.Status = "revision_requested";
-                    }
-
-                    foreach (var payroll in task.PayrollRecords
-                        .Where(payroll => payroll.Status != "paid"))
-                    {
-                        payroll.Status = "failed";
-                    }
-
-                    _context.Notifications.Add(new Notification
-                    {
-                        NotificationId = Guid.NewGuid(),
-                        UserId = assistantId,
-                        Type = "review_needed",
-                        Title = $"Revision required: {chapter.Series.Title} - Chapter {chapter.ChapterNumber}",
-                        Message = $"Your accepted task \"{task.Title}\" on page {page.PageNumber} was returned by Tantou review. Reason: {reasonText}. Please revise and resubmit using the same task.",
-                        IsRead = false,
-                        Link = $"/tasks?taskId={task.TaskId}",
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
             }
 
             var pageDetails = markedPages.Select(page =>
