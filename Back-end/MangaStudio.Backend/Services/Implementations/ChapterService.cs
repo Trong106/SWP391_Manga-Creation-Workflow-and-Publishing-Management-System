@@ -387,16 +387,16 @@ public class ChapterService : IChapterService
             .Include(c => c.TantouReviewedBy)
             .Include(c => c.MangaPages)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
-            ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
+            ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
 
         if (chapter.Series.MangakaId != mangakaId)
         {
-            throw new UnauthorizedAccessException("Bạn không có quyền nộp chương này.");
+            throw new UnauthorizedAccessException("You do not have permission to submit this chapter.");
         }
 
         if (chapter.MangaPages.Count == 0)
         {
-            throw new InvalidOperationException("Chương truyện phải có ít nhất 1 trang trước khi nộp xuất bản.");
+            throw new InvalidOperationException("The chapter must have at least 1 page before submitting.");
         }
 
         if (chapter.Series.TantouId == null ||
@@ -404,12 +404,12 @@ public class ChapterService : IChapterService
             !chapter.Series.Tantou.IsActive ||
             !string.Equals(chapter.Series.Tantou.Role.Code, "tantou", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Series phai duoc gan Tantou Editor hop le truoc khi submit chapter.");
+            throw new InvalidOperationException("This series must have a valid assigned Tantou Editor before a chapter can be submitted.");
         }
 
         if (chapter.MangaPages.Any(p => p.Status != "approved"))
         {
-            throw new InvalidOperationException("Tất cả trang truyện phải được duyệt trước khi nộp xuất bản.");
+            throw new InvalidOperationException("All pages must be approved before submitting the chapter.");
         }
 
         chapter.Status = "tantou_review";
