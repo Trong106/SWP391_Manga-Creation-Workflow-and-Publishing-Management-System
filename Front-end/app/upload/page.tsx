@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
+import { readJsonOrThrow } from "@/lib/http"
 import { toast } from "sonner"
 import {
   Select,
@@ -84,7 +85,7 @@ export default function UploadPage() {
           "Authorization": `Bearer ${token}`
         }
       })
-        .then((res) => res.json())
+        .then((res) => readJsonOrThrow(res, "Failed to fetch series"))
         .then((data) => {
           const mapped = data.map((item: any) => ({
             id: item.id,
@@ -109,8 +110,7 @@ export default function UploadPage() {
         }
       })
         .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch chapters")
-          return res.json()
+          return readJsonOrThrow(res, "Failed to fetch chapters")
         })
         .then((data) => {
           setChapters(data)
@@ -145,8 +145,7 @@ export default function UploadPage() {
       const response = await fetch(`${API_BASE_URL}/api/chapters/${chapterId}/versions`, {
         headers: { "Authorization": `Bearer ${token}` },
       })
-      if (!response.ok) throw new Error("Failed to fetch chapter upload history")
-      const data = await response.json()
+      const data = await readJsonOrThrow(response, "Failed to fetch chapter upload history")
       const history = (data.pages || [])
         .flatMap((page: any) => (page.versions || []).map((version: any) => ({
           pageVersionId: version.pageVersionId,
@@ -179,8 +178,7 @@ export default function UploadPage() {
       const response = await fetch(`${API_BASE_URL}/api/chapters/${chapterId}/pages`, {
         headers: { "Authorization": `Bearer ${token}` },
       })
-      if (!response.ok) throw new Error("Failed to fetch chapter pages")
-      const pages = await response.json()
+      const pages = await readJsonOrThrow(response, "Failed to fetch chapter pages")
       setChapterPages([...pages].sort((a, b) => a.pageNumber - b.pageNumber))
       await loadChapterUploadHistory(chapterId)
     } catch (error) {
@@ -232,7 +230,7 @@ export default function UploadPage() {
         throw new Error(errData.message || "Failed to create the chapter.")
       }
 
-      const createdChapter = await response.json()
+      const createdChapter = await readJsonOrThrow(response, "Failed to create the chapter.")
       toast.success(`Chapter ${createdChapter.chapterNumber} was created successfully.`)
       
       // Refresh list of chapters and auto select the new one
@@ -243,7 +241,7 @@ export default function UploadPage() {
       })
       
       if (updatedRes.ok) {
-        const data = await updatedRes.json()
+        const data = await readJsonOrThrow(updatedRes, "Failed to refresh chapters")
         setChapters(data)
         const found = data.find((c: any) => c.chapterNumber === num)
         if (found) {
@@ -335,7 +333,7 @@ export default function UploadPage() {
         throw new Error(errorData.message || "Upload failed")
       }
 
-      const result = await response.json()
+      const result = await readJsonOrThrow(response, "Upload failed")
       const resultByName = new Map(result.pages.map((page: any) => [page.originalFileName.toLowerCase(), page]))
       setUploadedFiles((current) => current.map((item) => {
         const uploadedPage: any = resultByName.get(item.name.toLowerCase())

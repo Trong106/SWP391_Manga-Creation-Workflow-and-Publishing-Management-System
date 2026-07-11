@@ -25,6 +25,8 @@ public partial class Task
 
     public DateOnly? DueDate { get; set; }
 
+    public DateTime? ApprovedAt { get; set; }
+
     public decimal PaymentAmount { get; set; }
 
     public DateTime CreatedAt { get; set; }

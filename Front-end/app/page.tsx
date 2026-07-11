@@ -389,10 +389,10 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 max-w-full space-y-8 overflow-hidden">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
             Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 animate-gradient">{displayName}</span>
           </h1>
@@ -403,7 +403,7 @@ export default function Dashboard() {
         </div>
 
         {/* Production Pipeline Filter Button */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="flex items-center gap-2 px-4 py-2 border border-zinc-800 rounded-lg text-sm font-semibold text-zinc-300 hover:text-white hover:bg-zinc-900 transition-colors shadow-sm cursor-pointer"
@@ -457,13 +457,13 @@ export default function Dashboard() {
       </div>
 
       {/* hàng "Truyện Top" - Tự động kéo trái mỗi 2s */}
-      <div className="space-y-3">
+      <div className="min-w-0 space-y-3 overflow-hidden">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           🔥 Top Series
         </h2>
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+          className="flex max-w-full gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
         >
           {topSeries.map((project, idx) => {
             const coverUrl = getFullCoverUrl(project.coverImageUrl)

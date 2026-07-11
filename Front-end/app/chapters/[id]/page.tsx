@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
+import { readJsonOrThrow } from "@/lib/http"
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, BookOpen, AlertTriangle, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { VersionCompareDialog } from "@/components/version-compare-dialog"
@@ -55,8 +56,7 @@ export default function ChapterReaderPage() {
           logout()
           return
         }
-        if (!chapterRes.ok) throw new Error("Failed to fetch chapter details.")
-        const chapterData = await chapterRes.json()
+        const chapterData = await readJsonOrThrow(chapterRes, "Failed to fetch chapter details.")
         setChapter(chapterData)
 
         // 2. Fetch pages list
@@ -65,8 +65,7 @@ export default function ChapterReaderPage() {
             "Authorization": `Bearer ${token}`
           }
         })
-        if (!pagesRes.ok) throw new Error("Failed to fetch manga pages.")
-        const pagesData = await pagesRes.json()
+        const pagesData = await readJsonOrThrow(pagesRes, "Failed to fetch manga pages.")
         // Sort pages ascending by page number
         const sortedPages = [...pagesData].sort((a, b) => a.pageNumber - b.pageNumber)
         setPages(sortedPages)
@@ -79,7 +78,7 @@ export default function ChapterReaderPage() {
             }
           })
           if (allChaptersRes.ok) {
-            const chaptersList = await allChaptersRes.json()
+            const chaptersList = await readJsonOrThrow(allChaptersRes, "Failed to fetch chapter list.")
             // Sort ascending by chapterNumber (e.g. Chapter 1, 2, 3...)
             const sortedChapters = [...chaptersList].sort((a, b) => a.chapterNumber - b.chapterNumber)
             setAllChapters(sortedChapters)

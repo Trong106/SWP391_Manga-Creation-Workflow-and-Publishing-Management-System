@@ -335,6 +335,8 @@ public class WorkflowService : IWorkflowService
                 p.AssistantId == assistantId &&
                 p.TaskId.HasValue &&
                 taskIds.Contains(p.TaskId.Value) &&
+                p.Task != null &&
+                p.Task.Status == "approved" &&
                 p.Status != "failed")
             .ToListAsync();
 
@@ -367,7 +369,7 @@ public class WorkflowService : IWorkflowService
                             PageNumber = s.Task.Page?.PageNumber,
                             Status = status,
                             SubmittedAt = s.SubmittedAt,
-                            ApprovedDate = payroll != null ? s.Task.UpdatedAt : null,
+                            ApprovedDate = payroll != null ? s.Task.ApprovedAt ?? s.Task.UpdatedAt : null,
                             Payment = payroll != null
                                 ? payroll.TotalAmount ?? (payroll.BaseAmount - payroll.DeductionAmount)
                                 : 0

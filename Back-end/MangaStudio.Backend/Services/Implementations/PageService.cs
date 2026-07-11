@@ -344,6 +344,7 @@ public class PageService : IPageService
                 if (task.Status != "approved")
                 {
                     task.Status = "approved";
+                    task.ApprovedAt = DateTime.UtcNow;
                     task.UpdatedAt = DateTime.UtcNow;
                 }
             }
@@ -359,6 +360,7 @@ public class PageService : IPageService
                 if (task.Status == "submitted" || task.Status == "in_progress")
                 {
                     task.Status = "revision";
+                    task.ApprovedAt = null;
                     task.UpdatedAt = DateTime.UtcNow;
                 }
             }

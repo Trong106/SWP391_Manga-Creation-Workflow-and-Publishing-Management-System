@@ -179,6 +179,9 @@ export default function TaskAssignPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [reTaskDialogOpen, setReTaskDialogOpen] = useState(false)
+  const [reTaskTarget, setReTaskTarget] = useState<TaskRecord | null>(null)
+  const [reTaskDueDate, setReTaskDueDate] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
   const [form, setForm] = useState<CreateTaskForm>({
     title: "",
@@ -396,6 +399,46 @@ export default function TaskAssignPage() {
     }
   }
 
+  const openReTaskDialog = (task: TaskRecord) => {
+    setReTaskTarget(task)
+    setReTaskDueDate(task.dueDate || todayDate)
+    setReTaskDialogOpen(true)
+  }
+
+  const handleReTask = async () => {
+    if (!token || !reTaskTarget) return
+    if (!reTaskDueDate) {
+      toast.error("Please choose a new due date.")
+      return
+    }
+    if (reTaskDueDate < todayDate) {
+      toast.error(`Value must be ${formatInputDateForMessage(todayDate)} or later.`)
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${reTaskTarget.taskId}/re-task`, {
+        method: "POST",
+        headers: { ...authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify({ newDueDate: reTaskDueDate }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || "Failed to re-task.")
+      }
+      toast.success("Task moved back to Todo for the original assistant.")
+      setReTaskDialogOpen(false)
+      setReTaskTarget(null)
+      setReTaskDueDate("")
+      loadPageTasks(selectedPageId)
+    } catch (err: any) {
+      toast.error(err.message || "Failed to re-task.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const applyTaskTemplate = (template: typeof TASK_TEMPLATES[number]) => {
     setForm((current) => ({
       ...current,
@@ -426,6 +469,7 @@ export default function TaskAssignPage() {
   const selectedTaskType = TASK_TYPES.find(t => t.value === form.type)
   const formBasePay = selectedTaskType?.basePay ?? 0
 
+  const canReTaskPage = selectedPage?.status?.toLowerCase() === "revision"
   const assignedTasks = pageTasks.filter(t => t.assigneeId)
   const unassignedTasks = pageTasks.filter(t => !t.assigneeId)
 
@@ -801,11 +845,66 @@ export default function TaskAssignPage() {
                         <X className="w-3.5 h-3.5" />
                       </Button>
                     )}
+
+                    {canReTaskPage && task.status === "approved" && task.assigneeId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 border-amber-700/40 bg-amber-950/20 px-3 text-xs font-bold text-amber-300 hover:bg-amber-900/30 hover:text-amber-200"
+                        onClick={() => openReTaskDialog(task)}
+                        id={`retask-btn-${task.taskId}`}
+                      >
+                        Re-task
+                      </Button>
+                    )}
                   </div>
                 ))
               )}
             </CardContent>
           </Card>
+
+          <Dialog open={reTaskDialogOpen} onOpenChange={setReTaskDialogOpen}>
+            <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-md">
+              <DialogHeader>
+                <DialogTitle>Re-task Approved Work</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Only the due date can be changed. Assistant, task name, page, payment, and task details stay the same.
+                </DialogDescription>
+              </DialogHeader>
+
+              {reTaskTarget && (
+                <div className="space-y-4 py-2">
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-xs text-zinc-300">
+                    <p className="font-bold text-white">{reTaskTarget.title}</p>
+                    <p className="mt-1">Assistant: {reTaskTarget.assigneeName || "Unassigned"}</p>
+                    <p>Page: {reTaskTarget.pageNumber}</p>
+                    <p>Payment: ${reTaskTarget.paymentAmount.toFixed(2)}</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm text-zinc-300">New Due Date</Label>
+                    <Input
+                      type="date"
+                      min={todayDate}
+                      value={reTaskDueDate}
+                      onChange={(e) => setReTaskDueDate(e.target.value)}
+                      className="bg-zinc-900 border-zinc-700 text-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setReTaskDialogOpen(false)} className="border-zinc-700 text-zinc-300 hover:bg-zinc-900">
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleReTask} disabled={submitting} className="bg-amber-500 text-black hover:bg-amber-400 font-bold">
+                  {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Confirm Re-task
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Fixed Price Table */}
           <Card className="bg-card border-border stagger-item">
