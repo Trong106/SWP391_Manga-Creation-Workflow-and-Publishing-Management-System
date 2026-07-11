@@ -25,6 +25,7 @@ public class TaskDto
     public string? SeriesTitle { get; set; }
     public Guid? SeriesId { get; set; }
     public string? SeriesCoverImageUrl { get; set; }
+    public DateTime? ApprovedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -98,10 +99,18 @@ public class TaskResourceDto
     public string ImageUrl { get; set; } = null!;
     public string? SeriesTitle { get; set; }
     public int ChapterNumber { get; set; }
+    public string? RevisionNote { get; set; }
+    public List<AnnotationDto> RevisionAnnotations { get; set; } = new();
 }
 
 public class AskClarificationDto
 {
     [MaxLength(1000)]
     public string? Message { get; set; }
+}
+
+public class ReTaskDto
+{
+    [Required(ErrorMessage = "New due date is required.")]
+    public DateOnly NewDueDate { get; set; }
 }

@@ -48,13 +48,13 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   // Khi đã đăng nhập, hiển thị giao diện Dashboard hoàn chỉnh kèm Sidebar & TopHeader
   return (
-    <div className="app-background flex min-h-screen">
+    <div className="app-background flex min-h-screen overflow-x-hidden">
       <div className="hidden lg:block">
         <AppSidebar />
       </div>
-      <div className="flex-1 lg:ml-64 transition-all duration-300">
+      <div className="min-w-0 w-full transition-all duration-300 lg:ml-64 lg:w-[calc(100%-16rem)]">
         <TopHeader />
-        <main className="relative z-10 p-6 page-enter">{children}</main>
+        <main className="relative z-10 min-w-0 overflow-x-hidden p-6 page-enter">{children}</main>
       </div>
     </div>
   )

@@ -152,8 +152,8 @@ export function TopHeader() {
 
   return (
     <>
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 bg-background/72 backdrop-blur-xl border-b border-border/70 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between gap-4 overflow-hidden px-6 bg-background/72 backdrop-blur-xl border-b border-border/70 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="flex min-w-0 items-center gap-4">
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="lg:hidden">
@@ -165,16 +165,16 @@ export function TopHeader() {
           </SheetContent>
         </Sheet>
 
-        <div className="relative hidden md:block">
+        <div className="relative hidden min-w-0 md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search projects, tasks, team..."
-            className="pl-9 w-80 bg-secondary border-border"
+            className="w-80 max-w-[min(20rem,40vw)] pl-9 bg-secondary border-border"
           />
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <ThemeSwitcher />
 
         <Button variant="ghost" size="icon" className="md:hidden">

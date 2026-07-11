@@ -230,6 +230,39 @@ public class TaskController : ControllerBase
         }
     }
 
+    [HttpPost("tasks/{id:guid}/re-task")]
+    [Authorize(Roles = "mangaka")]
+    public async Task<IActionResult> ReTask(Guid id, [FromBody] ReTaskDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var mangakaId = GetCurrentUserId();
+            var result = await _taskService.ReTask(id, mangakaId, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     /// <summary>
     /// POST /api/tasks/{id}/submit — Trợ lý nộp bài làm kèm file (upload).
     /// </summary>

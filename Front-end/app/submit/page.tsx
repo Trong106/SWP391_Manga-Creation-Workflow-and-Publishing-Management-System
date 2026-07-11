@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
+import { AspectRatio } from "@/components/ui/aspect-ratio"
 
 interface Task {
   id: string
@@ -52,6 +53,27 @@ interface Task {
   assignerName: string
 }
 
+interface RevisionAnnotation {
+  annotationId: string
+  x: number
+  y: number
+  width?: number | null
+  height?: number | null
+  body: string
+  status: string
+}
+
+interface TaskResource {
+  taskId: string
+  pageId: string
+  pageNumber: number
+  imageUrl: string
+  seriesTitle?: string | null
+  chapterNumber: number
+  revisionNote?: string | null
+  revisionAnnotations?: RevisionAnnotation[]
+}
+
 export default function SubmitWorkPage() {
   const { user, role, token } = useAuth()
   const searchParams = useSearchParams()
@@ -61,6 +83,7 @@ export default function SubmitWorkPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>("")
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   
   // Form states
   const [file, setFile] = useState<File | null>(null)
@@ -151,6 +174,28 @@ export default function SubmitWorkPage() {
   }, [user?.id, token, taskIdParam])
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId)
+
+  useEffect(() => {
+    const fetchTaskResource = async () => {
+      if (!token || !selectedTaskId) {
+        setSelectedTaskResource(null)
+        return
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/tasks/${selectedTaskId}/resources`, {
+          headers: { "Authorization": `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error("Failed to load task resource")
+        setSelectedTaskResource(await res.json())
+      } catch (err) {
+        console.error(err)
+        setSelectedTaskResource(null)
+      }
+    }
+
+    void fetchTaskResource()
+  }, [selectedTaskId, token])
 
   // Handlers for drag & drop file selection
   const handleDragOver = (e: React.DragEvent) => {
@@ -379,6 +424,12 @@ export default function SubmitWorkPage() {
                     P. {selectedTask.pageNumber}
                   </Badge>
                 </div>
+                <div className="w-1.5 h-1.5 rounded-full bg-zinc-800 hidden sm:block"></div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span className="text-zinc-500">Due:</span>
+                  <span className="font-semibold text-amber-200">{selectedTask.dueDate || "TBD"}</span>
+                </div>
               </div>
             </div>
             
@@ -409,6 +460,64 @@ export default function SubmitWorkPage() {
               </Button>
             </div>
           </div>
+
+          {selectedTaskResource && (selectedTaskResource.revisionAnnotations || []).length > 0 && (
+            <Card className="border-amber-700/40 bg-amber-950/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-amber-200">
+                  <AlertCircle className="h-5 w-5" />
+                  Revision Request
+                </CardTitle>
+                <CardDescription className="text-amber-100/80">
+                  Tantou marked this page for correction. Use the note and highlighted region before submitting again.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="relative overflow-hidden rounded-lg border border-amber-700/40 bg-zinc-950">
+                  <AspectRatio ratio={3 / 4} className="relative">
+                    {selectedTaskResource.imageUrl ? (
+                      <img
+                        src={selectedTaskResource.imageUrl.startsWith("http") ? selectedTaskResource.imageUrl : `${API_BASE_URL}${selectedTaskResource.imageUrl}`}
+                        alt="Revision page"
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-zinc-500">No page image available</div>
+                    )}
+                    {selectedTaskResource.revisionAnnotations?.map((annotation) => {
+                      const isBox = annotation.width && annotation.height
+                      return (
+                        <div
+                          key={annotation.annotationId}
+                          className="absolute z-20 border-2 border-amber-400 bg-amber-400/20 shadow-[0_0_18px_rgba(251,191,36,0.45)]"
+                          style={{
+                            left: `${annotation.x}%`,
+                            top: `${annotation.y}%`,
+                            width: isBox ? `${annotation.width}%` : "18px",
+                            height: isBox ? `${annotation.height}%` : "18px",
+                            borderRadius: isBox ? "6px" : "9999px",
+                          }}
+                          title={annotation.body}
+                        />
+                      )
+                    })}
+                  </AspectRatio>
+                </div>
+                <div className="space-y-3 rounded-lg border border-amber-700/30 bg-zinc-950/60 p-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Revision note</p>
+                    <p className="mt-2 text-sm leading-relaxed text-amber-100">
+                      {selectedTaskResource.revisionNote || selectedTaskResource.revisionAnnotations?.[0]?.body}
+                    </p>
+                  </div>
+                  <div className="border-t border-amber-700/20 pt-3 text-xs text-zinc-400">
+                    <p>Page: Chapter {selectedTaskResource.chapterNumber} - Page {selectedTaskResource.pageNumber}</p>
+                    <p>Due date: <span className="font-semibold text-amber-200">{selectedTask.dueDate || "TBD"}</span></p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Main Layout Grid */}
           <div className="grid grid-cols-12 gap-6">

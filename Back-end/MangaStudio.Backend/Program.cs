@@ -110,6 +110,20 @@ builder.Services.AddScoped<IStorageService, CloudinaryService>();
 
 
 var app = builder.Build();
+await DatabaseSchemaInitializer.EnsureCompatibleSchemaAsync(app.Services);
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new
+        {
+            message = "An unexpected server error occurred."
+        });
+    });
+});
 
 // Sử dụng Swagger trong môi trường phát triển
 app.UseSwagger();

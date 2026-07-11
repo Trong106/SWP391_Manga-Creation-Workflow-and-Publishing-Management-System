@@ -547,7 +547,7 @@ public class ChapterService : IChapterService
 
         var approvedTaskIds = payableTasks.Select(t => t.TaskId).ToList();
         var existingPayrollTaskIds = await _context.PayrollRecords
-            .Where(p => p.TaskId.HasValue && approvedTaskIds.Contains(p.TaskId.Value))
+            .Where(p => p.TaskId.HasValue && approvedTaskIds.Contains(p.TaskId.Value) && p.Status != "failed")
             .Select(p => p.TaskId!.Value)
             .ToListAsync();
 

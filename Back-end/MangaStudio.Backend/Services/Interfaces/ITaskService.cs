@@ -17,6 +17,8 @@ public interface ITaskService
     /// <summary>Cập nhật thông tin công việc.</summary>
     Task<TaskDto> UpdateTask(Guid taskId, Guid mangakaId, UpdateTaskDto dto);
 
+    Task<TaskDto> ReTask(Guid taskId, Guid mangakaId, ReTaskDto dto);
+
     /// <summary>Trợ lý nộp bài làm kèm file đính kèm (PageVersion).</summary>
     Task<TaskSubmissionDto> SubmitTask(Guid taskId, Guid assistantId, string? note, IFormFile? file);
 

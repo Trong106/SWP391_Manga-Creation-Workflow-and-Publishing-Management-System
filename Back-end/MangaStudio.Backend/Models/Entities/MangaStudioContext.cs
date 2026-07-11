@@ -472,6 +472,7 @@ public partial class MangaStudioContext : DbContext
                 .HasPrecision(0)
                 .HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.PaymentAmount).HasColumnType("decimal(12, 2)");
+            entity.Property(e => e.ApprovedAt).HasPrecision(0);
             entity.Property(e => e.Status)
                 .HasMaxLength(30)
                 .IsUnicode(false)

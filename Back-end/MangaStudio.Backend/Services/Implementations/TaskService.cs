@@ -211,6 +211,87 @@ public class TaskService : ITaskService
         return await GetTaskById(task.TaskId);
     }
 
+    public async Task<TaskDto> ReTask(Guid taskId, Guid mangakaId, ReTaskDto dto)
+    {
+        if (dto.NewDueDate < DateOnly.FromDateTime(DateTime.Today))
+        {
+            throw new ArgumentException("New due date cannot be in the past.");
+        }
+
+        var task = await _context.Tasks
+            .Include(t => t.Page)
+                .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
+            .FirstOrDefaultAsync(t => t.TaskId == taskId)
+            ?? throw new KeyNotFoundException($"Task with ID {taskId} was not found.");
+
+        if (task.Page.Chapter.Series.MangakaId != mangakaId)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to re-task this work item.");
+        }
+
+        if (!string.Equals(task.Status, "approved", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only approved tasks can be re-tasked.");
+        }
+
+        if (task.AssigneeId == null)
+        {
+            throw new InvalidOperationException("Cannot re-task a task without an assigned assistant.");
+        }
+
+        task.Status = "pending";
+        task.DueDate = dto.NewDueDate;
+        task.ApprovedAt = null;
+        task.UpdatedAt = DateTime.UtcNow;
+
+        var unpaidPayrollRecords = await _context.PayrollRecords
+            .Where(p => p.TaskId == task.TaskId && p.Status != "paid")
+            .ToListAsync();
+
+        foreach (var payroll in unpaidPayrollRecords)
+        {
+            payroll.Status = "failed";
+        }
+
+        if (task.Page.Status == "review" || task.Page.Status == "approved")
+        {
+            task.Page.Status = "assigned";
+        }
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            AuditLogId = Guid.NewGuid(),
+            UserId = mangakaId,
+            Action = "task_retasked",
+            EntityType = "task",
+            EntityId = task.TaskId,
+            DetailsJson = $"{{\"taskTitle\":\"{EscapeJson(task.Title)}\",\"pageId\":\"{task.PageId}\",\"newDueDate\":\"{dto.NewDueDate:yyyy-MM-dd}\"}}",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        if (task.AssigneeId.HasValue)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = task.AssigneeId.Value,
+                Type = "system",
+                Title = "Task returned to Todo",
+                Message = $"\"{task.Title}\" has been reopened with a new due date: {dto.NewDueDate:yyyy-MM-dd}.",
+                Link = $"/tasks",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        await RecalculatePageStatus(task.PageId);
+        await _context.SaveChangesAsync();
+
+        return await GetTaskById(task.TaskId);
+    }
+
     /// <summary>
     /// Trợ lý nộp bài làm kèm file đính kèm.
     /// </summary>
@@ -347,6 +428,7 @@ public class TaskService : ITaskService
         {
             submission.Status = "accepted";
             submission.Task.Status = "approved";
+            submission.Task.ApprovedAt = DateTime.UtcNow;
 
             var otherSubmittedVersions = await _context.TaskSubmissions
                 .Where(s => s.TaskId == submission.TaskId
@@ -363,6 +445,7 @@ public class TaskService : ITaskService
         {
             submission.Status = "rejected";
             submission.Task.Status = "revision";
+            submission.Task.ApprovedAt = null;
         }
         else
         {
@@ -491,6 +574,7 @@ public class TaskService : ITaskService
             Status = t.Status,
             DueDate = t.DueDate,
             PaymentAmount = t.PaymentAmount,
+            ApprovedAt = t.ApprovedAt,
             CreatedAt = t.CreatedAt,
             UpdatedAt = t.UpdatedAt
         };
@@ -538,12 +622,21 @@ public class TaskService : ITaskService
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
+            .Include(t => t.Page)
+                .ThenInclude(p => p.PageAnnotations)
+                    .ThenInclude(a => a.CreatedBy)
             .FirstOrDefaultAsync(t => t.TaskId == taskId);
 
         if (task == null || task.Page == null)
         {
             return null;
         }
+
+        var annotations = task.Page.PageAnnotations
+            .Where(a => string.Equals(a.Status, "open", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(MapAnnotationToDto)
+            .ToList();
 
         return new TaskResourceDto
         {
@@ -552,7 +645,29 @@ public class TaskService : ITaskService
             PageNumber = task.Page.PageNumber,
             ImageUrl = task.Page.CurrentImageUrl ?? "",
             SeriesTitle = task.Page.Chapter?.Series?.Title,
-            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0
+            ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0,
+            RevisionNote = annotations.FirstOrDefault()?.Body,
+            RevisionAnnotations = annotations
+        };
+    }
+
+    private static AnnotationDto MapAnnotationToDto(PageAnnotation annotation)
+    {
+        return new AnnotationDto
+        {
+            AnnotationId = annotation.AnnotationId,
+            PageId = annotation.PageId,
+            PageVersionId = annotation.PageVersionId,
+            CreatedById = annotation.CreatedById,
+            CreatedByName = annotation.CreatedBy?.FullName ?? "Unknown",
+            X = annotation.X,
+            Y = annotation.Y,
+            Width = annotation.Width,
+            Height = annotation.Height,
+            Body = annotation.Body,
+            Status = annotation.Status,
+            CreatedAt = annotation.CreatedAt,
+            ResolvedAt = annotation.ResolvedAt
         };
     }
 

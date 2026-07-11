@@ -44,7 +44,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
-import { AspectRatio } from "@/components/ui/aspect-ratio"
 import {
   Dialog,
   DialogContent,
@@ -87,6 +86,18 @@ interface TaskResource {
   imageUrl: string
   seriesTitle?: string | null
   chapterNumber: number
+  revisionNote?: string | null
+  revisionAnnotations?: RevisionAnnotation[]
+}
+
+interface RevisionAnnotation {
+  annotationId: string
+  x: number
+  y: number
+  width?: number | null
+  height?: number | null
+  body: string
+  status: string
 }
 
 export default function AssistantTasksPage() {
@@ -805,8 +816,8 @@ export default function AssistantTasksPage() {
 
       {/* Confirmation and Preview Modal */}
       <Dialog open={isResourceModalOpen} onOpenChange={setIsResourceModalOpen}>
-        <DialogContent className="max-w-md bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          <DialogHeader className="space-y-1.5 pb-2">
+        <DialogContent className="flex max-h-[92vh] w-[min(92vw,860px)] max-w-none flex-col overflow-hidden bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl p-0 animate-in fade-in zoom-in-95 duration-200">
+          <DialogHeader className="shrink-0 space-y-1.5 border-b border-zinc-800/50 p-5 pb-3">
             <DialogTitle className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 flex items-center gap-2">
               <Download className="w-5 h-5 text-purple-400 animate-bounce" />
               Task Resources & Download Confirmation
@@ -816,48 +827,71 @@ export default function AssistantTasksPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {selectedTaskResource && (
-            <div className="space-y-4">
-              <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 flex items-center justify-center p-2 group">
-                <AspectRatio ratio={3 / 4} className="w-full relative overflow-hidden rounded-lg">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {selectedTaskResource && (
+              <div className="space-y-4">
+                <div className="relative overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2 text-center group">
                   {selectedTaskResource.imageUrl ? (
-                    <img
-                      src={selectedTaskResource.imageUrl.startsWith("http") ? selectedTaskResource.imageUrl : `${API_BASE_URL}${selectedTaskResource.imageUrl}`}
-                      alt="Manga Page Original Preview"
-                      className="w-full h-full object-contain rounded-lg transition-transform duration-500 group-hover:scale-105"
-                    />
+                    <div className="relative inline-block max-h-[58vh] max-w-full align-middle">
+                      <img
+                        src={selectedTaskResource.imageUrl.startsWith("http") ? selectedTaskResource.imageUrl : `${API_BASE_URL}${selectedTaskResource.imageUrl}`}
+                        alt="Manga Page Original Preview"
+                        className="block max-h-[58vh] max-w-full rounded-lg object-contain"
+                      />
+                      {(selectedTaskResource.revisionAnnotations || []).map((annotation) => {
+                        const isBox = annotation.width && annotation.height
+                        return (
+                          <div
+                            key={annotation.annotationId}
+                            className="absolute z-20 border-2 border-amber-400 bg-amber-400/20 shadow-[0_0_18px_rgba(251,191,36,0.45)]"
+                            style={{
+                              left: `${annotation.x}%`,
+                              top: `${annotation.y}%`,
+                              width: isBox ? `${annotation.width}%` : "18px",
+                              height: isBox ? `${annotation.height}%` : "18px",
+                              borderRadius: isBox ? "6px" : "9999px",
+                            }}
+                            title={annotation.body}
+                          />
+                        )
+                      })}
+                    </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-zinc-650">
+                    <div className="flex min-h-[320px] flex-col items-center justify-center text-zinc-650">
                       <BookOpen className="w-12 h-12 mb-2 opacity-55 animate-pulse" />
                       <span className="text-xs">No preview image available</span>
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center pb-4">
-                    <span className="text-[10px] text-zinc-350 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-xs border border-zinc-800">
-                      Hover to zoom image
-                    </span>
+                </div>
+
+                <div className="p-4 bg-zinc-900/40 rounded-xl border border-zinc-850 space-y-2">
+                  <div className="flex justify-between gap-4 text-xs">
+                    <span className="text-zinc-500">Series Title</span>
+                    <span className="truncate font-semibold text-zinc-200">{selectedTaskResource.seriesTitle || "N/A"}</span>
                   </div>
-                </AspectRatio>
-              </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Chapter</span>
+                    <span className="font-semibold text-zinc-200">Ch. {selectedTaskResource.chapterNumber ?? "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Page Number</span>
+                    <span className="font-semibold text-primary">Page {selectedTaskResource.pageNumber ?? "N/A"}</span>
+                  </div>
+                </div>
 
-              <div className="p-4 bg-zinc-900/40 rounded-xl border border-zinc-850 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Series Title</span>
-                  <span className="font-semibold text-zinc-200">{selectedTaskResource.seriesTitle || "N/A"}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Chapter</span>
-                  <span className="font-semibold text-zinc-200">Ch. {selectedTaskResource.chapterNumber ?? "N/A"}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-zinc-500">Page Number</span>
-                  <span className="font-semibold text-primary">Page {selectedTaskResource.pageNumber ?? "N/A"}</span>
-                </div>
+                {(selectedTaskResource.revisionAnnotations || []).length > 0 && (
+                  <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4 text-xs">
+                    <p className="mb-2 font-bold uppercase tracking-wider text-amber-300">Revision note</p>
+                    <p className="leading-relaxed text-amber-100">
+                      {selectedTaskResource.revisionNote || selectedTaskResource.revisionAnnotations?.[0]?.body}
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          <DialogFooter className="pt-4 flex gap-2 sm:gap-0 border-t border-zinc-800/50">
+          <DialogFooter className="shrink-0 border-t border-zinc-800/50 p-4 flex gap-2 sm:gap-0">
             <Button
               variant="ghost"
               onClick={() => setIsResourceModalOpen(false)}
