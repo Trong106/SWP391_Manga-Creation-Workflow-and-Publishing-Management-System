@@ -24,11 +24,52 @@ public class WorkflowService : IWorkflowService
 
     // === Series Proposals ===
 
+    private async System.Threading.Tasks.Task CleanUpApprovedSeriesProposals()
+    {
+        // Tìm toàn bộ các đề xuất bị từ chối (rejected) có cùng Tên truyện và cùng Mangaka với một đề xuất đã được đồng ý (approved)
+        var rejectedProposals = await _context.SeriesProposals
+            .Include(p => p.Series)
+            .Where(rp => rp.Status == "rejected" &&
+                         _context.SeriesProposals.Any(ap => ap.Status == "approved" &&
+                                                             ap.SubmittedById == rp.SubmittedById &&
+                                                             ap.Series.Title == rp.Series.Title))
+            .ToListAsync();
+
+        if (rejectedProposals.Any())
+        {
+            var rejectedSeriesIds = rejectedProposals.Select(p => p.SeriesId).ToList();
+            var rejectedSeries = rejectedProposals.Select(p => p.Series).Where(s => s != null).ToList();
+
+            // 1. Xóa các đề xuất con trước
+            _context.SeriesProposals.RemoveRange(rejectedProposals);
+            await _context.SaveChangesAsync();
+
+            // 2. Xóa các thể loại liên kết
+            var rejectedGenres = await _context.SeriesGenres
+                .Where(g => rejectedSeriesIds.Contains(g.SeriesId))
+                .ToListAsync();
+
+            if (rejectedGenres.Any())
+            {
+                _context.SeriesGenres.RemoveRange(rejectedGenres);
+            }
+
+            // 3. Xóa các bản ghi truyện cha
+            if (rejectedSeries.Any())
+            {
+                _context.Series.RemoveRange(rejectedSeries);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+    }
+
     /// <summary>
     /// Lấy danh sách đề xuất chờ duyệt (status = 'submitted').
     /// </summary>
     public async Task<List<ProposalDto>> GetPendingProposals()
     {
+        await CleanUpApprovedSeriesProposals();
         return await _context.SeriesProposals
             .Include(p => p.Series)
                 .ThenInclude(s => s.SeriesGenres)
@@ -44,6 +85,7 @@ public class WorkflowService : IWorkflowService
     /// </summary>
     public async Task<List<ProposalDto>> GetProposalsByMangaka(Guid mangakaId)
     {
+        await CleanUpApprovedSeriesProposals();
         return await _context.SeriesProposals
             .Where(p => p.SubmittedById == mangakaId)
             .Include(p => p.Series)
@@ -90,6 +132,42 @@ public class WorkflowService : IWorkflowService
 
             proposal.Series.Status = "active"; // BR-Proposal
             proposal.Series.TantouId = tantou.UserId;
+
+            // Xóa các đề xuất bị từ chối (rejected) cũ của bộ truyện này (trùng tên và trùng Mangaka)
+            var title = proposal.Series.Title;
+            var mangakaId = proposal.SubmittedById;
+
+            var oldRejectedProposals = await _context.SeriesProposals
+                .Where(p => p.Status == "rejected" && p.SubmittedById == mangakaId && p.Series.Title == title && p.ProposalId != proposalId)
+                .Include(p => p.Series)
+                .ToListAsync();
+
+            if (oldRejectedProposals.Any())
+            {
+                var rejectedSeriesIds = oldRejectedProposals.Select(p => p.SeriesId).ToList();
+                var rejectedSeries = oldRejectedProposals.Select(p => p.Series).Where(s => s != null).ToList();
+
+                // Delete the proposals (child records) first
+                _context.SeriesProposals.RemoveRange(oldRejectedProposals);
+                await _context.SaveChangesAsync();
+
+                // Now delete genres and series
+                var rejectedGenres = await _context.SeriesGenres
+                    .Where(g => rejectedSeriesIds.Contains(g.SeriesId))
+                    .ToListAsync();
+
+                if (rejectedGenres.Any())
+                {
+                    _context.SeriesGenres.RemoveRange(rejectedGenres);
+                }
+
+                if (rejectedSeries.Any())
+                {
+                    _context.Series.RemoveRange(rejectedSeries);
+                }
+
+                await _context.SaveChangesAsync();
+            }
         }
         else if (decision == "rejected")
         {

@@ -28,7 +28,7 @@ public class SubmitTaskDto
 public class ReviewSubmissionDto
 {
     [Required]
-    [RegularExpression("^(approved|rejected)$", ErrorMessage = "Decision chỉ được là 'approved' hoặc 'rejected'.")]
+    [RegularExpression("^(approved|rejected)$", ErrorMessage = "Decision must be 'approved' or 'rejected'.")]
     public string Decision { get; set; } = null!;
 
     public string? Note { get; set; }

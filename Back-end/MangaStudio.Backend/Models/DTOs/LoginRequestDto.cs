@@ -10,13 +10,13 @@ public class LoginRequestDto
     /// <summary>
     /// Email đăng nhập của người dùng.
     /// </summary>
-    [Required(ErrorMessage = "Email là bắt buộc.")]
-    [EmailAddress(ErrorMessage = "Định dạng email không hợp lệ.")]
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Invalid email format.")]
     public string Email { get; set; } = null!;
 
     /// <summary>
     /// Mật khẩu đăng nhập.
     /// </summary>
-    [Required(ErrorMessage = "Mật khẩu là bắt buộc.")]
+    [Required(ErrorMessage = "Password is required.")]
     public string Password { get; set; } = null!;
 }

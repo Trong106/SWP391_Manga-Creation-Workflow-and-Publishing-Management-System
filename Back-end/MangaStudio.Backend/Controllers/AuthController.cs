@@ -40,7 +40,7 @@ public class AuthController : ControllerBase
         // Nếu thông tin không khớp hoặc không hợp lệ, trả về lỗi Unauthorized (401)
         if (result == null)
         {
-            return Unauthorized(new { message = "Email hoặc mật khẩu không chính xác, hoặc tài khoản đã bị khóa." });
+            return Unauthorized(new { message = "Incorrect email or password, or the account is locked." });
         }
 
         // Trả về kết quả đăng nhập thành công
