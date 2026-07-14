@@ -119,16 +119,6 @@ public class TaskService : ITaskService
         };
 
         _context.Notifications.Add(notification);
-        _context.AuditLogs.Add(new AuditLog
-        {
-            AuditLogId = Guid.NewGuid(),
-            UserId = assistantId,
-            Action = "task_clarification_requested",
-            EntityType = "task",
-            EntityId = task.TaskId,
-            DetailsJson = $"{{\"taskTitle\":\"{EscapeJson(task.Title)}\",\"pageId\":\"{task.PageId}\",\"chapterId\":\"{task.Page.ChapterId}\",\"message\":\"{EscapeJson(message)}\"}}",
-            CreatedAt = DateTime.UtcNow
-        });
 
         await _context.SaveChangesAsync();
 
@@ -258,17 +248,6 @@ public class TaskService : ITaskService
         {
             task.Page.Status = "assigned";
         }
-
-        _context.AuditLogs.Add(new AuditLog
-        {
-            AuditLogId = Guid.NewGuid(),
-            UserId = mangakaId,
-            Action = "task_retasked",
-            EntityType = "task",
-            EntityId = task.TaskId,
-            DetailsJson = $"{{\"taskTitle\":\"{EscapeJson(task.Title)}\",\"pageId\":\"{task.PageId}\",\"newDueDate\":\"{dto.NewDueDate:yyyy-MM-dd}\"}}",
-            CreatedAt = DateTime.UtcNow
-        });
 
         if (task.AssigneeId.HasValue)
         {
@@ -671,12 +650,4 @@ public class TaskService : ITaskService
         };
     }
 
-    private static string EscapeJson(string? value)
-    {
-        return (value ?? string.Empty)
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n");
-    }
 }

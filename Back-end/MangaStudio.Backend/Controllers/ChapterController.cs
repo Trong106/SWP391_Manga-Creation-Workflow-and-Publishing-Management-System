@@ -116,20 +116,6 @@ public class ChapterController : ControllerBase
         }
     }
 
-    [HttpGet("{id:guid}/audit-timeline")]
-    public async Task<IActionResult> GetChapterAuditTimeline(Guid id)
-    {
-        try
-        {
-            var result = await _chapterService.GetChapterAuditTimeline(id);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
-    }
-
     /// <summary>
     /// POST /api/chapters/{id}/upload-pages — Tải lên nhiều trang truyện.
     /// </summary>

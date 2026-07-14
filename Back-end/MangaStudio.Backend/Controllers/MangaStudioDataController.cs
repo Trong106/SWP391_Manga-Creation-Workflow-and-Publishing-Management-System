@@ -220,79 +220,46 @@ public class MangaStudioDataController : ControllerBase
         }
     }
 
-    // GET api/data/audit-logs
-    [HttpGet("audit-logs")]
-    [Authorize(Roles = "editorial")]
-    public async Task<IActionResult> GetAuditLogs()
-    {
-        var logs = await _dbContext.AuditLogs
-            .Include(l => l.User!)
-            .ThenInclude(u => u.Role)
-            .OrderByDescending(l => l.CreatedAt)
-            .ToListAsync();
-
-        var result = logs.Select(l => new
-        {
-            id = l.AuditLogId.ToString(),
-            user = new
-            {
-                name   = l.User != null ? l.User.FullName : "System",
-                avatar = l.User?.Avatar,
-                role   = l.User?.Role?.Name ?? "Automated"
-            },
-            action     = l.Action,
-            entityType = l.EntityType,
-            entityName = l.EntityId.HasValue
-                ? $"{l.EntityType} (ID: {l.EntityId.Value.ToString()[..8]})"
-                : l.EntityType,
-            details   = l.DetailsJson ?? "No additional details available.",
-            timestamp = l.CreatedAt,
-            category  = GetCategory(l.EntityType)
-        });
-
-        return Ok(result);
-    }
-
     // GET api/data/reader-votes
-    [HttpGet("reader-votes")]
-    [Authorize(Roles = "editorial")]
-    public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
-    {
-        // Get current week votes
-        var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
-        var currentYear = year ?? DateTime.UtcNow.Year;
-        var previousWeek = currentWeek > 1 ? currentWeek - 1 : 52;
-        var previousYear = currentWeek > 1 ? currentYear : currentYear - 1;
+     [HttpGet("reader-votes")]
+     [Authorize(Roles = "editorial")]
+     public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
+     {
+         // Get current week votes
+         var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
+         var currentYear = year ?? DateTime.UtcNow.Year;
+         var previousWeek = currentWeek > 1 ? currentWeek - 1 : 52;
+         var previousYear = currentWeek > 1 ? currentYear : currentYear - 1;
 
-        var currentVotes = await _dbContext.ReaderVotes
-            .Include(v => v.Series)
-            .Where(v => v.WeekNumber == currentWeek && v.YearNumber == currentYear)
-            .OrderBy(v => v.RankNumber)
-            .ToListAsync();
+         var currentVotes = await _dbContext.ReaderVotes
+             .Include(v => v.Series)
+             .Where(v => v.WeekNumber == currentWeek && v.YearNumber == currentYear)
+             .OrderBy(v => v.RankNumber)
+             .ToListAsync();
 
-        // Get previous week votes for comparison
-        var previousVotesDict = await _dbContext.ReaderVotes
-            .Where(v => v.WeekNumber == previousWeek && v.YearNumber == previousYear)
-            .ToDictionaryAsync(v => v.SeriesId, v => new { votes = v.Votes, rank = v.RankNumber });
+         // Get previous week votes for comparison
+         var previousVotesDict = await _dbContext.ReaderVotes
+             .Where(v => v.WeekNumber == previousWeek && v.YearNumber == previousYear)
+             .ToDictionaryAsync(v => v.SeriesId, v => new { votes = v.Votes, rank = v.RankNumber });
 
-        var result = currentVotes.Select(v =>
-        {
-            previousVotesDict.TryGetValue(v.SeriesId, out var prev);
-            return new
-            {
-                id            = v.ReaderVoteId.ToString(),
-                seriesId      = v.SeriesId.ToString(),
-                series        = v.Series.Title,
-                votes         = v.Votes,
-                previousVotes = prev?.votes ?? 0,
-                change        = v.Votes - (prev?.votes ?? v.Votes),
-                rank          = v.RankNumber,
-                previousRank  = prev?.rank ?? v.RankNumber
-            };
-        });
+         var result = currentVotes.Select(v =>
+         {
+             previousVotesDict.TryGetValue(v.SeriesId, out var prev);
+             return new
+             {
+                 id            = v.ReaderVoteId.ToString(),
+                 seriesId      = v.SeriesId.ToString(),
+                 series        = v.Series.Title,
+                 votes         = v.Votes,
+                 previousVotes = prev?.votes ?? 0,
+                 change        = v.Votes - (prev?.votes ?? v.Votes),
+                 rank          = v.RankNumber,
+                 previousRank  = prev?.rank ?? v.RankNumber
+             };
+         });
 
-        return Ok(result);
-    }
+         return Ok(result);
+     }
 
     // POST api/data/reader-votes
     [HttpPost("reader-votes")]
@@ -742,16 +709,6 @@ public class MangaStudioDataController : ControllerBase
 
         return Ok(result);
     }
-
-    private static string GetCategory(string entityType) =>
-        entityType.ToLower() switch
-        {
-            "series"  => "series",
-            "chapter" => "chapter",
-            "user"    => "user",
-            "payment" => "payment",
-            _         => "system"
-        };
 
     private static Guid? GetCurrentVersionId(MangaPage page)
     {

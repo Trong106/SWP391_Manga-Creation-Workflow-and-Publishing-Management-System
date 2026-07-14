@@ -17,8 +17,6 @@ public partial class MangaStudioContext : DbContext
 
     public virtual DbSet<AssistantProfile> AssistantProfiles { get; set; }
 
-    public virtual DbSet<AuditLog> AuditLogs { get; set; }
-
     public virtual DbSet<Chapter> Chapters { get; set; }
 
     public virtual DbSet<MangaPage> MangaPages { get; set; }
@@ -78,22 +76,6 @@ public partial class MangaStudioContext : DbContext
                 .HasForeignKey<AssistantProfile>(d => d.AssistantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AssistantProfiles_Users");
-        });
-
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.HasIndex(e => new { e.EntityType, e.EntityId, e.CreatedAt }, "IX_AuditLogs_Entity").IsDescending(false, false, true);
-
-            entity.Property(e => e.AuditLogId).HasDefaultValueSql("(newid())");
-            entity.Property(e => e.Action).HasMaxLength(120);
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(0)
-                .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.EntityType).HasMaxLength(120);
-
-            entity.HasOne(d => d.User).WithMany(p => p.AuditLogs)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("FK_AuditLogs_User");
         });
 
         modelBuilder.Entity<Chapter>(entity =>
@@ -437,6 +419,7 @@ public partial class MangaStudioContext : DbContext
             entity.HasKey(e => e.ProposalId);
 
             entity.Property(e => e.ProposalId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.ProposalSynopsis);
             entity.Property(e => e.ReviewedAt).HasPrecision(0);
             entity.Property(e => e.Status)
                 .HasMaxLength(30)

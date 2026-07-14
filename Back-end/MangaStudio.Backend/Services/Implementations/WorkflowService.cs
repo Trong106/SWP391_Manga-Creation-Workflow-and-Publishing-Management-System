@@ -226,6 +226,8 @@ public class WorkflowService : IWorkflowService
     /// </summary>
     public async Task<List<PublishScheduleDto>> GetPublishSchedules(Guid? seriesId = null)
     {
+        await PublishDueSchedules();
+
         var query = _context.PublishSchedules
             .Include(s => s.ApprovedBy)
             .Include(s => s.Chapter)
@@ -302,33 +304,56 @@ public class WorkflowService : IWorkflowService
             return await GetPublishScheduleById(schedule.PublishScheduleId);
         }
 
-        schedule.ApprovedById = editorialId;
-        schedule.Status = "published";
-        schedule.PublishedAt = DateTime.UtcNow;
-        if (schedule.Chapter != null)
-        {
-            schedule.Chapter.Status = "published";
-            schedule.Chapter.SubmittedForPublishingAt ??= DateTime.UtcNow;
-            schedule.Chapter.UpdatedAt = DateTime.UtcNow;
-
-            var series = schedule.Chapter.Series;
-            var publishDate = schedule.ScheduledDate.ToString("yyyy-MM-dd HH:mm 'UTC'");
-            _context.Notifications.Add(new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = series.MangakaId,
-                Type = "system",
-                Title = "Chapter published",
-                Message = $"{series.Title} chapter {schedule.Chapter.ChapterNumber} has been published for {publishDate}.",
-                IsRead = false,
-                Link = $"/chapters/{schedule.Chapter.ChapterId}",
-                CreatedAt = DateTime.UtcNow
-            });
-        }
+        MarkSchedulePublished(schedule, editorialId);
         
         await _context.SaveChangesAsync();
 
         return await GetPublishScheduleById(schedule.PublishScheduleId);
+    }
+
+    private async System.Threading.Tasks.Task PublishDueSchedules()
+    {
+        var dueSchedules = await _context.PublishSchedules
+            .Include(s => s.Chapter)
+                .ThenInclude(c => c.Series)
+            .Where(s => s.Status == "scheduled" && s.ScheduledDate <= DateTime.UtcNow)
+            .ToListAsync();
+
+        foreach (var schedule in dueSchedules)
+        {
+            MarkSchedulePublished(schedule, null);
+        }
+
+        if (dueSchedules.Any())
+        {
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    private void MarkSchedulePublished(PublishSchedule schedule, Guid? editorialId)
+    {
+        schedule.ApprovedById = editorialId;
+        schedule.Status = "published";
+        schedule.PublishedAt = DateTime.UtcNow;
+        if (schedule.Chapter == null) return;
+
+        schedule.Chapter.Status = "published";
+        schedule.Chapter.SubmittedForPublishingAt ??= DateTime.UtcNow;
+        schedule.Chapter.UpdatedAt = DateTime.UtcNow;
+
+        var series = schedule.Chapter.Series;
+        var publishDate = schedule.ScheduledDate.ToString("yyyy-MM-dd HH:mm 'UTC'");
+        _context.Notifications.Add(new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = series.MangakaId,
+            Type = "system",
+            Title = "Chapter published",
+            Message = $"{series.Title} chapter {schedule.Chapter.ChapterNumber} has been published for {publishDate}.",
+            IsRead = false,
+            Link = $"/chapters/{schedule.Chapter.ChapterId}",
+            CreatedAt = DateTime.UtcNow
+        });
     }
 
     // === Payroll ===
@@ -543,7 +568,7 @@ public class WorkflowService : IWorkflowService
             ProposalId = p.ProposalId,
             SeriesId = p.SeriesId,
             SeriesTitle = p.Series?.Title ?? "Unknown",
-            SeriesSynopsis = p.Series?.Synopsis,
+            SeriesSynopsis = p.ProposalSynopsis ?? p.Series?.Synopsis,
             SeriesGenres = p.Series?.SeriesGenres?.Select(g => g.Genre).ToList() ?? new List<string>(),
             SubmittedById = p.SubmittedById,
             SubmittedByName = p.SubmittedBy?.FullName ?? "Unknown",

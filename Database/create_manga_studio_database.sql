@@ -12,7 +12,6 @@ GO
 USE MangaStudioWorkflow;
 GO
 
-DROP TABLE IF EXISTS dbo.AuditLogs;
 DROP TABLE IF EXISTS dbo.ReaderVotes;
 DROP TABLE IF EXISTS dbo.PublishSchedules;
 DROP TABLE IF EXISTS dbo.PayrollRecords;
@@ -101,6 +100,7 @@ CREATE TABLE dbo.SeriesProposals
     SubmittedById   UNIQUEIDENTIFIER NOT NULL,
     ReviewedById    UNIQUEIDENTIFIER NULL,
     Status          VARCHAR(30) NOT NULL CONSTRAINT DF_SeriesProposals_Status DEFAULT 'submitted',
+    ProposalSynopsis NVARCHAR(MAX) NULL,
     ReviewNote      NVARCHAR(MAX) NULL,
     SubmittedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_SeriesProposals_SubmittedAt DEFAULT SYSUTCDATETIME(),
     ReviewedAt      DATETIME2(0) NULL,
@@ -319,20 +319,6 @@ CREATE TABLE dbo.ReaderVotes
     CONSTRAINT FK_ReaderVotes_Series FOREIGN KEY (SeriesId) REFERENCES dbo.Series(SeriesId)
 );
 
-CREATE TABLE dbo.AuditLogs
-(
-    AuditLogId      UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_AuditLogs PRIMARY KEY DEFAULT NEWID(),
-    UserId          UNIQUEIDENTIFIER NULL,
-    Action          NVARCHAR(120) NOT NULL,
-    EntityType      NVARCHAR(120) NOT NULL,
-    EntityId        UNIQUEIDENTIFIER NULL,
-    DetailsJson     NVARCHAR(MAX) NULL,
-    CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_AuditLogs_CreatedAt DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT CK_AuditLogs_DetailsJson CHECK (DetailsJson IS NULL OR ISJSON(DetailsJson) = 1),
-    CONSTRAINT FK_AuditLogs_User FOREIGN KEY (UserId) REFERENCES dbo.Users(UserId)
-);
-GO
-
 CREATE INDEX IX_Users_RoleId ON dbo.Users(RoleId);
 CREATE INDEX IX_Series_MangakaId ON dbo.Series(MangakaId);
 CREATE INDEX IX_Series_TantouId ON dbo.Series(TantouId);
@@ -345,5 +331,4 @@ CREATE INDEX IX_Tasks_PageId ON dbo.Tasks(PageId);
 CREATE INDEX IX_Notifications_UserId_IsRead ON dbo.Notifications(UserId, IsRead, CreatedAt DESC);
 CREATE INDEX IX_PayrollRecords_AssistantId_Status ON dbo.PayrollRecords(AssistantId, Status);
 CREATE INDEX IX_ReaderVotes_Week_Rank ON dbo.ReaderVotes(YearNumber, WeekNumber, RankNumber);
-CREATE INDEX IX_AuditLogs_Entity ON dbo.AuditLogs(EntityType, EntityId, CreatedAt DESC);
 GO
