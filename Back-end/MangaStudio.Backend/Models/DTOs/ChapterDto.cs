@@ -26,8 +26,8 @@ public class ChapterDto
 /// <summary>DTO tạo chương mới.</summary>
 public class CreateChapterDto
 {
-    [Required(ErrorMessage = "Số chương là bắt buộc.")]
-    [Range(1, 9999, ErrorMessage = "Số chương phải từ 1 đến 9999.")]
+    [Required(ErrorMessage = "Chapter number is required.")]
+    [Range(1, 9999, ErrorMessage = "Chapter number must be between 1 and 9999.")]
     public int ChapterNumber { get; set; }
 
     [StringLength(255)]

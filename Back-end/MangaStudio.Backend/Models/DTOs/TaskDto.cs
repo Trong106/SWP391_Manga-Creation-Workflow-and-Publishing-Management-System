@@ -33,15 +33,15 @@ public class TaskDto
 /// <summary>DTO tạo công việc mới giao cho trợ lý.</summary>
 public class CreateTaskDto
 {
-    [Required(ErrorMessage = "Tiêu đề công việc là bắt buộc.")]
+    [Required(ErrorMessage = "Task title is required.")]
     [MaxLength(255)]
     public string Title { get; set; } = null!;
 
     public string? Description { get; set; }
 
-    [Required(ErrorMessage = "Loại công việc là bắt buộc.")]
+    [Required(ErrorMessage = "Task type is required.")]
     [RegularExpression("^(line_art|background|effects|coloring|lettering|review)$",
-        ErrorMessage = "Type không hợp lệ. Chấp nhận: line_art, background, effects, coloring, lettering, review.")]
+        ErrorMessage = "Invalid type. Accepted values: line_art, background, effects, coloring, lettering, review.")]
     public string Type { get; set; } = null!;
 
     public Guid? RegionId { get; set; }
@@ -50,7 +50,7 @@ public class CreateTaskDto
 
     public DateOnly? DueDate { get; set; }
 
-    [Range(0, 999999999, ErrorMessage = "Số tiền thanh toán phải >= 0.")]
+    [Range(0, 999999999, ErrorMessage = "Payment amount must be >= 0.")]
     public decimal PaymentAmount { get; set; }
 }
 
@@ -63,7 +63,7 @@ public class UpdateTaskDto
     public string? Description { get; set; }
 
     [RegularExpression("^(line_art|background|effects|coloring|lettering|review)$",
-        ErrorMessage = "Type không hợp lệ. Chấp nhận: line_art, background, effects, coloring, lettering, review.")]
+        ErrorMessage = "Invalid type. Accepted values: line_art, background, effects, coloring, lettering, review.")]
     public string? Type { get; set; }
 
     public Guid? RegionId { get; set; }
@@ -72,11 +72,11 @@ public class UpdateTaskDto
 
     public DateOnly? DueDate { get; set; }
 
-    [Range(0, 999999999, ErrorMessage = "Số tiền thanh toán phải >= 0.")]
+    [Range(0, 999999999, ErrorMessage = "Payment amount must be >= 0.")]
     public decimal? PaymentAmount { get; set; }
 
     [RegularExpression("^(pending|in_progress|submitted|revision|approved|cancelled)$",
-        ErrorMessage = "Status không hợp lệ.")]
+        ErrorMessage = "Invalid status.")]
     public string? Status { get; set; }
 }
 

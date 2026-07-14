@@ -40,7 +40,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   token: string | null
   loading: boolean
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   logout: () => void
 }
 
@@ -72,8 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Hàm gọi API Đăng nhập thật ở Backend
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setLoading(true)
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
@@ -85,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (res.ok) {
         const data = await readJson<any>(res)
-        if (!data?.token) return false
+        if (!data?.token) return { success: false, error: "Invalid token response from server." }
         setToken(data.token)
         
         const backendRole = data.role.toLowerCase() as UserRole
@@ -104,14 +103,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("auth_role", backendRole)
         localStorage.setItem("auth_token", data.token)
         localStorage.setItem("auth_user", JSON.stringify(loggedUser))
-        return true
+        return { success: true }
       }
-      return false
+
+      // Try to parse the specific error message from the backend
+      try {
+        const errorData = await readJson<any>(res)
+        if (errorData?.message) {
+          return { success: false, error: errorData.message }
+        }
+      } catch {}
+
+      return { success: false, error: "Incorrect email or password. Please try again." }
     } catch (err) {
       console.error("Login failed:", err)
-      return false
-    } finally {
-      setLoading(false)
+      return { success: false, error: "Unable to connect to the server. Please check your internet connection." }
     }
   }
 

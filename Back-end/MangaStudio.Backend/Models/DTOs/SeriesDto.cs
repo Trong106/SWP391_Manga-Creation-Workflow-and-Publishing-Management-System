@@ -43,8 +43,8 @@ public class EditorialSeriesDecisionDto
 /// <summary>DTO tạo bộ truyện mới.</summary>
 public class CreateSeriesDto
 {
-    [Required(ErrorMessage = "Tên bộ truyện là bắt buộc.")]
-    [StringLength(255, ErrorMessage = "Tên không được vượt quá 255 ký tự.")]
+    [Required(ErrorMessage = "Series title is required.")]
+    [StringLength(255, ErrorMessage = "Title cannot exceed 255 characters.")]
     public string Title { get; set; } = null!;
 
     [StringLength(255)]
