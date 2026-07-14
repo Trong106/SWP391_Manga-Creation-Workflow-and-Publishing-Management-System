@@ -28,6 +28,25 @@ BEGIN
     ALTER TABLE dbo.Tasks ADD ApprovedAt DATETIME2(0) NULL;
 END;
 
+IF OBJECT_ID(N'dbo.SeriesProposals', N'U') IS NOT NULL
+   AND COL_LENGTH(N'dbo.SeriesProposals', N'ProposalSynopsis') IS NULL
+BEGIN
+    ALTER TABLE dbo.SeriesProposals ADD ProposalSynopsis NVARCHAR(MAX) NULL;
+END;
+
+IF OBJECT_ID(N'dbo.SeriesProposals', N'U') IS NOT NULL
+   AND OBJECT_ID(N'dbo.Series', N'U') IS NOT NULL
+   AND COL_LENGTH(N'dbo.SeriesProposals', N'ProposalSynopsis') IS NOT NULL
+BEGIN
+    EXEC sp_executesql N'
+        UPDATE proposal
+        SET ProposalSynopsis = series.Synopsis
+        FROM dbo.SeriesProposals proposal
+        INNER JOIN dbo.Series series ON series.SeriesId = proposal.SeriesId
+        WHERE proposal.ProposalSynopsis IS NULL;
+    ';
+END;
+
 IF OBJECT_ID(N'dbo.PageAnnotations', N'U') IS NOT NULL
    AND OBJECT_ID(N'dbo.PageVersions', N'U') IS NOT NULL
    AND COL_LENGTH(N'dbo.PageAnnotations', N'PageVersionId') IS NOT NULL

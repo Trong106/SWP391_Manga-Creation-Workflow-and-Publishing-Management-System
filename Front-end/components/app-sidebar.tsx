@@ -12,7 +12,6 @@ import {
   Users,
   DollarSign,
   FileCheck,
-  Calendar,
   BarChart3,
   Settings,
   Bell,
@@ -133,16 +132,10 @@ const navItems: NavItem[] = [
     roles: ["editorial"],
   },
   {
-    title: "Approve Publishing",
-    href: "/publish/approve",
+    title: "Publishing",
+    href: "/publishing",
     icon: CheckCircle,
-    badgeKey: "pendingPublish",
-    roles: ["editorial"],
-  },
-  {
-    title: "Publish Schedule",
-    href: "/schedule",
-    icon: Calendar,
+    badgeKey: "publishing",
     roles: ["editorial"],
   },
   {
@@ -155,12 +148,6 @@ const navItems: NavItem[] = [
     title: "Series Ranking",
     href: "/ranking",
     icon: BarChart3,
-    roles: ["editorial"],
-  },
-  {
-    title: "Audit Logs",
-    href: "/audit",
-    icon: Clock,
     roles: ["editorial"],
   },
 ]
@@ -235,7 +222,7 @@ export function AppSidebar() {
           const pendingPublish = schedules.filter((s: any) =>
             s.status === "scheduled" || s.status === "pending"
           ).length
-          setBadgeCounts(prev => ({ ...prev, pendingPublish: pendingPublish || 0 }))
+          setBadgeCounts(prev => ({ ...prev, publishing: pendingPublish || 0 }))
         }
       }
     } catch (err) {

@@ -25,8 +25,6 @@ public partial class User
 
     public virtual AssistantProfile? AssistantProfile { get; set; }
 
-    public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
-
     public virtual ICollection<MangaPage> MangaPages { get; set; } = new List<MangaPage>();
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
