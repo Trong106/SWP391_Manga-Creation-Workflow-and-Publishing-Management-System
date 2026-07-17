@@ -15,6 +15,8 @@ public partial class SeriesProposal
 
     public string Status { get; set; } = null!;
 
+    public string? ProposalSynopsis { get; set; }
+
     public string? ReviewNote { get; set; }
 
     public DateTime SubmittedAt { get; set; }

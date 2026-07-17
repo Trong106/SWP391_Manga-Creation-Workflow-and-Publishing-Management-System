@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { BarChart3, TrendingUp, TrendingDown, Plus, Save, Download, History } from "lucide-react"
+import { useRef, useState, useEffect } from "react"
+import { BarChart3, TrendingUp, TrendingDown, Plus, Save, Download, History, Upload } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -42,6 +42,22 @@ interface VoteEntry {
   previousRank: number
 }
 
+const csvEscape = (value: string | number | null | undefined) => {
+  const text = value === null || value === undefined ? "" : String(value)
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+const downloadTextFile = (filename: string, content: string, mimeType = "text/csv;charset=utf-8") => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
 
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
@@ -67,6 +83,9 @@ export default function VotesPage() {
   const [inputWeek, setInputWeek] = useState(String(currentWeek))
   const [inputYear, setInputYear] = useState(String(currentYear))
   const [loading, setLoading] = useState(true)
+  const [importingVotes, setImportingVotes] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch votes for the selected week
   useEffect(() => {
@@ -89,7 +108,7 @@ export default function VotesPage() {
         console.error("Error fetching reader votes:", err)
         setLoading(false)
       })
-  }, [selectedWeek, token])
+  }, [selectedWeek, token, refreshKey])
 
   // Fetch all series for input dropdown/list
   useEffect(() => {
@@ -176,6 +195,57 @@ export default function VotesPage() {
     }
   }
 
+  const handleImportVotes = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+
+    if (!file || !token) return
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    setImportingVotes(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/data/reader-votes/import`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || "Failed to import votes")
+      }
+
+      const data = await response.json()
+      alert(`Imported ${data.rows} vote rows across ${data.weeks} week(s).`)
+
+      const importedWeeks = Array.isArray(data.importedWeeks)
+        ? data.importedWeeks
+            .filter((item: any) => Number(item.year) === currentYear)
+            .map((item: any) => String(item.week))
+        : []
+
+      if (importedWeeks.length > 0) {
+        const nextWeeks = Array.from(new Set([...availableWeeks, ...importedWeeks]))
+          .sort((a, b) => parseInt(b) - parseInt(a))
+        setAvailableWeeks(nextWeeks)
+        setSelectedWeek(nextWeeks[0])
+      } else {
+        setAvailableWeeks(prev => Array.from(new Set([...prev, selectedWeek])).sort((a, b) => parseInt(b) - parseInt(a)))
+      }
+
+      setRefreshKey(value => value + 1)
+    } catch (err) {
+      console.error("Error importing votes:", err)
+      alert(err instanceof Error ? err.message : "Failed to import votes.")
+    } finally {
+      setImportingVotes(false)
+    }
+  }
+
   const totalVotes = voteEntries.reduce((sum, v) => sum + v.votes, 0)
   const topSeries = voteEntries.length > 0 ? voteEntries[0] : null
   const atRiskCount = voteEntries.filter(v => v.rank >= 8).length
@@ -189,6 +259,37 @@ export default function VotesPage() {
         },
       ]
     : []
+
+  const handleExportVotes = () => {
+    if (voteEntries.length === 0) {
+      alert("No reader votes available to export for this week.")
+      return
+    }
+
+    const headers = ["year", "week", "rank", "series", "votes", "previousVotes", "change", "previousRank", "rankChange", "status"]
+    const rows = voteEntries.map((entry) => {
+      const rankChange = entry.previousRank - entry.rank
+      const status = entry.rank >= 8 ? "At Risk" : "Safe"
+      return [
+        currentYear,
+        selectedWeek,
+        entry.rank,
+        entry.series,
+        entry.votes,
+        entry.previousVotes,
+        entry.change,
+        entry.previousRank,
+        rankChange,
+        status,
+      ]
+    })
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvEscape).join(","))
+      .join("\n")
+
+    downloadTextFile(`reader-votes-week-${selectedWeek}-${currentYear}.csv`, csv)
+  }
 
   return (
     <div className="space-y-6">
@@ -213,6 +314,21 @@ export default function VotesPage() {
               ))}
             </SelectContent>
           </Select>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,.txt"
+            className="hidden"
+            onChange={handleImportVotes}
+          />
+          <Button
+            variant="outline"
+            onClick={() => importInputRef.current?.click()}
+            disabled={importingVotes}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {importingVotes ? "Importing..." : "Import CSV"}
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-primary text-primary-foreground">
@@ -334,7 +450,7 @@ export default function VotesPage() {
             <CardTitle>Week {selectedWeek} Rankings</CardTitle>
             <CardDescription>Current series rankings based on reader votes</CardDescription>
           </div>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExportVotes} disabled={voteEntries.length === 0}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>

@@ -636,36 +636,6 @@ public class ChapterService : IChapterService
         };
     }
 
-    public async Task<List<ChapterAuditEventDto>> GetChapterAuditTimeline(Guid chapterId)
-    {
-        var pageIds = await _context.MangaPages
-            .Where(p => p.ChapterId == chapterId)
-            .Select(p => p.PageId)
-            .ToListAsync();
-
-        var chapterIdText = chapterId.ToString();
-
-        return await _context.AuditLogs
-            .Include(a => a.User)
-            .Where(a =>
-                (a.EntityType == "chapter" && a.EntityId == chapterId) ||
-                (a.EntityType == "page" && a.EntityId != null && pageIds.Contains(a.EntityId.Value)) ||
-                (a.DetailsJson != null && a.DetailsJson.Contains(chapterIdText)))
-            .OrderByDescending(a => a.CreatedAt)
-            .Select(a => new ChapterAuditEventDto
-            {
-                AuditLogId = a.AuditLogId,
-                UserId = a.UserId,
-                UserName = a.User != null ? a.User.FullName : null,
-                Action = a.Action,
-                EntityType = a.EntityType,
-                EntityId = a.EntityId,
-                DetailsJson = a.DetailsJson,
-                CreatedAt = a.CreatedAt
-            })
-            .ToListAsync();
-    }
-
     private static ChapterDto MapToDto(Chapter c)
     {
         return new ChapterDto

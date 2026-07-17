@@ -6,7 +6,6 @@ using MangaStudio.Backend.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
@@ -97,6 +96,7 @@ public class SeriesService : ISeriesService
             SeriesId = series.SeriesId,
             SubmittedById = mangakaId,
             Status = "submitted",
+            ProposalSynopsis = series.Synopsis,
             SubmittedAt = DateTime.UtcNow
         };
 
@@ -146,7 +146,11 @@ public class SeriesService : ISeriesService
 
         if (dto.Title != null) series.Title = dto.Title;
         if (dto.TitleJp != null) series.TitleJp = dto.TitleJp;
-        if (dto.Synopsis != null) series.Synopsis = dto.Synopsis;
+        if (dto.Synopsis != null)
+        {
+            await FreezeMissingProposalSynopsisSnapshots(series.SeriesId, series.Synopsis);
+            series.Synopsis = dto.Synopsis;
+        }
         if (dto.Status != null) series.Status = dto.Status;
         if (dto.CoverImageUrl != null) series.CoverImageUrl = dto.CoverImageUrl;
 
@@ -196,24 +200,6 @@ public class SeriesService : ISeriesService
 
         series.Status = decision;
         series.UpdatedAt = DateTime.UtcNow;
-
-        _context.AuditLogs.Add(new AuditLog
-        {
-            AuditLogId = Guid.NewGuid(),
-            UserId = editorialId,
-            Action = decision == "cancelled" ? "cancelled_series" : decision == "hiatus" ? "changed_publication_form" : "reactivated_series",
-            EntityType = "Series",
-            EntityId = series.SeriesId,
-            DetailsJson = JsonSerializer.Serialize(new
-            {
-                series.Title,
-                Decision = decision,
-                Reason = dto.Reason,
-                series.Ranking,
-                series.ReaderCount
-            }),
-            CreatedAt = DateTime.UtcNow
-        });
 
         var notificationTitle = decision switch
         {
@@ -465,6 +451,7 @@ public class SeriesService : ISeriesService
             SeriesId = series.SeriesId,
             SubmittedById = mangakaId,
             Status = "submitted",
+            ProposalSynopsis = series.Synopsis,
             SubmittedAt = DateTime.UtcNow
         };
         _context.SeriesProposals.Add(proposal);
@@ -493,5 +480,17 @@ public class SeriesService : ISeriesService
 
         await _context.SaveChangesAsync();
         return MapToDto(series);
+    }
+
+    private async System.Threading.Tasks.Task FreezeMissingProposalSynopsisSnapshots(Guid seriesId, string? currentSynopsis)
+    {
+        var proposalsWithoutSnapshot = await _context.SeriesProposals
+            .Where(p => p.SeriesId == seriesId && p.ProposalSynopsis == null)
+            .ToListAsync();
+
+        foreach (var proposal in proposalsWithoutSnapshot)
+        {
+            proposal.ProposalSynopsis = currentSynopsis;
+        }
     }
 }

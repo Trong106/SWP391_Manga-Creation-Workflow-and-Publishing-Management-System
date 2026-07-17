@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Activity, AlertTriangle, ArrowLeft, Download, History, Loader2, Sparkles } from "lucide-react"
+import { AlertTriangle, ArrowLeft, Download, History, Loader2, Sparkles } from "lucide-react"
 import { API_BASE_URL } from "@/lib/api-config"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,15 +45,6 @@ type ChapterVersionPage = {
   versions: PageVersion[]
 }
 
-type AuditEvent = {
-  auditLogId: string
-  userName?: string | null
-  action: string
-  entityType: string
-  detailsJson?: string | null
-  createdAt: string
-}
-
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -68,11 +59,6 @@ function fullUrl(path?: string | null) {
   if (!path) return ""
   if (path.startsWith("http")) return path
   return `${API_BASE_URL}${path}`
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return ""
-  return new Date(value).toLocaleString()
 }
 
 function VersionImage({
@@ -143,7 +129,6 @@ export function VersionCompareDialog({ open, onOpenChange, mode, pageId, chapter
   const [loading, setLoading] = useState(false)
   const [pageVersions, setPageVersions] = useState<PageVersion[]>([])
   const [chapterPages, setChapterPages] = useState<ChapterVersionPage[]>([])
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [selectedPageId, setSelectedPageId] = useState<string>("")
   const [selectedVersionId, setSelectedVersionId] = useState<string>("")
 
@@ -161,27 +146,19 @@ export function VersionCompareDialog({ open, onOpenChange, mode, pageId, chapter
           const versions = await res.json()
           setPageVersions(versions)
           setChapterPages([])
-          setAuditEvents([])
           setSelectedVersionId(versions.find((v: PageVersion) => !v.isCurrent)?.pageVersionId || versions[0]?.pageVersionId || "")
         }
 
         if (mode === "chapter" && chapterId) {
-          const [versionRes, auditRes] = await Promise.all([
-            fetch(`${API_BASE_URL}/api/chapters/${chapterId}/versions`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-            fetch(`${API_BASE_URL}/api/chapters/${chapterId}/audit-timeline`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }),
-          ])
+          const versionRes = await fetch(`${API_BASE_URL}/api/chapters/${chapterId}/versions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
           if (!versionRes.ok) throw new Error("Failed to load chapter versions.")
           const data = await versionRes.json()
           const pages = data.pages || []
           setChapterPages(pages)
           setPageVersions([])
           setSelectedPageId(pages.find((p: ChapterVersionPage) => p.changedAfterRevision)?.pageId || pages[0]?.pageId || "")
-          const audit = auditRes.ok ? await auditRes.json() : []
-          setAuditEvents(Array.isArray(audit) ? audit : [])
         }
       } catch (err: any) {
         console.error(err)
@@ -319,27 +296,6 @@ export function VersionCompareDialog({ open, onOpenChange, mode, pageId, chapter
               </Button>
             </div>
 
-            {mode === "chapter" && (
-              <div className="space-y-2 border-t border-zinc-800 pt-3">
-                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  <Activity className="h-3.5 w-3.5" />
-                  Audit Timeline
-                </p>
-                <div className="max-h-64 space-y-2 overflow-y-auto">
-                  {auditEvents.map((event) => (
-                    <div key={event.auditLogId} className="rounded border border-zinc-800 bg-zinc-950 p-2 text-xs">
-                      <p className="font-semibold text-zinc-200">{event.action.replaceAll("_", " ")}</p>
-                      <p className="mt-0.5 text-[11px] text-zinc-500">{event.userName || "System"} - {formatDate(event.createdAt)}</p>
-                    </div>
-                  ))}
-                  {auditEvents.length === 0 && (
-                    <div className="rounded border border-dashed border-zinc-800 p-3 text-center text-xs text-zinc-600">
-                      No audit events recorded for this chapter yet.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </aside>
 
           {versions.length === 0 ? (

@@ -17,6 +17,6 @@ public class CommentDto
 /// <summary>DTO tạo bình luận trang truyện mới.</summary>
 public class CreateCommentDto
 {
-    [Required(ErrorMessage = "Nội dung bình luận là bắt buộc.")]
+    [Required(ErrorMessage = "Comment body is required.")]
     public string Body { get; set; } = null!;
 }

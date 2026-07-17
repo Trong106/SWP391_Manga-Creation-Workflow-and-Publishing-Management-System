@@ -25,14 +25,3 @@ public class ChapterVersionCompareDto
     public List<ChapterVersionPageDto> Pages { get; set; } = new();
 }
 
-public class ChapterAuditEventDto
-{
-    public Guid AuditLogId { get; set; }
-    public Guid? UserId { get; set; }
-    public string? UserName { get; set; }
-    public string Action { get; set; } = null!;
-    public string EntityType { get; set; } = null!;
-    public Guid? EntityId { get; set; }
-    public string? DetailsJson { get; set; }
-    public DateTime CreatedAt { get; set; }
-}

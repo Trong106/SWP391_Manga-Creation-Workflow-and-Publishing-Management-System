@@ -64,7 +64,10 @@ public class MangaStudioDataController : ControllerBase
             ranking  = s.Ranking,
             rating   = s.Rating,
             readerCount = s.ReaderCount,
-            revenue  = s.ReaderCount * 0.15,
+            revenue  = s.Chapters
+                .SelectMany(c => c.MangaPages)
+                .SelectMany(p => p.Tasks)
+                .Sum(t => t.PaymentAmount),
             coverImageUrl = s.CoverImageUrl,
             synopsis = s.Synopsis,
             proposalStatus = s.SeriesProposals.OrderByDescending(p => p.SubmittedAt).Select(p => p.Status).FirstOrDefault(),
@@ -220,79 +223,46 @@ public class MangaStudioDataController : ControllerBase
         }
     }
 
-    // GET api/data/audit-logs
-    [HttpGet("audit-logs")]
-    [Authorize(Roles = "editorial")]
-    public async Task<IActionResult> GetAuditLogs()
-    {
-        var logs = await _dbContext.AuditLogs
-            .Include(l => l.User!)
-            .ThenInclude(u => u.Role)
-            .OrderByDescending(l => l.CreatedAt)
-            .ToListAsync();
-
-        var result = logs.Select(l => new
-        {
-            id = l.AuditLogId.ToString(),
-            user = new
-            {
-                name   = l.User != null ? l.User.FullName : "System",
-                avatar = l.User?.Avatar,
-                role   = l.User?.Role?.Name ?? "Automated"
-            },
-            action     = l.Action,
-            entityType = l.EntityType,
-            entityName = l.EntityId.HasValue
-                ? $"{l.EntityType} (ID: {l.EntityId.Value.ToString()[..8]})"
-                : l.EntityType,
-            details   = l.DetailsJson ?? "No additional details available.",
-            timestamp = l.CreatedAt,
-            category  = GetCategory(l.EntityType)
-        });
-
-        return Ok(result);
-    }
-
     // GET api/data/reader-votes
-    [HttpGet("reader-votes")]
-    [Authorize(Roles = "editorial")]
-    public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
-    {
-        // Get current week votes
-        var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
-        var currentYear = year ?? DateTime.UtcNow.Year;
-        var previousWeek = currentWeek > 1 ? currentWeek - 1 : 52;
-        var previousYear = currentWeek > 1 ? currentYear : currentYear - 1;
+     [HttpGet("reader-votes")]
+     [Authorize(Roles = "editorial")]
+     public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
+     {
+         // Get current week votes
+         var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
+         var currentYear = year ?? DateTime.UtcNow.Year;
+         var previousWeek = currentWeek > 1 ? currentWeek - 1 : 52;
+         var previousYear = currentWeek > 1 ? currentYear : currentYear - 1;
 
-        var currentVotes = await _dbContext.ReaderVotes
-            .Include(v => v.Series)
-            .Where(v => v.WeekNumber == currentWeek && v.YearNumber == currentYear)
-            .OrderBy(v => v.RankNumber)
-            .ToListAsync();
+         var currentVotes = await _dbContext.ReaderVotes
+             .Include(v => v.Series)
+             .Where(v => v.WeekNumber == currentWeek && v.YearNumber == currentYear)
+             .OrderBy(v => v.RankNumber)
+             .ToListAsync();
 
-        // Get previous week votes for comparison
-        var previousVotesDict = await _dbContext.ReaderVotes
-            .Where(v => v.WeekNumber == previousWeek && v.YearNumber == previousYear)
-            .ToDictionaryAsync(v => v.SeriesId, v => new { votes = v.Votes, rank = v.RankNumber });
+         // Get previous week votes for comparison
+         var previousVotesDict = await _dbContext.ReaderVotes
+             .Where(v => v.WeekNumber == previousWeek && v.YearNumber == previousYear)
+             .ToDictionaryAsync(v => v.SeriesId, v => new { votes = v.Votes, rank = v.RankNumber });
 
-        var result = currentVotes.Select(v =>
-        {
-            previousVotesDict.TryGetValue(v.SeriesId, out var prev);
-            return new
-            {
-                id            = v.ReaderVoteId.ToString(),
-                seriesId      = v.SeriesId.ToString(),
-                series        = v.Series.Title,
-                votes         = v.Votes,
-                previousVotes = prev?.votes ?? 0,
-                change        = v.Votes - (prev?.votes ?? v.Votes),
-                rank          = v.RankNumber,
-                previousRank  = prev?.rank ?? v.RankNumber
-            };
-        });
+         var result = currentVotes.Select(v =>
+         {
+             previousVotesDict.TryGetValue(v.SeriesId, out var prev);
+             return new
+             {
+                 id            = v.ReaderVoteId.ToString(),
+                 seriesId      = v.SeriesId.ToString(),
+                 series        = v.Series.Title,
+                 votes         = v.Votes,
+                 previousVotes = prev?.votes ?? 0,
+                 change        = v.Votes - (prev?.votes ?? v.Votes),
+                 rank          = v.RankNumber,
+                 previousRank  = prev?.rank ?? v.RankNumber
+             };
+         });
 
-        return Ok(result);
-    }
+         return Ok(result);
+     }
 
     // POST api/data/reader-votes
     [HttpPost("reader-votes")]
@@ -350,6 +320,169 @@ public class MangaStudioDataController : ControllerBase
         await _dbContext.SaveChangesAsync();
 
         return Ok(new { message = "Weekly votes saved successfully." });
+    }
+
+    // POST api/data/reader-votes/import
+    [HttpPost("reader-votes/import")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> ImportReaderVotes(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest("CSV file is required.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension != ".csv" && extension != ".txt")
+            return BadRequest("Only .csv or .txt files are supported.");
+
+        var series = await _dbContext.Series.ToListAsync();
+        var byId = series.ToDictionary(s => s.SeriesId, s => s);
+        var byTitle = series
+            .GroupBy(s => s.Title.Trim().ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var importedRows = new List<(int Year, int Week, Guid SeriesId, int Votes)>();
+        using (var stream = file.OpenReadStream())
+        using (var reader = new StreamReader(stream))
+        {
+            var headerLine = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(headerLine))
+                return BadRequest("CSV file is empty.");
+
+            var headers = SplitCsvLine(headerLine)
+                .Select((name, index) => new { Name = name.Trim().ToLowerInvariant(), Index = index })
+                .ToDictionary(x => x.Name, x => x.Index);
+
+            if (!headers.ContainsKey("year") || !headers.ContainsKey("week") || !headers.ContainsKey("votes") ||
+                (!headers.ContainsKey("seriesid") && !headers.ContainsKey("seriestitle")))
+            {
+                return BadRequest("CSV must include year, week, votes, and either seriesId or seriesTitle.");
+            }
+
+            var lineNumber = 1;
+            while (!reader.EndOfStream)
+            {
+                lineNumber++;
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var columns = SplitCsvLine(line);
+                string Cell(string name) => headers.TryGetValue(name, out var index) && index < columns.Count ? columns[index].Trim() : "";
+
+                if (!int.TryParse(Cell("year"), out var year) || year < 2000)
+                    return BadRequest($"Invalid year at line {lineNumber}.");
+                if (!int.TryParse(Cell("week"), out var week) || week < 1 || week > 53)
+                    return BadRequest($"Invalid week at line {lineNumber}.");
+                if (!int.TryParse(Cell("votes"), out var votes) || votes < 0)
+                    return BadRequest($"Invalid votes at line {lineNumber}.");
+
+                Series? matchedSeries = null;
+                var seriesIdText = Cell("seriesid");
+                if (!string.IsNullOrWhiteSpace(seriesIdText) && Guid.TryParse(seriesIdText, out var seriesId))
+                    byId.TryGetValue(seriesId, out matchedSeries);
+
+                if (matchedSeries == null)
+                {
+                    var title = Cell("seriestitle").ToLowerInvariant();
+                    if (!string.IsNullOrWhiteSpace(title))
+                        byTitle.TryGetValue(title, out matchedSeries);
+                }
+
+                if (matchedSeries == null)
+                    return BadRequest($"Series was not found at line {lineNumber}.");
+
+                importedRows.Add((year, week, matchedSeries.SeriesId, votes));
+            }
+        }
+
+        if (!importedRows.Any())
+            return BadRequest("No vote rows were found.");
+
+        var affectedWeeks = importedRows
+            .Select(r => new { r.Year, r.Week })
+            .Distinct()
+            .ToList();
+
+        foreach (var affected in affectedWeeks)
+        {
+            var existing = await _dbContext.ReaderVotes
+                .Where(v => v.YearNumber == affected.Year && v.WeekNumber == affected.Week)
+                .ToListAsync();
+            _dbContext.ReaderVotes.RemoveRange(existing);
+
+            var ranked = importedRows
+                .Where(r => r.Year == affected.Year && r.Week == affected.Week)
+                .GroupBy(r => r.SeriesId)
+                .Select(g => new { SeriesId = g.Key, Votes = g.Sum(x => x.Votes) })
+                .OrderByDescending(x => x.Votes)
+                .ToList();
+
+            for (var i = 0; i < ranked.Count; i++)
+            {
+                _dbContext.ReaderVotes.Add(new ReaderVote
+                {
+                    ReaderVoteId = Guid.NewGuid(),
+                    SeriesId = ranked[i].SeriesId,
+                    WeekNumber = affected.Week,
+                    YearNumber = affected.Year,
+                    Votes = ranked[i].Votes,
+                    RankNumber = i + 1,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                if (byId.TryGetValue(ranked[i].SeriesId, out var targetSeries))
+                    targetSeries.Ranking = i + 1;
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Reader votes imported successfully.",
+            rows = importedRows.Count,
+            weeks = affectedWeeks.Count,
+            importedWeeks = affectedWeeks
+                .OrderByDescending(w => w.Year)
+                .ThenByDescending(w => w.Week)
+                .Select(w => new { year = w.Year, week = w.Week })
+                .ToList()
+        });
+    }
+
+    private static List<string> SplitCsvLine(string line)
+    {
+        var values = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    current.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (ch == ',' && !inQuotes)
+            {
+                values.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(ch);
+            }
+        }
+
+        values.Add(current.ToString());
+        return values;
     }
 
     // GET api/data/publish-schedule
@@ -742,16 +875,6 @@ public class MangaStudioDataController : ControllerBase
 
         return Ok(result);
     }
-
-    private static string GetCategory(string entityType) =>
-        entityType.ToLower() switch
-        {
-            "series"  => "series",
-            "chapter" => "chapter",
-            "user"    => "user",
-            "payment" => "payment",
-            _         => "system"
-        };
 
     private static Guid? GetCurrentVersionId(MangaPage page)
     {

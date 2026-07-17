@@ -24,11 +24,52 @@ public class WorkflowService : IWorkflowService
 
     // === Series Proposals ===
 
+    private async System.Threading.Tasks.Task CleanUpApprovedSeriesProposals()
+    {
+        // Tìm toàn bộ các đề xuất bị từ chối (rejected) có cùng Tên truyện và cùng Mangaka với một đề xuất đã được đồng ý (approved)
+        var rejectedProposals = await _context.SeriesProposals
+            .Include(p => p.Series)
+            .Where(rp => rp.Status == "rejected" &&
+                         _context.SeriesProposals.Any(ap => ap.Status == "approved" &&
+                                                             ap.SubmittedById == rp.SubmittedById &&
+                                                             ap.Series.Title == rp.Series.Title))
+            .ToListAsync();
+
+        if (rejectedProposals.Any())
+        {
+            var rejectedSeriesIds = rejectedProposals.Select(p => p.SeriesId).ToList();
+            var rejectedSeries = rejectedProposals.Select(p => p.Series).Where(s => s != null).ToList();
+
+            // 1. Xóa các đề xuất con trước
+            _context.SeriesProposals.RemoveRange(rejectedProposals);
+            await _context.SaveChangesAsync();
+
+            // 2. Xóa các thể loại liên kết
+            var rejectedGenres = await _context.SeriesGenres
+                .Where(g => rejectedSeriesIds.Contains(g.SeriesId))
+                .ToListAsync();
+
+            if (rejectedGenres.Any())
+            {
+                _context.SeriesGenres.RemoveRange(rejectedGenres);
+            }
+
+            // 3. Xóa các bản ghi truyện cha
+            if (rejectedSeries.Any())
+            {
+                _context.Series.RemoveRange(rejectedSeries);
+            }
+
+            await _context.SaveChangesAsync();
+        }
+    }
+
     /// <summary>
     /// Lấy danh sách đề xuất chờ duyệt (status = 'submitted').
     /// </summary>
     public async Task<List<ProposalDto>> GetPendingProposals()
     {
+        await CleanUpApprovedSeriesProposals();
         return await _context.SeriesProposals
             .Include(p => p.Series)
                 .ThenInclude(s => s.SeriesGenres)
@@ -44,6 +85,7 @@ public class WorkflowService : IWorkflowService
     /// </summary>
     public async Task<List<ProposalDto>> GetProposalsByMangaka(Guid mangakaId)
     {
+        await CleanUpApprovedSeriesProposals();
         return await _context.SeriesProposals
             .Where(p => p.SubmittedById == mangakaId)
             .Include(p => p.Series)
@@ -90,6 +132,42 @@ public class WorkflowService : IWorkflowService
 
             proposal.Series.Status = "active"; // BR-Proposal
             proposal.Series.TantouId = tantou.UserId;
+
+            // Xóa các đề xuất bị từ chối (rejected) cũ của bộ truyện này (trùng tên và trùng Mangaka)
+            var title = proposal.Series.Title;
+            var mangakaId = proposal.SubmittedById;
+
+            var oldRejectedProposals = await _context.SeriesProposals
+                .Where(p => p.Status == "rejected" && p.SubmittedById == mangakaId && p.Series.Title == title && p.ProposalId != proposalId)
+                .Include(p => p.Series)
+                .ToListAsync();
+
+            if (oldRejectedProposals.Any())
+            {
+                var rejectedSeriesIds = oldRejectedProposals.Select(p => p.SeriesId).ToList();
+                var rejectedSeries = oldRejectedProposals.Select(p => p.Series).Where(s => s != null).ToList();
+
+                // Delete the proposals (child records) first
+                _context.SeriesProposals.RemoveRange(oldRejectedProposals);
+                await _context.SaveChangesAsync();
+
+                // Now delete genres and series
+                var rejectedGenres = await _context.SeriesGenres
+                    .Where(g => rejectedSeriesIds.Contains(g.SeriesId))
+                    .ToListAsync();
+
+                if (rejectedGenres.Any())
+                {
+                    _context.SeriesGenres.RemoveRange(rejectedGenres);
+                }
+
+                if (rejectedSeries.Any())
+                {
+                    _context.Series.RemoveRange(rejectedSeries);
+                }
+
+                await _context.SaveChangesAsync();
+            }
         }
         else if (decision == "rejected")
         {
@@ -148,6 +226,8 @@ public class WorkflowService : IWorkflowService
     /// </summary>
     public async Task<List<PublishScheduleDto>> GetPublishSchedules(Guid? seriesId = null)
     {
+        await PublishDueSchedules();
+
         var query = _context.PublishSchedules
             .Include(s => s.ApprovedBy)
             .Include(s => s.Chapter)
@@ -224,33 +304,56 @@ public class WorkflowService : IWorkflowService
             return await GetPublishScheduleById(schedule.PublishScheduleId);
         }
 
-        schedule.ApprovedById = editorialId;
-        schedule.Status = "published";
-        schedule.PublishedAt = DateTime.UtcNow;
-        if (schedule.Chapter != null)
-        {
-            schedule.Chapter.Status = "published";
-            schedule.Chapter.SubmittedForPublishingAt ??= DateTime.UtcNow;
-            schedule.Chapter.UpdatedAt = DateTime.UtcNow;
-
-            var series = schedule.Chapter.Series;
-            var publishDate = schedule.ScheduledDate.ToString("yyyy-MM-dd HH:mm 'UTC'");
-            _context.Notifications.Add(new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = series.MangakaId,
-                Type = "system",
-                Title = "Chapter published",
-                Message = $"{series.Title} chapter {schedule.Chapter.ChapterNumber} has been published for {publishDate}.",
-                IsRead = false,
-                Link = $"/chapters/{schedule.Chapter.ChapterId}",
-                CreatedAt = DateTime.UtcNow
-            });
-        }
+        MarkSchedulePublished(schedule, editorialId);
         
         await _context.SaveChangesAsync();
 
         return await GetPublishScheduleById(schedule.PublishScheduleId);
+    }
+
+    private async System.Threading.Tasks.Task PublishDueSchedules()
+    {
+        var dueSchedules = await _context.PublishSchedules
+            .Include(s => s.Chapter)
+                .ThenInclude(c => c.Series)
+            .Where(s => s.Status == "scheduled" && s.ScheduledDate <= DateTime.UtcNow)
+            .ToListAsync();
+
+        foreach (var schedule in dueSchedules)
+        {
+            MarkSchedulePublished(schedule, null);
+        }
+
+        if (dueSchedules.Any())
+        {
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    private void MarkSchedulePublished(PublishSchedule schedule, Guid? editorialId)
+    {
+        schedule.ApprovedById = editorialId;
+        schedule.Status = "published";
+        schedule.PublishedAt = DateTime.UtcNow;
+        if (schedule.Chapter == null) return;
+
+        schedule.Chapter.Status = "published";
+        schedule.Chapter.SubmittedForPublishingAt ??= DateTime.UtcNow;
+        schedule.Chapter.UpdatedAt = DateTime.UtcNow;
+
+        var series = schedule.Chapter.Series;
+        var publishDate = schedule.ScheduledDate.ToString("yyyy-MM-dd HH:mm 'UTC'");
+        _context.Notifications.Add(new Notification
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = series.MangakaId,
+            Type = "system",
+            Title = "Chapter published",
+            Message = $"{series.Title} chapter {schedule.Chapter.ChapterNumber} has been published for {publishDate}.",
+            IsRead = false,
+            Link = $"/chapters/{schedule.Chapter.ChapterId}",
+            CreatedAt = DateTime.UtcNow
+        });
     }
 
     // === Payroll ===
@@ -465,7 +568,7 @@ public class WorkflowService : IWorkflowService
             ProposalId = p.ProposalId,
             SeriesId = p.SeriesId,
             SeriesTitle = p.Series?.Title ?? "Unknown",
-            SeriesSynopsis = p.Series?.Synopsis,
+            SeriesSynopsis = p.ProposalSynopsis ?? p.Series?.Synopsis,
             SeriesGenres = p.Series?.SeriesGenres?.Select(g => g.Genre).ToList() ?? new List<string>(),
             SubmittedById = p.SubmittedById,
             SubmittedByName = p.SubmittedBy?.FullName ?? "Unknown",
