@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth-context"
 import { StatsCards as MetricCard } from "@/components/manga/stats-cards"
 import { TeamActivity as RecentActivity } from "@/components/manga/team-activity"
 import { ProjectList as NewMangaGrid } from "@/components/manga/project-list"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 import { BookOpen, Star, Eye, Bookmark, TrendingUp, X, FolderOpen, Clock, Plus, Loader2, DollarSign, Calendar } from "lucide-react"
@@ -100,7 +100,6 @@ export default function Dashboard() {
   const [topSeries, setTopSeries] = useState<any[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -336,7 +335,9 @@ export default function Dashboard() {
       .then((data) => {
         if (Array.isArray(data)) {
           // Sắp xếp theo lượt xem (readerCount) giảm dần và doanh thu cao nhất
-          const sorted = [...data].sort((a, b) => b.readerCount - a.readerCount)
+          const sorted = [...data]
+            .sort((a, b) => b.readerCount - a.readerCount)
+            .slice(0, 6)
           setTopSeries(sorted)
         }
       })
@@ -348,24 +349,6 @@ export default function Dashboard() {
   useEffect(() => {
     fetchTopSeries()
   }, [token])
-
-  // Auto-scroll effect for "Truyện Top" row (scrolls left by 1 item every 2 seconds)
-  useEffect(() => {
-    if (topSeries.length === 0) return
-    const el = scrollRef.current
-    if (!el) return
-
-    const interval = setInterval(() => {
-      const cardWidth = 160 + 16 // card width: 160px + gap: 16px
-      if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 10) {
-        el.scrollTo({ left: 0, behavior: "smooth" })
-      } else {
-        el.scrollBy({ left: cardWidth, behavior: "smooth" })
-      }
-    }, 2000)
-
-    return () => clearInterval(interval)
-  }, [topSeries])
 
   if (!role) {
     return (
@@ -456,14 +439,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* hàng "Truyện Top" - Tự động kéo trái mỗi 2s */}
+      {/* Top series: fixed list of the 6 highest-viewed series */}
       <div className="min-w-0 space-y-3 overflow-hidden">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           🔥 Top Series
         </h2>
         <div
-          ref={scrollRef}
-          className="flex max-w-full gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+          className="grid max-w-full grid-cols-2 gap-4 pb-4 sm:grid-cols-3 lg:grid-cols-6"
         >
           {topSeries.map((project, idx) => {
             const coverUrl = getFullCoverUrl(project.coverImageUrl)
@@ -471,7 +453,7 @@ export default function Dashboard() {
               <div
                 key={project.id}
                 onClick={() => handleCardClick(project.id)}
-                className="w-40 shrink-0 group cursor-pointer space-y-2 relative"
+                className="group cursor-pointer space-y-2 relative min-w-0"
               >
                 {/* Ranking tag */}
                 <div className="absolute top-2 left-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black shadow-lg">
@@ -520,7 +502,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Hàng dưới: Danh Sách Truyện Tranh Mới (tĩnh) */}
+      {/* New series carousel */}
       <div className="border-t border-zinc-800/80 pt-6">
         <NewMangaGrid />
       </div>
