@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Bell, Menu, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -43,11 +43,24 @@ interface Notification {
   createdAt: string
 }
 
+interface SearchItem {
+  id: string
+  type: "Series" | "Task" | "Team"
+  title: string
+  subtitle: string
+  href: string
+}
+
 export function TopHeader() {
-  const { token, logout } = useAuth()
+  const { token, role, logout } = useAuth()
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchFocused, setSearchFocused] = useState(false)
+  const [seriesSearchData, setSeriesSearchData] = useState<any[]>([])
+  const [taskSearchData, setTaskSearchData] = useState<any[]>([])
+  const [teamSearchData, setTeamSearchData] = useState<any[]>([])
 
   const fetchNotifications = () => {
     if (!token) return
@@ -79,6 +92,35 @@ export function TopHeader() {
     const interval = setInterval(fetchNotifications, 15000)
     return () => clearInterval(interval)
   }, [token])
+
+  useEffect(() => {
+    if (!token) {
+      setSeriesSearchData([])
+      setTaskSearchData([])
+      setTeamSearchData([])
+      return
+    }
+
+    const headers = { Authorization: `Bearer ${token}` }
+    const readArray = async (url: string) => {
+      const res = await fetch(url, { headers })
+      if (!res.ok) return []
+      const data = await res.json()
+      return Array.isArray(data) ? data : []
+    }
+
+    const canSearchTeam = role === "mangaka" || role === "tantou"
+
+    Promise.allSettled([
+      readArray(`${API_BASE_URL}/api/data/series`),
+      readArray(`${API_BASE_URL}/api/data/tasks`),
+      canSearchTeam ? readArray(`${API_BASE_URL}/api/data/team`) : Promise.resolve([]),
+    ]).then(([seriesResult, tasksResult, teamResult]) => {
+      setSeriesSearchData(seriesResult.status === "fulfilled" ? seriesResult.value : [])
+      setTaskSearchData(tasksResult.status === "fulfilled" ? tasksResult.value : [])
+      setTeamSearchData(teamResult.status === "fulfilled" ? teamResult.value : [])
+    })
+  }, [token, role])
 
   const handleMarkAsRead = async (id: string) => {
     if (!token) return
@@ -149,6 +191,56 @@ export function TopHeader() {
   }
 
   const unreadCount = notifications.filter((notification) => !notification.isRead).length
+  const normalizedSearch = searchQuery.trim().toLowerCase()
+  const searchResults = useMemo<SearchItem[]>(() => {
+    if (normalizedSearch.length < 2) return []
+
+    const includes = (...values: Array<string | number | null | undefined>) =>
+      values.some((value) => String(value ?? "").toLowerCase().includes(normalizedSearch))
+
+    const seriesResults: SearchItem[] = seriesSearchData
+      .filter((series) => includes(series.title, series.titleJp, series.author, series.status, series.genre))
+      .slice(0, 5)
+      .map((series) => ({
+        id: `series-${series.id}`,
+        type: "Series",
+        title: series.title || "Untitled series",
+        subtitle: `${series.author || "Unknown author"} · ${series.chapters ?? 0} chapters`,
+        href: "/series",
+      }))
+
+    const taskResults: SearchItem[] = taskSearchData
+      .filter((task) => includes(task.title, task.description, task.seriesTitle, task.assigneeName, task.type, task.status))
+      .slice(0, 5)
+      .map((task) => ({
+        id: `task-${task.id}`,
+        type: "Task",
+        title: task.title || "Untitled task",
+        subtitle: `${task.seriesTitle || "Unknown series"} · ${task.assigneeName || "Unassigned"} · ${task.status || "status"}`,
+        href: "/tasks",
+      }))
+
+    const teamResults: SearchItem[] = teamSearchData
+      .filter((member) => includes(member.name, member.fullName, member.email, member.role, member.specialty, member.status))
+      .slice(0, 5)
+      .map((member) => ({
+        id: `team-${member.id || member.userId || member.email}`,
+        type: "Team",
+        title: member.name || member.fullName || member.email || "Team member",
+        subtitle: `${member.role || member.specialty || "Member"} · ${member.email || "No email"}`,
+        href: "/team",
+      }))
+
+    return [...seriesResults, ...taskResults, ...teamResults].slice(0, 8)
+  }, [normalizedSearch, seriesSearchData, taskSearchData, teamSearchData])
+
+  const openSearchResult = (item: SearchItem) => {
+    setSearchQuery("")
+    setSearchFocused(false)
+    router.push(item.href)
+  }
+
+  const showSearchResults = searchFocused && normalizedSearch.length >= 2
 
   return (
     <>
@@ -169,8 +261,51 @@ export function TopHeader() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search projects, tasks, team..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => window.setTimeout(() => setSearchFocused(false), 120)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && searchResults[0]) {
+                event.preventDefault()
+                openSearchResult(searchResults[0])
+              }
+              if (event.key === "Escape") {
+                setSearchQuery("")
+                setSearchFocused(false)
+              }
+            }}
             className="w-80 max-w-[min(20rem,40vw)] pl-9 bg-secondary border-border"
           />
+          {showSearchResults && (
+            <div className="absolute left-0 top-full z-50 mt-2 w-96 max-w-[min(24rem,55vw)] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 shadow-2xl">
+              {searchResults.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-zinc-500">No matching projects, tasks, or team members.</div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto py-2">
+                  {searchResults.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        openSearchResult(item)
+                      }}
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-zinc-900"
+                    >
+                      <span className="mt-0.5 rounded border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                        {item.type}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-zinc-100">{item.title}</span>
+                        <span className="block truncate text-xs text-zinc-500">{item.subtitle}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

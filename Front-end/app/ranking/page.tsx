@@ -57,6 +57,22 @@ interface SeriesRankingContainerDto {
   rankings: SeriesRankingDto[]
 }
 
+const csvEscape = (value: string | number | null | undefined) => {
+  const text = value === null || value === undefined ? "" : String(value)
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+const downloadTextFile = (filename: string, content: string, mimeType = "text/csv;charset=utf-8") => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
 
 export default function SeriesRankingPage() {
   const { token, role, logout } = useAuth()
@@ -173,6 +189,65 @@ export default function SeriesRankingPage() {
       item.authorName.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch
   }) || []
+
+  const handleExportReport = () => {
+    if (!rankingData || filteredRankings.length === 0) {
+      alert("No ranking data available to export.")
+      return
+    }
+
+    const summaryRows = [
+      ["Report", "Series Ranking"],
+      ["Timeframe", selectedTimeframe],
+      ["Genre", selectedGenre],
+      ["Sort", selectedSort],
+      ["Search", searchQuery || "All"],
+      ["Total Series Ranked", rankingData.totalSeriesRanked],
+      ["Filtered Series", filteredRankings.length],
+      ["Top Trending", rankingData.topTrendingTitle],
+      ["Total Reader Votes", rankingData.totalReaderVotes],
+      ["Total Views", rankingData.totalViews],
+      [],
+    ]
+
+    const headers = [
+      "rank",
+      "previousRank",
+      "title",
+      "author",
+      "score",
+      "readerVotes",
+      "views",
+      "growthRate",
+      "status",
+      "seriesStatus",
+      "riskLevel",
+      "riskReason",
+      "genres",
+    ]
+
+    const rows = filteredRankings.map((item) => [
+      item.rank,
+      item.previousRank ?? "",
+      item.title,
+      item.authorName,
+      item.score.toFixed(1),
+      item.readerVotes,
+      item.views,
+      item.growthRate,
+      item.status,
+      item.seriesStatus,
+      item.riskLevel,
+      item.cancellationReason || item.riskReason || "",
+      item.genres.join(" / "),
+    ])
+
+    const csv = [...summaryRows, headers, ...rows]
+      .map((row) => row.map(csvEscape).join(","))
+      .join("\n")
+
+    downloadTextFile(`series-ranking-report-${selectedTimeframe}.csv`, csv)
+  }
 
   // Collect all unique genres from ranking data for the filter dropdown
   const uniqueGenres = ["All Genres"]
@@ -314,6 +389,8 @@ export default function SeriesRankingPage() {
 
           <Button 
             className="bg-[#00dfc0] text-black font-semibold text-sm hover:bg-[#00dfc0]/90 h-10 px-4 rounded-lg flex items-center gap-2"
+            onClick={handleExportReport}
+            disabled={!rankingData || filteredRankings.length === 0}
           >
             <Download className="w-4 h-4" />
             Export Report
