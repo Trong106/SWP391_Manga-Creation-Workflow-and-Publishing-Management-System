@@ -16,6 +16,7 @@ export function ProjectList() {
   const [loading, setLoading] = useState(true)
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const now = useNow()
 
   const fetchSeries = () => {
@@ -78,16 +79,36 @@ export function ProjectList() {
       ) : projects.length === 0 ? (
         <div className="text-center py-12 text-zinc-400 text-sm">No new series found.</div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
-          {projects.map((project) => {
-            const coverUrl = getFullCoverUrl(project.coverImageUrl)
-            const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
-            return (
-              <div
-                key={project.id}
-                onClick={() => handleCardClick(project.id)}
-                className="group cursor-pointer space-y-2.5"
-              >
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => scrollProjects("left")}
+            className="absolute left-0 top-[40%] z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/90 text-zinc-300 shadow-xl transition-colors hover:border-primary/60 hover:text-white"
+            aria-label="Scroll new series left"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollProjects("right")}
+            className="absolute right-0 top-[40%] z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/90 text-zinc-300 shadow-xl transition-colors hover:border-primary/60 hover:text-white"
+            aria-label="Scroll new series right"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div
+            ref={scrollRef}
+            className="flex max-w-full gap-5 overflow-x-auto px-12 pb-3 scrollbar-none scroll-smooth"
+          >
+            {projects.map((project) => {
+              const coverUrl = getFullCoverUrl(project.coverImageUrl)
+              const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => handleCardClick(project.id)}
+                  className="group w-48 shrink-0 cursor-pointer space-y-2.5"
+                >
                 {/* Image Container */}
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                   {project.coverImageUrl ? (
@@ -127,9 +148,10 @@ export function ProjectList() {
                     </span>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

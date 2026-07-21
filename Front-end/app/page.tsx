@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth-context"
 import { StatsCards as MetricCard } from "@/components/manga/stats-cards"
 import { TeamActivity as RecentActivity } from "@/components/manga/team-activity"
 import { ProjectList as NewMangaGrid } from "@/components/manga/project-list"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 import { BarChart3, BookOpen, Star, Eye, Bookmark, TrendingUp, X, FolderOpen, Clock, Plus, Loader2, DollarSign, Calendar } from "lucide-react"
@@ -97,7 +97,6 @@ export default function Dashboard() {
   const [topSeries, setTopSeries] = useState<any[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -464,8 +463,7 @@ export default function Dashboard() {
           🔥 Top Series
         </h2>
         <div
-          ref={scrollRef}
-          className="flex max-w-full gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
+          className="grid max-w-full grid-cols-2 gap-4 pb-4 sm:grid-cols-3 lg:grid-cols-6"
         >
           {topSeries.map((project, idx) => {
             const coverUrl = getFullCoverUrl(project.coverImageUrl)
@@ -473,7 +471,7 @@ export default function Dashboard() {
               <div
                 key={project.id}
                 onClick={() => handleCardClick(project.id)}
-                className="w-40 shrink-0 group cursor-pointer space-y-2 relative"
+                className="group cursor-pointer space-y-2 relative min-w-0"
               >
                 {/* Ranking tag */}
                 <div className="absolute top-2 left-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black shadow-lg">
