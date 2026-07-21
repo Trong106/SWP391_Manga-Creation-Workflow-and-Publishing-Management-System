@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
@@ -55,6 +56,25 @@ public class CreateSeriesDto
     public List<string> Genres { get; set; } = new();
 }
 
+public class CreateSeriesWithManuscriptDto
+{
+    [Required(ErrorMessage = "Series title is required.")]
+    [StringLength(255, ErrorMessage = "Title cannot exceed 255 characters.")]
+    public string Title { get; set; } = null!;
+
+    [StringLength(255)]
+    public string? TitleJp { get; set; }
+
+    public string? Synopsis { get; set; }
+
+    public List<string> Genres { get; set; } = new();
+
+    [StringLength(255)]
+    public string? ChapterTitle { get; set; }
+
+    public List<IFormFile> PreliminaryPages { get; set; } = new();
+}
+
 /// <summary>DTO cập nhật bộ truyện.</summary>
 public class UpdateSeriesDto
 {
@@ -99,4 +119,3 @@ public class SeriesRankingContainerDto
     public long TotalViews { get; set; }
     public List<SeriesRankingDto> Rankings { get; set; } = new();
 }
-

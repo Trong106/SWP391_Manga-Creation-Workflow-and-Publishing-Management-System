@@ -21,6 +21,7 @@ public class ChapterService : IChapterService
 {
     private readonly AppDbContext _context;
     private readonly IStorageService _storageService;
+    private static readonly SemaphoreSlim _createChapterLock = new SemaphoreSlim(1, 1);
     private static readonly SemaphoreSlim _uploadLock = new SemaphoreSlim(1, 1);
 
     public ChapterService(AppDbContext context, IStorageService storageService)
@@ -43,30 +44,38 @@ public class ChapterService : IChapterService
             throw new UnauthorizedAccessException("Bạn không có quyền thêm chương vào bộ truyện này.");
         }
 
-        var chapterExists = await _context.Chapters
-            .AnyAsync(c => c.SeriesId == seriesId && c.ChapterNumber == dto.ChapterNumber);
-
-        if (chapterExists)
+        await _createChapterLock.WaitAsync();
+        try
         {
-            throw new ArgumentException($"Số chương {dto.ChapterNumber} đã tồn tại trong bộ truyện này.");
+            var chapterExists = await _context.Chapters
+                .AnyAsync(c => c.SeriesId == seriesId && c.ChapterNumber == dto.ChapterNumber);
+
+            if (chapterExists)
+            {
+                throw new ArgumentException($"Chapter {dto.ChapterNumber} already exists in this series.");
+            }
+
+            var chapter = new Chapter
+            {
+                ChapterId = Guid.NewGuid(),
+                SeriesId = seriesId,
+                ChapterNumber = dto.ChapterNumber,
+                Title = dto.Title ?? string.Empty,
+                Status = "draft",
+                DueDate = dto.DueDate.HasValue ? DateOnly.FromDateTime(dto.DueDate.Value) : null,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Chapters.Add(chapter);
+            await _context.SaveChangesAsync();
+
+            return await GetChapterById(chapter.ChapterId);
         }
-
-        var chapter = new Chapter
+        finally
         {
-            ChapterId = Guid.NewGuid(),
-            SeriesId = seriesId,
-            ChapterNumber = dto.ChapterNumber,
-            Title = dto.Title ?? string.Empty,
-            Status = "draft",
-            DueDate = dto.DueDate.HasValue ? DateOnly.FromDateTime(dto.DueDate.Value) : null,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        _context.Chapters.Add(chapter);
-        await _context.SaveChangesAsync();
-
-        return await GetChapterById(chapter.ChapterId);
+            _createChapterLock.Release();
+        }
     }
 
     /// <summary>
@@ -169,6 +178,21 @@ public class ChapterService : IChapterService
         if (files == null || files.Count == 0)
         {
             throw new ArgumentException("Danh sách file tải lên không được trống.");
+        }
+
+        var chapter = await _context.Chapters
+            .Include(c => c.Series)
+            .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
+            ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
+
+        if (chapter.Series.MangakaId != uploadedById)
+        {
+            throw new UnauthorizedAccessException("You do not have permission to upload pages to this chapter.");
+        }
+
+        if (IsChapterUploadLocked(chapter.Status))
+        {
+            throw new InvalidOperationException("This chapter has been approved by Tantou or entered the publishing flow. Pages can no longer be added or overwritten.");
         }
 
         var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".psd", ".clip" };
@@ -342,6 +366,12 @@ public class ChapterService : IChapterService
         }
 
         return resultDto;
+    }
+
+    private static bool IsChapterUploadLocked(string status)
+    {
+        var normalizedStatus = status.ToLowerInvariant();
+        return normalizedStatus is "editorial_ready" or "scheduled" or "published";
     }
 
     /// <summary>

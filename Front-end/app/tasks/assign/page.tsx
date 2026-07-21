@@ -1,23 +1,21 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import {
   Layers,
   Users,
   Plus,
-  Check,
-  Trash2,
   DollarSign,
-  Calendar,
-  ChevronDown,
   Loader2,
   AlertCircle,
   BookOpen,
   FileText,
   Clock,
   X,
+  Crosshair,
+  Eraser,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -65,6 +63,7 @@ interface Page {
   pageNumber: number
   status: string
   currentImageUrl?: string
+  imageUrl?: string
 }
 
 interface TaskRecord {
@@ -82,6 +81,12 @@ interface TaskRecord {
   dueDate?: string
   paymentAmount: number
   createdAt: string
+  regionId?: string
+  regionType?: string
+  regionX?: number
+  regionY?: number
+  regionWidth?: number
+  regionHeight?: number
 }
 
 interface Assistant {
@@ -90,7 +95,6 @@ interface Assistant {
   avatar?: string
   specialty?: string
   rating?: number
-  hourlyRate?: number
   tasksCompleted: number
   currentTasks: number
   status: string
@@ -105,13 +109,19 @@ interface CreateTaskForm {
   pageId: string
 }
 
+interface RegionSelection {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 const TASK_TYPES = [
   { value: "line_art", label: "Line Art", basePay: 20 },
   { value: "background", label: "Background", basePay: 15 },
   { value: "effects", label: "Effects", basePay: 10 },
   { value: "coloring", label: "Coloring", basePay: 25 },
   { value: "lettering", label: "Lettering", basePay: 12 },
-  { value: "review", label: "Review", basePay: 8 },
 ]
 
 const TASK_PRICE_TABLE = TASK_TYPES.reduce<Record<string, number>>((acc, taskType) => {
@@ -124,7 +134,7 @@ const TASK_TEMPLATES = [
     label: "Background Cleanup",
     title: "Background cleanup",
     type: "background",
-    description: "Clean perspective lines, remove rough sketch artifacts, and prepare the background layer for final review.",
+    description: "Clean perspective lines, remove rough sketch artifacts, and prepare the background layer for the next production pass.",
   },
   {
     label: "Line Art Polish",
@@ -146,7 +156,6 @@ const typeColors: Record<string, string> = {
   effects: "bg-yellow-500/20 text-yellow-400 border-yellow-700/30",
   coloring: "bg-purple-500/20 text-purple-400 border-purple-700/30",
   lettering: "bg-cyan-500/20 text-cyan-400 border-cyan-700/30",
-  review: "bg-orange-500/20 text-orange-400 border-orange-700/30",
 }
 
 const statusColors: Record<string, string> = {
@@ -158,10 +167,12 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-zinc-900 text-zinc-500",
 }
 
+const PRODUCTION_SERIES_STATUSES = new Set(["active", "ongoing", "hiatus", "completed"])
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TaskAssignPage() {
-  const { token, role, user } = useAuth()
+  const { token, role } = useAuth()
 
   const [series, setSeries] = useState<Series[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState<string>("")
@@ -171,6 +182,9 @@ export default function TaskAssignPage() {
   const [selectedPageId, setSelectedPageId] = useState<string>("")
   const [pageTasks, setPageTasks] = useState<TaskRecord[]>([])
   const [assistants, setAssistants] = useState<Assistant[]>([])
+  const [querySeriesId, setQuerySeriesId] = useState("")
+  const [queryChapterId, setQueryChapterId] = useState("")
+  const [queryTargetApplied, setQueryTargetApplied] = useState(false)
 
   const [loadingSeries, setLoadingSeries] = useState(true)
   const [loadingChapters, setLoadingChapters] = useState(false)
@@ -191,6 +205,10 @@ export default function TaskAssignPage() {
     dueDate: "",
     pageId: "",
   })
+  const [selectedRegion, setSelectedRegion] = useState<RegionSelection | null>(null)
+  const [draftRegion, setDraftRegion] = useState<RegionSelection | null>(null)
+  const [isDrawingRegion, setIsDrawingRegion] = useState(false)
+  const drawStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const authHeader = { Authorization: `Bearer ${token}` }
 
@@ -202,8 +220,7 @@ export default function TaskAssignPage() {
       const res = await fetch(`${API_BASE_URL}/api/series`, { headers: authHeader })
       if (!res.ok) throw new Error("Failed to load series")
       const data: Series[] = await res.json()
-      setSeries(data)
-      if (data.length > 0) setSelectedSeriesId(data[0].seriesId)
+      setSeries(data.filter((item) => PRODUCTION_SERIES_STATUSES.has(String(item.status ?? "").toLowerCase())))
     } catch (err) {
       toast.error("Failed to load your series.")
     } finally {
@@ -225,7 +242,6 @@ export default function TaskAssignPage() {
       if (!res.ok) throw new Error("Failed to load chapters")
       const data: Chapter[] = await res.json()
       setChapters(data)
-      if (data.length > 0) setSelectedChapterId(data[0].chapterId)
     } catch (err) {
       toast.error("Failed to load chapters.")
     } finally {
@@ -245,7 +261,6 @@ export default function TaskAssignPage() {
       if (!res.ok) throw new Error("Failed to load pages")
       const data: Page[] = await res.json()
       setPages(data)
-      if (data.length > 0) setSelectedPageId(data[0].pageId)
     } catch (err) {
       toast.error("Failed to load pages.")
     } finally {
@@ -283,7 +298,6 @@ export default function TaskAssignPage() {
         avatar: a.avatar,
         specialty: a.specialty,
         rating: a.rating,
-        hourlyRate: a.hourlyRate,
         tasksCompleted: a.tasksCompleted ?? 0,
         currentTasks: a.currentTasks ?? 0,
         status: a.status ?? "active",
@@ -296,10 +310,38 @@ export default function TaskAssignPage() {
   }, [token])
 
   // ── Effects ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setQuerySeriesId(params.get("seriesId") ?? "")
+    setQueryChapterId(params.get("chapterId") ?? "")
+  }, [])
   useEffect(() => { loadSeries(); loadAssistants() }, [loadSeries, loadAssistants])
+  useEffect(() => {
+    if (querySeriesId && !queryTargetApplied) {
+      setSelectedSeriesId(querySeriesId)
+    }
+  }, [querySeriesId, queryTargetApplied])
   useEffect(() => { if (selectedSeriesId) loadChapters(selectedSeriesId) }, [selectedSeriesId, loadChapters])
   useEffect(() => { if (selectedChapterId) loadPages(selectedChapterId) }, [selectedChapterId, loadPages])
   useEffect(() => { if (selectedPageId) loadPageTasks(selectedPageId) }, [selectedPageId, loadPageTasks])
+  useEffect(() => {
+    if (!queryChapterId || queryTargetApplied || chapters.length === 0) return
+    if (chapters.some((chapter) => chapter.chapterId === queryChapterId)) {
+      setSelectedChapterId(queryChapterId)
+    }
+  }, [chapters, queryChapterId, queryTargetApplied])
+  useEffect(() => {
+    if (!queryChapterId || queryTargetApplied || selectedChapterId !== queryChapterId || pages.length === 0) return
+    const firstOpenPage = pages.find((page) => page.status?.toLowerCase() !== "approved") ?? pages[0]
+    setSelectedPageId(firstOpenPage.pageId)
+    setQueryTargetApplied(true)
+  }, [pages, queryChapterId, queryTargetApplied, selectedChapterId])
+  useEffect(() => {
+    setSelectedRegion(null)
+    setDraftRegion(null)
+    setIsDrawingRegion(false)
+    drawStartRef.current = null
+  }, [selectedPageId])
   useEffect(() => {
     if (!isDialogOpen) setFormError(null)
   }, [isDialogOpen])
@@ -319,6 +361,68 @@ export default function TaskAssignPage() {
   const updateForm = (patch: Partial<CreateTaskForm>) => {
     setFormError(null)
     setForm((current) => ({ ...current, ...patch }))
+  }
+
+  const getFullImageUrl = (path?: string) => {
+    if (!path) return ""
+    if (path.startsWith("http")) return path
+    return `${API_BASE_URL}${path}`
+  }
+
+  const clampPercent = (value: number) => Math.min(100, Math.max(0, value))
+
+  const getPointerPercent = (event: React.PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return {
+      x: clampPercent(((event.clientX - rect.left) / rect.width) * 100),
+      y: clampPercent(((event.clientY - rect.top) / rect.height) * 100),
+    }
+  }
+
+  const handleRegionPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!selectedPage) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const point = getPointerPercent(event)
+    drawStartRef.current = point
+    setDraftRegion({ x: point.x, y: point.y, width: 0, height: 0 })
+    setIsDrawingRegion(true)
+    setFormError(null)
+  }
+
+  const handleRegionPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDrawingRegion || !drawStartRef.current) return
+    const point = getPointerPercent(event)
+    const start = drawStartRef.current
+    setDraftRegion({
+      x: Math.min(start.x, point.x),
+      y: Math.min(start.y, point.y),
+      width: Math.abs(point.x - start.x),
+      height: Math.abs(point.y - start.y),
+    })
+  }
+
+  const finishRegionDrawing = () => {
+    if (!isDrawingRegion) return
+    setIsDrawingRegion(false)
+    drawStartRef.current = null
+    if (draftRegion && draftRegion.width >= 2 && draftRegion.height >= 2) {
+      setSelectedRegion({
+        x: Number(draftRegion.x.toFixed(2)),
+        y: Number(draftRegion.y.toFixed(2)),
+        width: Number(draftRegion.width.toFixed(2)),
+        height: Number(draftRegion.height.toFixed(2)),
+      })
+    } else if (draftRegion) {
+      toast.error("Please drag a larger region on the manga page.")
+    }
+    setDraftRegion(null)
+  }
+
+  const clearSelectedRegion = () => {
+    setSelectedRegion(null)
+    setDraftRegion(null)
+    setIsDrawingRegion(false)
+    drawStartRef.current = null
   }
 
   const handleCreateTask = async () => {
@@ -342,6 +446,12 @@ export default function TaskAssignPage() {
       toast.error(message)
       return
     }
+    if (!selectedRegion) {
+      const message = "Please drag-select a region on the manga page before creating a task."
+      setFormError(message)
+      toast.error(message)
+      return
+    }
     if (form.dueDate && form.dueDate < todayDate) {
       const message = `Value must be ${formatInputDateForMessage(todayDate)} or later.`
       setFormError(message)
@@ -358,6 +468,13 @@ export default function TaskAssignPage() {
         assigneeId: form.assigneeId,
         dueDate: form.dueDate || null,
         paymentAmount: basePay,
+        region: {
+          type: form.type || "custom",
+          x: selectedRegion.x,
+          y: selectedRegion.y,
+          width: selectedRegion.width,
+          height: selectedRegion.height,
+        },
       }
       const res = await fetch(`${API_BASE_URL}/api/pages/${selectedPageId}/tasks`, {
         method: "POST",
@@ -372,6 +489,7 @@ export default function TaskAssignPage() {
       setFormError(null)
       setIsDialogOpen(false)
       setForm({ title: "", description: "", type: "", assigneeId: "", dueDate: "", pageId: "" })
+      clearSelectedRegion()
       loadPageTasks(selectedPageId)
     } catch (err: any) {
       const message = err.message || "Failed to create task."
@@ -466,12 +584,14 @@ export default function TaskAssignPage() {
   const selectedSeries = series.find(s => s.seriesId === selectedSeriesId)
   const selectedChapter = chapters.find(c => c.chapterId === selectedChapterId)
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
+  const selectedPageImageUrl = getFullImageUrl(selectedPage?.currentImageUrl ?? selectedPage?.imageUrl)
+  const isSelectedPageApproved = selectedPage?.status?.toLowerCase() === "approved"
   const selectedTaskType = TASK_TYPES.find(t => t.value === form.type)
   const formBasePay = selectedTaskType?.basePay ?? 0
 
   const canReTaskPage = selectedPage?.status?.toLowerCase() === "revision"
-  const assignedTasks = pageTasks.filter(t => t.assigneeId)
-  const unassignedTasks = pageTasks.filter(t => !t.assigneeId)
+  const requiredTaskTypes = ["line_art", "background", "lettering"]
+  const requiredTaskCount = requiredTaskTypes.filter(type => pageTasks.some(task => task.type === type)).length
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -578,6 +698,64 @@ export default function TaskAssignPage() {
             </CardContent>
           </Card>
 
+          {!selectedPageId && !loadingSeries && series.length > 0 && (
+            <Card className="bg-card border-border stagger-item">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-primary" />
+                  Series Production Queue
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Start by choosing a series, then drill down to the chapter and page that need production tasks.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {series.map((item) => {
+                    const isActive = item.seriesId === selectedSeriesId
+                    return (
+                      <button
+                        key={item.seriesId}
+                        type="button"
+                        onClick={() => setSelectedSeriesId(item.seriesId)}
+                        className={`group flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition-colors ${
+                          isActive
+                            ? "border-primary/50 bg-primary/10"
+                            : "border-zinc-900/70 bg-zinc-950/45 hover:border-primary/30 hover:bg-zinc-900/50"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="h-16 w-12 shrink-0 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
+                            {item.coverImageUrl ? (
+                              <img
+                                src={getFullImageUrl(item.coverImageUrl)}
+                                alt={item.title}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <BookOpen className="h-5 w-5 text-zinc-600" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-white group-hover:text-primary">{item.title}</p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              Status: <span className="capitalize text-zinc-300">{item.status}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <Badge className={isActive ? "bg-primary text-primary-foreground" : "bg-zinc-800 text-zinc-300"}>
+                          {isActive ? "Selected" : "Choose"}
+                        </Badge>
+                      </button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Task List for Selected Page */}
           <Card className="bg-card border-border stagger-item">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -600,7 +778,17 @@ export default function TaskAssignPage() {
               </div>
 
               {/* Add Task Button */}
-              {selectedPageId && (
+              {selectedPageId && isSelectedPageApproved ? (
+                <Button
+                  size="sm"
+                  disabled
+                  className="bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                  title="Approved pages are locked and cannot receive new tasks."
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Page Approved
+                </Button>
+              ) : selectedPageId && (
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
                     <Button
@@ -612,7 +800,7 @@ export default function TaskAssignPage() {
                       Add Task
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-lg">
+                  <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-4xl">
                     <DialogHeader>
                       <DialogTitle>Create New Task</DialogTitle>
                       <DialogDescription className="text-zinc-400">
@@ -638,6 +826,79 @@ export default function TaskAssignPage() {
                             </Button>
                           ))}
                         </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="flex items-center gap-2 text-sm text-zinc-300">
+                            <Crosshair className="h-4 w-4 text-primary" />
+                            Page Region <span className="text-red-400">*</span>
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={clearSelectedRegion}
+                            disabled={!selectedRegion && !draftRegion}
+                            className="h-8 border-zinc-800 bg-zinc-900/60 px-2 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                          >
+                            <Eraser className="mr-1.5 h-3.5 w-3.5" />
+                            Clear
+                          </Button>
+                        </div>
+
+                        {selectedPageImageUrl ? (
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
+                            <div
+                              className="relative mx-auto max-h-[360px] max-w-full touch-none overflow-hidden rounded-lg border border-zinc-800 bg-black/50 cursor-crosshair"
+                              onPointerDown={handleRegionPointerDown}
+                              onPointerMove={handleRegionPointerMove}
+                              onPointerUp={finishRegionDrawing}
+                              onPointerCancel={finishRegionDrawing}
+                            >
+                              <img
+                                src={selectedPageImageUrl}
+                                alt={`Page ${selectedPage?.pageNumber}`}
+                                className="block max-h-[360px] w-full select-none object-contain"
+                                draggable={false}
+                              />
+                              {selectedRegion && (
+                                <div
+                                  className="absolute border-2 border-primary bg-primary/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]"
+                                  style={{
+                                    left: `${selectedRegion.x}%`,
+                                    top: `${selectedRegion.y}%`,
+                                    width: `${selectedRegion.width}%`,
+                                    height: `${selectedRegion.height}%`,
+                                  }}
+                                />
+                              )}
+                              {draftRegion && (
+                                <div
+                                  className="absolute border-2 border-dashed border-amber-300 bg-amber-300/10"
+                                  style={{
+                                    left: `${draftRegion.x}%`,
+                                    top: `${draftRegion.y}%`,
+                                    width: `${draftRegion.width}%`,
+                                    height: `${draftRegion.height}%`,
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                              <span>Drag on the page to mark the exact area for this task.</span>
+                              {selectedRegion && (
+                                <span className="font-mono text-primary">
+                                  x {selectedRegion.x}% / y {selectedRegion.y}% / {selectedRegion.width}% x {selectedRegion.height}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 text-sm text-zinc-500">
+                            This page does not have an image preview yet.
+                          </div>
+                        )}
                       </div>
 
                       {/* Title */}
@@ -687,7 +948,7 @@ export default function TaskAssignPage() {
                           <Label className="text-sm text-zinc-300">Assign To <span className="text-red-400">*</span></Label>
                           <Select value={form.assigneeId || undefined} onValueChange={v => updateForm({ assigneeId: v })}>
                             <SelectTrigger className="bg-zinc-900 border-zinc-700 text-white" id="task-assignee-select">
-                              <SelectValue placeholder="Unassigned" />
+                              <SelectValue placeholder="Select assistant" />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-700 text-white">
                               {assistants.filter(a => a.status === "active").map(a => (
@@ -761,7 +1022,12 @@ export default function TaskAssignPage() {
               {!selectedPageId ? (
                 <div className="py-10 text-center text-zinc-500 text-sm flex flex-col items-center gap-3">
                   <Layers className="w-10 h-10 text-zinc-700" />
-                  Select a series, chapter, and page to see tasks.
+                  <div>
+                    <p className="font-semibold text-zinc-300">No target page selected</p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Select a series, chapter, and page above to inspect task coverage and assign work by region.
+                    </p>
+                  </div>
                 </div>
               ) : loadingTasks ? (
                 <div className="py-10 flex items-center justify-center gap-2 text-zinc-400 text-sm">
@@ -817,14 +1083,9 @@ export default function TaskAssignPage() {
                           <AvatarFallback className="text-[8px]">{task.assigneeName[0]}</AvatarFallback>
                         </Avatar>
                         <span className="text-xs text-zinc-300 font-medium">{task.assigneeName}</span>
-                        <Badge className="bg-emerald-900/30 text-emerald-400 border border-emerald-700/30 text-[9px]">
-                          <Check className="w-2.5 h-2.5 mr-0.5" /> Assigned
-                        </Badge>
                       </div>
                     ) : (
-                      <Badge className="bg-zinc-900 text-zinc-500 border border-zinc-800 text-[9px] shrink-0">
-                        Unassigned
-                      </Badge>
+                      <span className="text-xs text-zinc-500">No assistant</span>
                     )}
 
                     {/* Status */}
@@ -876,7 +1137,7 @@ export default function TaskAssignPage() {
                 <div className="space-y-4 py-2">
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-xs text-zinc-300">
                     <p className="font-bold text-white">{reTaskTarget.title}</p>
-                    <p className="mt-1">Assistant: {reTaskTarget.assigneeName || "Unassigned"}</p>
+                    <p className="mt-1">Assistant: {reTaskTarget.assigneeName || "No assistant"}</p>
                     <p>Page: {reTaskTarget.pageNumber}</p>
                     <p>Payment: ${reTaskTarget.paymentAmount.toFixed(2)}</p>
                   </div>
@@ -938,34 +1199,34 @@ export default function TaskAssignPage() {
             <div className="h-1 bg-primary w-full" />
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Assignment Summary</CardTitle>
-              {selectedSeries && (
-                <p className="text-xs text-zinc-400 mt-0.5 truncate">{selectedSeries.title}</p>
-              )}
+              <p className="text-xs text-zinc-400 mt-0.5 truncate">
+                {selectedPage ? `${selectedSeries?.title ?? "Selected series"} - Page ${selectedPage.pageNumber}` : "No target selected"}
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-zinc-400">Total Tasks</span>
-                <span className="font-bold text-white">{pageTasks.length}</span>
+                <span className="font-bold text-white">{selectedPageId ? pageTasks.length : "-"}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Assigned</span>
-                <span className="font-bold text-emerald-400">{assignedTasks.length}</span>
+                <span className="text-zinc-400">Required Types</span>
+                <span className="font-bold text-emerald-400">{selectedPageId ? `${requiredTaskCount}/3` : "Line Art / Background / Lettering"}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Unassigned</span>
-                <span className="font-bold text-yellow-400">{unassignedTasks.length}</span>
+                <span className="text-zinc-400">Optional Types</span>
+                <span className="font-bold text-yellow-400">{selectedPageId ? pageTasks.filter(t => t.type === "coloring" || t.type === "effects").length : "Coloring / Effects"}</span>
               </div>
               {/* Visual progress bar */}
               {pageTasks.length > 0 && (
                 <div className="mt-1 progress-animated">
                   <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
-                    <span>Assignment Progress</span>
-                    <span>{Math.round((assignedTasks.length / pageTasks.length) * 100)}%</span>
+                    <span>Required Coverage</span>
+                    <span>{Math.round((requiredTaskCount / 3) * 100)}%</span>
                   </div>
                   <div className="h-1.5 bg-zinc-900 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary transition-all duration-500 rounded-full"
-                      style={{ width: `${(assignedTasks.length / pageTasks.length) * 100}%` }}
+                      style={{ width: `${(requiredTaskCount / 3) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -981,7 +1242,7 @@ export default function TaskAssignPage() {
                 Available Assistants
               </CardTitle>
               <CardDescription className="text-xs">
-                {assistants.filter(a => a.status === "active").length} active assistants in your studio.
+                {assistants.filter(a => a.status === "active").length} production assistants in your studio.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1000,14 +1261,6 @@ export default function TaskAssignPage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-white truncate">{a.name}</p>
                       <p className="text-xs text-zinc-500 truncate">{a.specialty ?? "General Assistant"}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-bold text-primary font-mono">
-                        {a.hourlyRate ? `$${a.hourlyRate}/hr` : "—"}
-                      </p>
-                      <p className="text-[9px] text-zinc-500">
-                        {a.currentTasks} active
-                      </p>
                     </div>
                   </div>
                 ))

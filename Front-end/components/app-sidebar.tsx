@@ -62,10 +62,10 @@ const navItems: NavItem[] = [
     roles: ["mangaka", "assistant", "tantou", "editorial"],
   },
   {
-    title: "My Series",
+    title: "Series Portfolio",
     href: "/series",
     icon: BookOpen,
-    roles: ["mangaka"],
+    roles: ["mangaka", "assistant", "tantou", "editorial"],
   },
   {
     title: "Upload Pages",
@@ -141,12 +141,6 @@ const navItems: NavItem[] = [
   {
     title: "Reader Votes",
     href: "/votes",
-    icon: BarChart3,
-    roles: ["editorial"],
-  },
-  {
-    title: "Series Ranking",
-    href: "/ranking",
     icon: BarChart3,
     roles: ["editorial"],
   },

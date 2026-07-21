@@ -6,4 +6,5 @@ public class MangaSeriesDto
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
     public string? CoverImageUrl { get; set; }
+    public string Status { get; set; } = null!;
 }

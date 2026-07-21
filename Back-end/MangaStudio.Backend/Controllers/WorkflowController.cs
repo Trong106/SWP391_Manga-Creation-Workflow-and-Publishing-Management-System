@@ -70,7 +70,7 @@ public class WorkflowController : ControllerBase
     }
 
     /// <summary>
-    /// PUT /api/proposals/{id}/review — Tantou phê duyệt hoặc từ chối đề xuất series.
+    /// PUT /api/proposals/{id}/review — Editorial Board ghi nhận biên bản vote cho đề xuất series.
     /// </summary>
     [HttpPut("proposals/{id:guid}/review")]
     [Authorize(Roles = "editorial")]
@@ -88,6 +88,10 @@ public class WorkflowController : ControllerBase
             return NotFound(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
         }

@@ -50,24 +50,14 @@ interface Column {
 
 const DEFAULT_COLUMNS = [
   {
-    id: "storyboard",
-    title: "Storyboard",
-    color: "bg-blue-500",
-  },
-  {
-    id: "penciling",
-    title: "Penciling",
+    id: "line_art",
+    title: "Line Art",
     color: "bg-yellow-500",
   },
   {
-    id: "inking",
-    title: "Inking",
-    color: "bg-orange-500",
-  },
-  {
-    id: "coloring",
-    title: "Coloring",
-    color: "bg-purple-500",
+    id: "background",
+    title: "Background",
+    color: "bg-blue-500",
   },
   {
     id: "lettering",
@@ -75,9 +65,14 @@ const DEFAULT_COLUMNS = [
     color: "bg-teal-500",
   },
   {
-    id: "review",
-    title: "Review",
-    color: "bg-accent",
+    id: "effects",
+    title: "Effects",
+    color: "bg-orange-500",
+  },
+  {
+    id: "coloring",
+    title: "Coloring",
+    color: "bg-purple-500",
   },
 ]
 
@@ -107,21 +102,12 @@ const statusStyles: Record<string, string> = {
 
 function getColumnIdFromTaskType(type: string): string {
   const t = type.toLowerCase()
-  if (t === "line_art") return "penciling"
-  if (t === "background" || t === "effects") return "inking"
-  if (t === "coloring") return "coloring"
-  if (t === "lettering") return "lettering"
-  if (t === "review") return "review"
-  return "storyboard"
+  if (["line_art", "background", "lettering", "effects", "coloring"].includes(t)) return t
+  return "line_art"
 }
 
 const mapColumnIdToType = (columnId: string): string => {
-  if (columnId === "storyboard") return "review"
-  if (columnId === "penciling") return "line_art"
-  if (columnId === "inking") return "background"
-  if (columnId === "coloring") return "coloring"
-  if (columnId === "lettering") return "lettering"
-  if (columnId === "review") return "review"
+  if (["line_art", "background", "lettering", "effects", "coloring"].includes(columnId)) return columnId
   return "line_art"
 }
 
@@ -672,7 +658,7 @@ export function WorkflowBoard() {
               Create New Task
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-xs">
-              Assign a new task to your studio assistants or self-assign for review.
+              Assign a new production task to your studio assistants.
             </DialogDescription>
           </DialogHeader>
 
@@ -720,7 +706,6 @@ export function WorkflowBoard() {
                     <SelectItem value="effects">Effects</SelectItem>
                     <SelectItem value="coloring">Coloring</SelectItem>
                     <SelectItem value="lettering">Lettering</SelectItem>
-                    <SelectItem value="review">Review</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -41,6 +41,8 @@ public partial class User
 
     public virtual ICollection<PublishSchedule> PublishSchedules { get; set; } = new List<PublishSchedule>();
 
+    public virtual ICollection<ProposalBoardVote> ProposalBoardVotes { get; set; } = new List<ProposalBoardVote>();
+
     public virtual ICollection<ReviewComment> ReviewComments { get; set; } = new List<ReviewComment>();
 
     public virtual Role Role { get; set; } = null!;

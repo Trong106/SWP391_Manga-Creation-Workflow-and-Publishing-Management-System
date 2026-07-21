@@ -35,6 +35,8 @@ public partial class MangaStudioContext : DbContext
 
     public virtual DbSet<PublishSchedule> PublishSchedules { get; set; }
 
+    public virtual DbSet<ProposalBoardVote> ProposalBoardVotes { get; set; }
+
     public virtual DbSet<ReaderVote> ReaderVotes { get; set; }
 
     public virtual DbSet<ReviewComment> ReviewComments { get; set; }
@@ -318,6 +320,32 @@ public partial class MangaStudioContext : DbContext
                 .HasForeignKey(d => d.ChapterId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_PublishSchedules_Chapter");
+        });
+
+        modelBuilder.Entity<ProposalBoardVote>(entity =>
+        {
+            entity.HasKey(e => e.VoteSessionId);
+
+            entity.HasIndex(e => e.ProposalId, "IX_ProposalBoardVotes_ProposalId");
+
+            entity.Property(e => e.VoteSessionId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.Decision)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.MeetingNote).HasMaxLength(1000);
+            entity.Property(e => e.RecordedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.Proposal).WithMany(p => p.ProposalBoardVotes)
+                .HasForeignKey(d => d.ProposalId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProposalBoardVotes_Proposal");
+
+            entity.HasOne(d => d.RecordedBy).WithMany(p => p.ProposalBoardVotes)
+                .HasForeignKey(d => d.RecordedById)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProposalBoardVotes_RecordedBy");
         });
 
         modelBuilder.Entity<ReaderVote>(entity =>

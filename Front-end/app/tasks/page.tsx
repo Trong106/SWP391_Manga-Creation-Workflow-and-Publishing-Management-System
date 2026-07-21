@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useRef, useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -108,6 +108,7 @@ export default function AssistantTasksPage() {
   const [activeFilter, setActiveFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("dueDate")
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null)
+  const startingTaskRef = useRef<Set<string>>(new Set())
 
   // State for Resource Modal
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
@@ -202,6 +203,9 @@ export default function AssistantTasksPage() {
 
   const handleStartTask = async (taskId: string) => {
     if (!token) return
+    if (startingTaskRef.current.has(taskId)) return
+    startingTaskRef.current.add(taskId)
+
     try {
       setStartingTaskId(taskId)
       const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/start`, {
@@ -216,12 +220,20 @@ export default function AssistantTasksPage() {
         throw new Error(errorData.message || "Failed to start task")
       }
 
+      const updatedTask: Task = await res.json()
+      setTasks((current) =>
+        current.map((task) =>
+          task.taskId === taskId
+            ? { ...task, ...updatedTask, status: "in_progress" }
+            : task,
+        ),
+      )
       toast.success("Task started successfully! Status updated to In Progress.")
-      fetchTasks()
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Something went wrong starting this task.")
     } finally {
+      startingTaskRef.current.delete(taskId)
       setStartingTaskId(null)
     }
   }

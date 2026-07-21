@@ -25,6 +25,8 @@ public partial class SeriesProposal
 
     public virtual User? ReviewedBy { get; set; }
 
+    public virtual ICollection<ProposalBoardVote> ProposalBoardVotes { get; set; } = new List<ProposalBoardVote>();
+
     public virtual Series Series { get; set; } = null!;
 
     public virtual User SubmittedBy { get; set; } = null!;
