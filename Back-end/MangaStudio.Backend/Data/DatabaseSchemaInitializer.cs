@@ -66,6 +66,54 @@ BEGIN
     ADD CONSTRAINT FK_TaskSubmissions_PageVersion
     FOREIGN KEY (PageVersionId) REFERENCES dbo.PageVersions(PageVersionId);
 END;
+
+IF OBJECT_ID(N'dbo.Chapters', N'U') IS NOT NULL
+   AND EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Chapters_Status')
+BEGIN
+    ALTER TABLE dbo.Chapters DROP CONSTRAINT CK_Chapters_Status;
+END;
+
+IF OBJECT_ID(N'dbo.Chapters', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Chapters_Status')
+BEGIN
+    ALTER TABLE dbo.Chapters WITH CHECK
+    ADD CONSTRAINT CK_Chapters_Status
+    CHECK ([Status] IN (
+        'draft',
+        'in_progress',
+        'review',
+        'approved',
+        'tantou_review',
+        'revision',
+        'revision_requested',
+        'editorial_ready',
+        'scheduled',
+        'published',
+        'cancelled'
+    ));
+END;
+
+IF OBJECT_ID(N'dbo.Notifications', N'U') IS NOT NULL
+   AND EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Notifications_Type')
+BEGIN
+    ALTER TABLE dbo.Notifications DROP CONSTRAINT CK_Notifications_Type;
+END;
+
+IF OBJECT_ID(N'dbo.Notifications', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Notifications_Type')
+BEGIN
+    ALTER TABLE dbo.Notifications WITH CHECK
+    ADD CONSTRAINT CK_Notifications_Type
+    CHECK ([Type] IN (
+        'task_assigned',
+        'task_submitted',
+        'review_needed',
+        'payment',
+        'deadline',
+        'reader_vote_risk',
+        'system'
+    ));
+END;
 """);
     }
 }

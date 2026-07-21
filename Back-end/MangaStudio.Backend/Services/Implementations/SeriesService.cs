@@ -6,6 +6,7 @@ using MangaStudio.Backend.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
@@ -16,6 +17,7 @@ namespace MangaStudio.Backend.Services.Implementations;
 public class SeriesService : ISeriesService
 {
     private readonly AppDbContext _context;
+    private static readonly SemaphoreSlim _createSeriesLock = new SemaphoreSlim(1, 1);
 
     public SeriesService(AppDbContext context)
     {
@@ -29,6 +31,29 @@ public class SeriesService : ISeriesService
     {
         var list = await _context.Series
             .Where(s => s.MangakaId == mangakaId)
+            .Include(s => s.SeriesGenres)
+            .Include(s => s.Chapters)
+            .Include(s => s.Mangaka)
+            .Include(s => s.Tantou)
+            .Include(s => s.SeriesProposals)
+            .OrderByDescending(s => s.UpdatedAt)
+            .ToListAsync();
+
+        return list.Select(s => MapToDto(s)).ToList();
+    }
+
+    public async Task<List<SeriesDto>> GetSeriesCatalog(Guid requestUserId, bool isMangaka, bool isEditorial)
+    {
+        var query = _context.Series.AsQueryable();
+
+        if (!isEditorial)
+        {
+            query = isMangaka
+                ? query.Where(s => s.Status != "proposal" || s.MangakaId == requestUserId)
+                : query.Where(s => s.Status != "proposal");
+        }
+
+        var list = await query
             .Include(s => s.SeriesGenres)
             .Include(s => s.Chapters)
             .Include(s => s.Mangaka)
@@ -63,69 +88,89 @@ public class SeriesService : ISeriesService
     /// </summary>
     public async Task<SeriesDto> CreateSeries(Guid mangakaId, CreateSeriesDto dto)
     {
-        var series = new Series
-        {
-            SeriesId = Guid.NewGuid(),
-            Title = dto.Title,
-            TitleJp = dto.TitleJp,
-            Synopsis = dto.Synopsis,
-            Status = "proposal", // BR-Series
-            MangakaId = mangakaId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+        var normalizedTitle = dto.Title.Trim();
 
-        if (dto.Genres != null)
+        await _createSeriesLock.WaitAsync();
+        try
         {
-            foreach (var genre in dto.Genres)
+            var duplicateExists = await _context.Series.AnyAsync(s =>
+                s.MangakaId == mangakaId &&
+                s.Title == normalizedTitle &&
+                s.Status != "cancelled");
+
+            if (duplicateExists)
             {
-                series.SeriesGenres.Add(new SeriesGenre
+                throw new ArgumentException($"A series named \"{normalizedTitle}\" already exists for this Mangaka.");
+            }
+
+            var series = new Series
+            {
+                SeriesId = Guid.NewGuid(),
+                Title = normalizedTitle,
+                TitleJp = dto.TitleJp,
+                Synopsis = dto.Synopsis,
+                Status = "proposal", // BR-Series
+                MangakaId = mangakaId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            if (dto.Genres != null)
+            {
+                foreach (var genre in dto.Genres)
                 {
-                    SeriesId = series.SeriesId,
-                    Genre = genre
+                    series.SeriesGenres.Add(new SeriesGenre
+                    {
+                        SeriesId = series.SeriesId,
+                        Genre = genre
+                    });
+                }
+            }
+
+            _context.Series.Add(series);
+
+            // Tạo đề xuất series trong database
+            var proposal = new SeriesProposal
+            {
+                ProposalId = Guid.NewGuid(),
+                SeriesId = series.SeriesId,
+                SubmittedById = mangakaId,
+                Status = "submitted",
+                ProposalSynopsis = series.Synopsis,
+                SubmittedAt = DateTime.UtcNow
+            };
+
+            _context.SeriesProposals.Add(proposal);
+
+            // Lấy ra duy nhất 1 người thuộc ban biên tập (Editorial Board) đang hoạt động
+            var editorialUser = await _context.Users
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);
+
+            // Chỉ gửi thông báo đích danh cho 1 người biên tập này thay vì gửi diện rộng
+            if (editorialUser != null)
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    UserId = editorialUser.UserId,
+                    Type = "review_needed",
+                    Title = "New series proposal requires review",
+                    Message = $"A Mangaka has submitted a proposal for a new series: '{series.Title}'.",
+                    IsRead = false,
+                    Link = "/proposals",
+                    CreatedAt = DateTime.UtcNow
                 });
             }
+
+            await _context.SaveChangesAsync();
+
+            return await GetSeriesById(series.SeriesId, mangakaId);
         }
-
-        _context.Series.Add(series);
-
-        // Tạo đề xuất series trong database
-        var proposal = new SeriesProposal
+        finally
         {
-            ProposalId = Guid.NewGuid(),
-            SeriesId = series.SeriesId,
-            SubmittedById = mangakaId,
-            Status = "submitted",
-            ProposalSynopsis = series.Synopsis,
-            SubmittedAt = DateTime.UtcNow
-        };
-
-        _context.SeriesProposals.Add(proposal);
-
-        // Lấy ra duy nhất 1 người thuộc ban biên tập (Editorial Board) đang hoạt động
-        var editorialUser = await _context.Users
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);
-
-        // Chỉ gửi thông báo đích danh cho 1 người biên tập này thay vì gửi diện rộng
-        if (editorialUser != null)
-        {
-            _context.Notifications.Add(new Notification
-            {
-                NotificationId = Guid.NewGuid(),
-                UserId = editorialUser.UserId,
-                Type = "review_needed",
-                Title = "New series proposal requires review",
-                Message = $"A Mangaka has submitted a proposal for a new series: '{series.Title}'.",
-                IsRead = false,
-                Link = "/proposals",
-                CreatedAt = DateTime.UtcNow
-            });
+            _createSeriesLock.Release();
         }
-
-        await _context.SaveChangesAsync();
-
-        return await GetSeriesById(series.SeriesId, mangakaId);
     }
 
     /// <summary>

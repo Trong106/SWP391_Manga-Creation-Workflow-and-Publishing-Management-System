@@ -42,6 +42,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Chỉ Mangaka sở hữu bộ truyện mới có quyền giao việc.");
         }
 
+        if (string.Equals(page.Status, "approved", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Approved pages are locked and cannot receive new tasks.");
+        }
+
         if (dto.DueDate.HasValue && dto.DueDate.Value < DateOnly.FromDateTime(DateTime.Today))
         {
             throw new ArgumentException("Due date cannot be in the past.");
@@ -58,6 +63,41 @@ public class TaskService : ITaskService
             }
         }
 
+        Guid? regionId = dto.RegionId;
+        if (dto.Region != null)
+        {
+            if (dto.Region.X + dto.Region.Width > 100 || dto.Region.Y + dto.Region.Height > 100)
+            {
+                throw new ArgumentException("Selected region must stay inside the manga page.");
+            }
+
+            var region = new PageRegion
+            {
+                RegionId = Guid.NewGuid(),
+                PageId = pageId,
+                Type = dto.Region.Type,
+                X = dto.Region.X,
+                Y = dto.Region.Y,
+                Width = dto.Region.Width,
+                Height = dto.Region.Height,
+                AssignedToId = dto.AssigneeId,
+                Status = "pending",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.PageRegions.Add(region);
+            regionId = region.RegionId;
+        }
+        else if (regionId.HasValue)
+        {
+            var regionExists = await _context.PageRegions
+                .AnyAsync(r => r.RegionId == regionId.Value && r.PageId == pageId);
+            if (!regionExists)
+            {
+                throw new ArgumentException("Selected region does not belong to this page.");
+            }
+        }
+
         var task = new MangaStudio.Backend.Models.Entities.Task
         {
             TaskId = Guid.NewGuid(),
@@ -65,7 +105,7 @@ public class TaskService : ITaskService
             Description = dto.Description,
             Type = dto.Type,
             PageId = pageId,
-            RegionId = dto.RegionId,
+            RegionId = regionId,
             AssigneeId = dto.AssigneeId,
             AssignerId = assignerId,
             Status = "pending",
@@ -144,6 +184,7 @@ public class TaskService : ITaskService
             .Where(t => t.PageId == pageId)
             .Include(t => t.Assignee)
             .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -161,6 +202,7 @@ public class TaskService : ITaskService
             .Where(t => t.AssigneeId == assistantId)
             .Include(t => t.Assignee)
             .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -175,6 +217,7 @@ public class TaskService : ITaskService
     public async Task<TaskDto> UpdateTask(Guid taskId, Guid mangakaId, UpdateTaskDto dto)
     {
         var task = await _context.Tasks
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -499,6 +542,7 @@ public class TaskService : ITaskService
         var t = await _context.Tasks
             .Include(t => t.Assignee)
             .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -546,6 +590,11 @@ public class TaskService : ITaskService
             SeriesId = t.Page?.Chapter?.Series?.SeriesId,
             SeriesCoverImageUrl = t.Page?.Chapter?.Series?.CoverImageUrl,
             RegionId = t.RegionId,
+            RegionType = t.Region?.Type,
+            RegionX = t.Region?.X,
+            RegionY = t.Region?.Y,
+            RegionWidth = t.Region?.Width,
+            RegionHeight = t.Region?.Height,
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? t.Assignee.FullName : null,
             AssignerId = t.AssignerId,
@@ -565,13 +614,23 @@ public class TaskService : ITaskService
     public async Task<TaskDto> StartTask(Guid taskId, Guid assistantId)
     {
         var task = await _context.Tasks
+            .Include(t => t.Assignee)
+            .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
+                .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId)
             ?? throw new KeyNotFoundException($"Công việc với ID {taskId} không tồn tại.");
 
         if (task.AssigneeId != assistantId)
         {
             throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
+        }
+
+        if (task.Status == "in_progress")
+        {
+            return MapTaskToDto(task);
         }
 
         if (task.Status != "pending" && task.Status != "revision")
@@ -589,7 +648,7 @@ public class TaskService : ITaskService
         task.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return await GetTaskById(task.TaskId);
+        return MapTaskToDto(task);
     }
 
     /// <summary>
@@ -626,6 +685,12 @@ public class TaskService : ITaskService
             SeriesTitle = task.Page.Chapter?.Series?.Title,
             ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0,
             RevisionNote = annotations.FirstOrDefault()?.Body,
+            RegionId = task.RegionId,
+            RegionType = task.Region?.Type,
+            RegionX = task.Region?.X,
+            RegionY = task.Region?.Y,
+            RegionWidth = task.Region?.Width,
+            RegionHeight = task.Region?.Height,
             RevisionAnnotations = annotations
         };
     }

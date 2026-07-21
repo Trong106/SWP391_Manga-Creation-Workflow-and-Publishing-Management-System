@@ -3,8 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using MangaStudio.Backend.Services.Interfaces;
 using MangaStudio.Backend.Models.DTOs;
 using System;
+using System.IO;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
 
 namespace MangaStudio.Backend.Controllers;
 
@@ -35,16 +38,19 @@ public class SeriesController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/series — Lấy danh sách bộ truyện của Mangaka đang đăng nhập.
+    /// GET /api/series — Lấy catalog bộ truyện cho mọi role đã đăng nhập.
     /// </summary>
     [HttpGet]
-    [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetMySeries()
     {
         try
         {
             var userId = GetCurrentUserId();
-            var result = await _seriesService.GetSeriesByMangaka(userId);
+            var result = await _seriesService.GetSeriesCatalog(
+                userId,
+                User.IsInRole("mangaka"),
+                User.IsInRole("editorial")
+            );
             return Ok(result);
         }
         catch (Exception ex)
@@ -63,6 +69,12 @@ public class SeriesController : ControllerBase
         {
             var userId = GetCurrentUserId();
             var result = await _seriesService.GetSeriesById(id, userId);
+            if (result.Status.Equals("proposal", StringComparison.OrdinalIgnoreCase) &&
+                result.MangakaId != userId &&
+                !User.IsInRole("editorial"))
+            {
+                return Forbid();
+            }
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -88,6 +100,66 @@ public class SeriesController : ControllerBase
             var mangakaId = GetCurrentUserId();
             var result = await _seriesService.CreateSeries(mangakaId, dto);
             return StatusCode(201, result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/series/with-manuscript — Tạo proposal và lưu bản thảo sơ bộ thành Chapter 1.
+    /// </summary>
+    [HttpPost("with-manuscript")]
+    [Authorize(Roles = "mangaka")]
+    public async Task<IActionResult> CreateSeriesWithManuscript([FromForm] CreateSeriesWithManuscriptDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var mangakaId = GetCurrentUserId();
+            var series = await _seriesService.CreateSeries(mangakaId, new CreateSeriesDto
+            {
+                Title = dto.Title,
+                TitleJp = dto.TitleJp,
+                Synopsis = dto.Synopsis,
+                Genres = dto.Genres
+            });
+
+            if (dto.PreliminaryPages.Count > 0)
+            {
+                var chapter = await _chapterService.CreateChapter(series.SeriesId, mangakaId, new CreateChapterDto
+                {
+                    ChapterNumber = 1,
+                    Title = string.IsNullOrWhiteSpace(dto.ChapterTitle) ? "Chapter 001" : dto.ChapterTitle
+                });
+
+                var normalizedFiles = new List<IFormFile>();
+                for (var index = 0; index < dto.PreliminaryPages.Count; index++)
+                {
+                    var file = dto.PreliminaryPages[index];
+                    var ext = Path.GetExtension(file.FileName);
+                    var normalizedFile = new FormFile(file.OpenReadStream(), 0, file.Length, file.Name, $"page_{index + 1:D3}{ext}")
+                    {
+                        Headers = file.Headers,
+                        ContentType = file.ContentType
+                    };
+                    normalizedFiles.Add(normalizedFile);
+                }
+
+                await _chapterService.UploadPages(chapter.ChapterId, normalizedFiles, mangakaId);
+            }
+
+            var result = await _seriesService.GetSeriesById(series.SeriesId, mangakaId);
+            return StatusCode(201, result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

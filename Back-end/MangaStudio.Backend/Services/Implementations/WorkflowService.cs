@@ -38,7 +38,16 @@ public class WorkflowService : IWorkflowService
         if (rejectedProposals.Any())
         {
             var rejectedSeriesIds = rejectedProposals.Select(p => p.SeriesId).ToList();
+            var rejectedProposalIds = rejectedProposals.Select(p => p.ProposalId).ToList();
             var rejectedSeries = rejectedProposals.Select(p => p.Series).Where(s => s != null).ToList();
+
+            var rejectedBoardVotes = await _context.ProposalBoardVotes
+                .Where(v => rejectedProposalIds.Contains(v.ProposalId))
+                .ToListAsync();
+            if (rejectedBoardVotes.Any())
+            {
+                _context.ProposalBoardVotes.RemoveRange(rejectedBoardVotes);
+            }
 
             // 1. Xóa các đề xuất con trước
             _context.SeriesProposals.RemoveRange(rejectedProposals);
@@ -75,6 +84,8 @@ public class WorkflowService : IWorkflowService
                 .ThenInclude(s => s.SeriesGenres)
             .Include(p => p.SubmittedBy)
             .Include(p => p.ReviewedBy)
+            .Include(p => p.ProposalBoardVotes)
+                .ThenInclude(v => v.RecordedBy)
             .OrderByDescending(p => p.SubmittedAt)
             .Select(p => MapProposalToDto(p))
             .ToListAsync();
@@ -92,16 +103,19 @@ public class WorkflowService : IWorkflowService
                 .ThenInclude(s => s.SeriesGenres)
             .Include(p => p.SubmittedBy)
             .Include(p => p.ReviewedBy)
+            .Include(p => p.ProposalBoardVotes)
+                .ThenInclude(v => v.RecordedBy)
             .OrderByDescending(p => p.SubmittedAt)
             .Select(p => MapProposalToDto(p))
             .ToListAsync();
     }
 
     /// <summary>
-    /// Tantou phê duyệt hoặc từ chối đề xuất series.
+    /// Editorial Board ghi nhận biên bản vote để phê duyệt hoặc từ chối đề xuất series.
     /// Business Rule:
-    /// - Nếu approved -> Series.Status = 'active' và gán TantouId cho Series.
-    /// - Cập nhật thông tin người duyệt, thời gian duyệt và feedback.
+    /// - Người đại diện nhập số thành viên hội đồng, số phiếu, ngưỡng duyệt.
+    /// - Nếu phiếu đồng ý đạt ngưỡng -> Series.Status = 'active' và gán TantouId cho Series.
+    /// - Cập nhật thông tin người ghi nhận, thời gian duyệt và biên bản vote.
     /// </summary>
     public async Task<ProposalDto> ReviewProposal(Guid proposalId, Guid reviewerId, ReviewProposalDto dto)
     {
@@ -109,14 +123,48 @@ public class WorkflowService : IWorkflowService
             .Include(p => p.Series)
                 .ThenInclude(s => s.SeriesGenres)
             .Include(p => p.SubmittedBy)
+            .Include(p => p.ProposalBoardVotes)
+                .ThenInclude(v => v.RecordedBy)
             .FirstOrDefaultAsync(p => p.ProposalId == proposalId)
             ?? throw new KeyNotFoundException($"Không tìm thấy đề xuất với ID {proposalId}");
 
-        var decision = dto.Decision.ToLower();
+        var totalVotes = dto.ApproveVotes + dto.RejectVotes + dto.AbstainVotes;
+        if (dto.RequiredApproveVotes > dto.BoardSize)
+        {
+            throw new ArgumentException("Số phiếu đồng ý tối thiểu không được lớn hơn số thành viên hội đồng.");
+        }
+
+        if (totalVotes > dto.BoardSize)
+        {
+            throw new ArgumentException("Tổng số phiếu không được vượt quá số thành viên hội đồng.");
+        }
+
+        if (totalVotes == 0)
+        {
+            throw new ArgumentException("Phải có ít nhất một phiếu được ghi nhận.");
+        }
+
+        var decision = dto.ApproveVotes >= dto.RequiredApproveVotes ? "approved" : "rejected";
         proposal.Status = decision;
         proposal.ReviewedById = reviewerId;
         proposal.ReviewedAt = DateTime.UtcNow;
-        proposal.ReviewNote = dto.Feedback;
+        proposal.ReviewNote = !string.IsNullOrWhiteSpace(dto.Feedback) ? dto.Feedback : dto.MeetingNote;
+
+        var boardVote = new ProposalBoardVote
+        {
+            VoteSessionId = Guid.NewGuid(),
+            ProposalId = proposalId,
+            BoardSize = dto.BoardSize,
+            ApproveVotes = dto.ApproveVotes,
+            RejectVotes = dto.RejectVotes,
+            AbstainVotes = dto.AbstainVotes,
+            RequiredApproveVotes = dto.RequiredApproveVotes,
+            Decision = decision,
+            MeetingNote = dto.MeetingNote,
+            RecordedById = reviewerId,
+            RecordedAt = DateTime.UtcNow
+        };
+        _context.ProposalBoardVotes.Add(boardVote);
 
         if (decision == "approved")
         {
@@ -145,7 +193,16 @@ public class WorkflowService : IWorkflowService
             if (oldRejectedProposals.Any())
             {
                 var rejectedSeriesIds = oldRejectedProposals.Select(p => p.SeriesId).ToList();
+                var rejectedProposalIds = oldRejectedProposals.Select(p => p.ProposalId).ToList();
                 var rejectedSeries = oldRejectedProposals.Select(p => p.Series).Where(s => s != null).ToList();
+
+                var rejectedBoardVotes = await _context.ProposalBoardVotes
+                    .Where(v => rejectedProposalIds.Contains(v.ProposalId))
+                    .ToListAsync();
+                if (rejectedBoardVotes.Any())
+                {
+                    _context.ProposalBoardVotes.RemoveRange(rejectedBoardVotes);
+                }
 
                 // Delete the proposals (child records) first
                 _context.SeriesProposals.RemoveRange(oldRejectedProposals);
@@ -179,8 +236,8 @@ public class WorkflowService : IWorkflowService
         // Create notification for Mangaka
         var notificationTitle = decision == "approved" ? "Series Proposal Approved!" : "Series Proposal Rejected";
         var notificationMessage = decision == "approved"
-            ? $"Your series proposal '{proposal.Series.Title}' has been approved. Tantou Editor has been assigned."
-            : $"Your series proposal '{proposal.Series.Title}' was rejected. Reason: {dto.Feedback}";
+            ? $"Your series proposal '{proposal.Series.Title}' has been approved by board vote ({dto.ApproveVotes}/{dto.BoardSize} approve). Tantou Editor has been assigned."
+            : $"Your series proposal '{proposal.Series.Title}' was rejected by board vote ({dto.ApproveVotes}/{dto.BoardSize} approve). Reason: {proposal.ReviewNote}";
 
         _context.Notifications.Add(new Notification
         {
@@ -199,6 +256,8 @@ public class WorkflowService : IWorkflowService
         // Load reviewer details
         var reviewedBy = await _context.Users.FindAsync(reviewerId);
         proposal.ReviewedBy = reviewedBy;
+        boardVote.RecordedBy = reviewedBy!;
+        proposal.ProposalBoardVotes.Add(boardVote);
 
         return MapProposalToDto(proposal);
     }
@@ -563,6 +622,10 @@ public class WorkflowService : IWorkflowService
 
     private static ProposalDto MapProposalToDto(SeriesProposal p)
     {
+        var latestBoardVote = p.ProposalBoardVotes?
+            .OrderByDescending(v => v.RecordedAt)
+            .FirstOrDefault();
+
         return new ProposalDto
         {
             ProposalId = p.ProposalId,
@@ -581,7 +644,21 @@ public class WorkflowService : IWorkflowService
             CoverImageUrl = p.Series?.CoverImageUrl,
             Ranking = p.Series?.Ranking,
             ReaderCount = p.Series?.ReaderCount ?? 0,
-            Rating = p.Series?.Rating
+            Rating = p.Series?.Rating,
+            BoardVote = latestBoardVote == null ? null : new ProposalBoardVoteDto
+            {
+                VoteSessionId = latestBoardVote.VoteSessionId,
+                BoardSize = latestBoardVote.BoardSize,
+                ApproveVotes = latestBoardVote.ApproveVotes,
+                RejectVotes = latestBoardVote.RejectVotes,
+                AbstainVotes = latestBoardVote.AbstainVotes,
+                RequiredApproveVotes = latestBoardVote.RequiredApproveVotes,
+                Decision = latestBoardVote.Decision,
+                MeetingNote = latestBoardVote.MeetingNote,
+                RecordedById = latestBoardVote.RecordedById,
+                RecordedByName = latestBoardVote.RecordedBy?.FullName ?? "Editorial Board",
+                RecordedAt = latestBoardVote.RecordedAt
+            }
         };
     }
 

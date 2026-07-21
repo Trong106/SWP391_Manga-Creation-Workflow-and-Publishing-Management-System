@@ -24,16 +24,45 @@ public class ProposalDto
     public int? Ranking { get; set; }
     public int ReaderCount { get; set; }
     public decimal? Rating { get; set; }
+    public ProposalBoardVoteDto? BoardVote { get; set; }
 }
 
-/// <summary>DTO duyệt hoặc từ chối đề xuất bộ truyện.</summary>
+public class ProposalBoardVoteDto
+{
+    public Guid VoteSessionId { get; set; }
+    public int BoardSize { get; set; }
+    public int ApproveVotes { get; set; }
+    public int RejectVotes { get; set; }
+    public int AbstainVotes { get; set; }
+    public int RequiredApproveVotes { get; set; }
+    public string Decision { get; set; } = null!;
+    public string? MeetingNote { get; set; }
+    public Guid RecordedById { get; set; }
+    public string RecordedByName { get; set; } = null!;
+    public DateTime RecordedAt { get; set; }
+}
+
+/// <summary>DTO ghi nhận biên bản vote của Editorial Board cho đề xuất bộ truyện.</summary>
 public class ReviewProposalDto
 {
-    [Required(ErrorMessage = "Review decision is required.")]
-    [RegularExpression("^(approved|rejected)$", ErrorMessage = "Decision must be approved or rejected.")]
-    public string Decision { get; set; } = null!;
+    [Range(1, 30, ErrorMessage = "Board size must be between 1 and 30.")]
+    public int BoardSize { get; set; } = 5;
+
+    [Range(0, 30)]
+    public int ApproveVotes { get; set; }
+
+    [Range(0, 30)]
+    public int RejectVotes { get; set; }
+
+    [Range(0, 30)]
+    public int AbstainVotes { get; set; }
+
+    [Range(1, 30)]
+    public int RequiredApproveVotes { get; set; } = 3;
 
     public string? Feedback { get; set; }
+
+    public string? MeetingNote { get; set; }
 
     public Guid? TantouId { get; set; }
 }

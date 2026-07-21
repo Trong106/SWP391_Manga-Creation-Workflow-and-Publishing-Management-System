@@ -74,11 +74,6 @@ export default function LoginPage() {
         ? result.error 
         : "Incorrect email or password. Please try again.";
 
-      // Fallback translation if backend is returning old Vietnamese error string
-      if (errorMessage.includes("không chính xác") || errorMessage.includes("bị khóa")) {
-        errorMessage = "Incorrect email or password, or the account is locked.";
-      }
-
       if (isSuccess) {
         router.push("/")
       } else {
@@ -94,7 +89,7 @@ export default function LoginPage() {
     }
   }
 
-  // Hàm điền nhanh thông tin tài khoản mẫu
+  // Fill a demo account quickly.
   const handleQuickLogin = (demoEmail: string) => {
     setEmail(demoEmail)
     setPassword("123456")

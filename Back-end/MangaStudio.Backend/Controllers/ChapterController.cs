@@ -133,6 +133,14 @@ public class ChapterController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         catch (InvalidOperationException ex)
         {
             return Conflict(new { message = ex.Message });

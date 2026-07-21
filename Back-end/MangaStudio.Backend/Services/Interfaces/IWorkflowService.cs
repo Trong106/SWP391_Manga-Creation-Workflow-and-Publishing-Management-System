@@ -13,7 +13,7 @@ public interface IWorkflowService
     /// <summary>Lấy đề xuất của một Mangaka cụ thể.</summary>
     Task<List<ProposalDto>> GetProposalsByMangaka(Guid mangakaId);
 
-    /// <summary>Tantou duyệt hoặc từ chối đề xuất series.</summary>
+    /// <summary>Editorial Board ghi nhận biên bản vote để duyệt hoặc từ chối đề xuất series.</summary>
     Task<ProposalDto> ReviewProposal(Guid proposalId, Guid tantouId, ReviewProposalDto dto);
 
     Task<List<UserOptionDto>> GetUsersByRole(string roleCode);

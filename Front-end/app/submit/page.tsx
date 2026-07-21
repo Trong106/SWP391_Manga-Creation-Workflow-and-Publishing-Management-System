@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   Select, 
@@ -90,14 +89,6 @@ export default function SubmitWorkPage() {
   const [note, setNote] = useState<string>("")
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [isDragging, setIsDragging] = useState<boolean>(false)
-  
-  // QC Checklist states
-  const [checklist, setChecklist] = useState({
-    dpi: false,
-    layers: false,
-    transparency: false,
-    aliasing: false,
-  })
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -145,7 +136,7 @@ export default function SubmitWorkPage() {
           seriesTitle: matchingTask?.seriesTitle || "Neo-Tokyo Chronicles",
           assignerName: mt.assignerName || "Yuki Tanaka"
         }
-      })
+      }).filter((task: Task) => ["pending", "in_progress", "revision"].includes(task.status))
 
       setTasks(merged)
       
@@ -154,12 +145,7 @@ export default function SubmitWorkPage() {
         if (requestedTaskId && merged.some((task) => task.id === requestedTaskId)) {
           return requestedTaskId
         }
-
-        const nextActionableTask = merged.find((task) =>
-          ["pending", "in_progress", "revision"].includes(task.status)
-        )
-
-        return nextActionableTask?.id || merged[0]?.id || ""
+        return ""
       })
     } catch (err: any) {
       console.error(err)
@@ -246,18 +232,11 @@ export default function SubmitWorkPage() {
     }
   }
 
-  // Quality Control check handler
-  const isQCComplete = checklist.dpi && checklist.layers && checklist.transparency && checklist.aliasing
-
   // Submit task implementation
   const handleSubmitTask = async () => {
     if (!selectedTask) return
     if (!file) {
       toast.error("Please upload your final work file before submitting.")
-      return
-    }
-    if (!isQCComplete) {
-      toast.error("You must complete all Studio Quality Control items.")
       return
     }
 
@@ -285,12 +264,7 @@ export default function SubmitWorkPage() {
       // Reset form states
       setFile(null)
       setNote("")
-      setChecklist({
-        dpi: false,
-        layers: false,
-        transparency: false,
-        aliasing: false,
-      })
+      setSelectedTaskId("")
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -357,7 +331,7 @@ export default function SubmitWorkPage() {
         </div>
         <h2 className="text-xl font-bold text-white">No Active Assignments</h2>
         <p className="text-zinc-400 text-sm">
-          You currently have no pending tasks assigned. When your Mangaka assigns you work, it will appear here.
+          You currently have no unfinished tasks to submit. New pending or revision tasks will appear here.
         </p>
       </div>
     )
@@ -384,6 +358,20 @@ export default function SubmitWorkPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {!selectedTask && (
+        <div className="flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-card/40 p-8 text-center">
+          <div className="max-w-md space-y-3">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <FileUp className="h-7 w-7" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Choose a task to submit</h2>
+            <p className="text-sm text-zinc-400">
+              Select an unfinished assignment above to view its page details, upload your work file, and send it to the Mangaka for review.
+            </p>
+          </div>
+        </div>
+      )}
 
       {selectedTask && (
         <>
@@ -443,7 +431,7 @@ export default function SubmitWorkPage() {
               </Button>
               <Button 
                 onClick={handleSubmitTask} 
-                disabled={submitting || !file || !isQCComplete}
+                disabled={submitting || !file}
                 className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(0,223,192,0.15)] disabled:opacity-40 disabled:pointer-events-none"
               >
                 {submitting ? (
@@ -522,9 +510,9 @@ export default function SubmitWorkPage() {
           {/* Main Layout Grid */}
           <div className="grid grid-cols-12 gap-6">
             
-            {/* Left Column: Upload & Checklist (8 cols) */}
+            {/* Left Column: Upload Form (8 cols) */}
             <div className="col-span-12 lg:col-span-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+              <div className="grid grid-cols-1 gap-6 items-stretch">
                 
                 {/* Specialized Upload Area */}
                 <Card className="bg-card border-border relative overflow-hidden flex flex-col justify-between h-full">
@@ -602,102 +590,27 @@ export default function SubmitWorkPage() {
                   </CardContent>
                 </Card>
 
-                {/* Quality Control Checklist & Submission Notes */}
-                <Card className="bg-card border-border flex flex-col justify-between h-full">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                      <Check className="w-5 h-5 text-primary" />
-                      Studio Quality Control
-                    </CardTitle>
-                    <CardDescription className="text-zinc-400 text-xs">
-                      Please double-check all technical details to ensure compatibility with high-resolution printing.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
-                    {/* QC Checklist Grid (Single Column Stack) */}
-                    <div className="grid grid-cols-1 gap-3">
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.dpi ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.dpi} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, dpi: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Minimum 600 DPI</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">Required for high-resolution print production.</p>
-                        </div>
-                      </label>
-
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.layers ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.layers} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, layers: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Layer Structure Preserved</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">Lineart, Tones, and SFX on separate layers.</p>
-                        </div>
-                      </label>
-
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.transparency ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.transparency} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, transparency: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Transparency Check</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">No stray pixels on alpha channel backgrounds.</p>
-                        </div>
-                      </label>
-
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.aliasing ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.aliasing} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, aliasing: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Anti-Aliasing Off</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">Binary (Aliased) lines for screentone compatibility.</p>
-                        </div>
-                      </label>
-                    </div>
-
-                    {/* Submission Notes */}
-                    <div className="space-y-2 pt-2">
-                      <Label htmlFor="submit-notes" className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
-                        Submission Notes (Optional)
-                      </Label>
-                      <Textarea 
-                        id="submit-notes"
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        placeholder="Add details about changes, notes on formatting, or issues that need Mangaka's review..."
-                        className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[90px] resize-none text-xs"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
               </div>
+              <Card className="mt-6 bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                    <FileCode className="w-5 h-5 text-primary" />
+                    Submission Notes
+                  </CardTitle>
+                  <CardDescription className="text-zinc-400 text-xs">
+                    Add optional context for the Mangaka before sending this page for review.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea 
+                    id="submit-notes"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Add details about changes, drawing choices, or issues that need Mangaka's review..."
+                    className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[120px] resize-none text-sm"
+                  />
+                </CardContent>
+              </Card>
             </div>
 
             {/* Right Column: Workflow & Reviewer (4 cols) */}

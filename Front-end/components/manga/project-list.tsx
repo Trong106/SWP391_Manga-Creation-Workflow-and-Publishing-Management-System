@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { ChevronLeft, ChevronRight, Eye, Bookmark, BookOpen } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Star, BarChart3, Bookmark, FileText, BookOpen } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { SeriesDetailModal } from "./series-detail-modal"
@@ -20,7 +22,7 @@ export function ProjectList() {
   const fetchSeries = () => {
     if (!token) return
 
-    fetch(`${API_BASE_URL}/api/data/series`, {
+    fetch(`${API_BASE_URL}/api/data/series-reader-votes`, {
       headers: {
         "Authorization": `Bearer ${token}`
       }
@@ -28,7 +30,7 @@ export function ProjectList() {
       .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
-          // Sắp xếp theo thứ tự cập nhật mới nhất đến cũ nhất cho mục "Danh Sách Truyện Tranh Mới"
+          // Sort by latest update first for the new series list.
           const sorted = [...data].sort(
             (a, b) => parseApiDateTime(b.updatedAtRaw)!.getTime() - parseApiDateTime(a.updatedAtRaw)!.getTime()
           )
@@ -57,33 +59,12 @@ export function ProjectList() {
     setIsModalOpen(true)
   }
 
-  const scrollProjects = (direction: "left" | "right") => {
-    const el = scrollRef.current
-    if (!el) return
-
-    const cardWidth = 192 + 20
-    el.scrollBy({
-      left: direction === "right" ? cardWidth : -cardWidth,
-      behavior: "smooth"
-    })
+  const formatVoteCount = (value?: number | null) => {
+    const count = value ?? 0
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
+    return count.toLocaleString()
   }
-
-  useEffect(() => {
-    if (projects.length === 0) return
-    const el = scrollRef.current
-    if (!el) return
-
-    const interval = setInterval(() => {
-      if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 10) {
-        el.scrollTo({ left: 0, behavior: "smooth" })
-      } else {
-        scrollProjects("right")
-      }
-    }, 2500)
-
-    return () => clearInterval(interval)
-  }, [projects])
-
 
   return (
     <div className="space-y-6">
@@ -162,8 +143,8 @@ export function ProjectList() {
                   <div className="flex items-center justify-between text-xs text-zinc-400">
                     <span>Chapter {project.chapters ?? 0}</span>
                     <span className="flex items-center gap-0.5 text-[10px] text-zinc-500">
-                      <Eye className="w-3 h-3" />
-                      {project.readerCount >= 1000 ? `${(project.readerCount / 1000).toFixed(1)}k` : project.readerCount}
+                      <BarChart3 className="w-3 h-3" />
+                      {formatVoteCount(project.totalReaderVotes)}
                     </span>
                   </div>
                 </div>

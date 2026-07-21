@@ -7,7 +7,7 @@ import { ProjectList as NewMangaGrid } from "@/components/manga/project-list"
 import { useState, useEffect } from "react"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
-import { BookOpen, Star, Eye, Bookmark, TrendingUp, X, FolderOpen, Clock, Plus, Loader2, DollarSign, Calendar } from "lucide-react"
+import { BarChart3, BookOpen, Star, Eye, Bookmark, TrendingUp, X, FolderOpen, Clock, Plus, Loader2, DollarSign, Calendar } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -67,29 +67,26 @@ const ROLE_INFO: Record<string, { name: string; desc: string; metrics: { title: 
     metrics: [
       { title: "New Proposals", val: "2 pending", change: "1 Action, 1 Romance", icon: "⚖️" },
       { title: "Reader Votes", val: "45.2K", change: "+12% overall traffic", icon: "🗳️" },
-      { title: "Global Ranking", val: "Top 3", change: "Dragon Hunters series", icon: "🏆" }
+      { title: "Top Survey Series", val: "Dragon Ball Kakumei", change: "Current survey leader", icon: "🏆" }
     ]
   }
 }
 
 const STAGES = [
-  { id: "storyboard", label: "Storyboard", emoji: "📝" },
-  { id: "penciling", label: "Penciling", emoji: "✏️" },
-  { id: "inking", label: "Inking", emoji: "✒️" },
-  { id: "coloring", label: "Coloring", emoji: "🎨" },
+  { id: "line_art", label: "Line Art", emoji: "✏️" },
+  { id: "background", label: "Background", emoji: "🏙️" },
   { id: "lettering", label: "Lettering", emoji: "💬" },
-  { id: "review", label: "Review", emoji: "👁️" },
+  { id: "coloring", label: "Coloring", emoji: "🎨" },
+  { id: "effects", label: "Effects", emoji: "✨" },
 ]
 
 function getStageIdFromTaskType(type: string): string {
   const t = type.toLowerCase()
-  if (t === "line_art") return "penciling"
-  if (t === "background" || t === "effects") return "inking"
-  if (t === "coloring") return "coloring"
-  if (t === "lettering") return "lettering"
-  if (t === "review") return "review"
-  return "storyboard"
+  if (["line_art", "background", "lettering", "coloring", "effects"].includes(t)) return t
+  return "line_art"
 }
+
+const ACTIVE_TASK_STATUSES = new Set(["pending", "assigned", "in_progress", "submitted", "revision"])
 
 export default function Dashboard() {
   const { role, user, token } = useAuth()
@@ -138,7 +135,6 @@ export default function Dashboard() {
     if (initialStageId === "inking") type = "background"
     if (initialStageId === "coloring") type = "coloring"
     if (initialStageId === "lettering") type = "lettering"
-    if (initialStageId === "review") type = "review"
 
     setTaskType(type)
     setDialogSeriesId("")
@@ -159,7 +155,7 @@ export default function Dashboard() {
   const fetchSeriesList = () => {
     if (!authHeader) return
 
-    fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
+    fetch(`${API_BASE_URL}/api/data/series-reader-votes`, { headers: authHeader })
       .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
@@ -300,7 +296,7 @@ export default function Dashboard() {
       .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
-          setTasks(data)
+          setTasks(data.filter((task) => ACTIVE_TASK_STATUSES.has(String(task.status || "").toLowerCase())))
         }
       })
       .catch((err) => console.error("Error fetching tasks:", err))
@@ -326,18 +322,22 @@ export default function Dashboard() {
     }
   }, [role, user?.id, token])
 
-  // Fetch top series (Highest views & revenue)
+  const formatVoteCount = (value?: number | null) => {
+    const count = value ?? 0
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
+    return count.toLocaleString()
+  }
+
+  // Fetch top series by the latest weekly reader vote survey
   const fetchTopSeries = () => {
     if (!authHeader) return
 
-    fetch(`${API_BASE_URL}/api/data/series`, { headers: authHeader })
+    fetch(`${API_BASE_URL}/api/data/series-reader-votes`, { headers: authHeader })
       .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
-          // Sắp xếp theo lượt xem (readerCount) giảm dần và doanh thu cao nhất
-          const sorted = [...data]
-            .sort((a, b) => b.readerCount - a.readerCount)
-            .slice(0, 6)
+          const sorted = [...data].sort((a, b) => (b.latestReaderVotes ?? 0) - (a.latestReaderVotes ?? 0))
           setTopSeries(sorted)
         }
       })
@@ -349,6 +349,24 @@ export default function Dashboard() {
   useEffect(() => {
     fetchTopSeries()
   }, [token])
+
+  // Auto-scroll effect for the top series row.
+  useEffect(() => {
+    if (topSeries.length === 0) return
+    const el = scrollRef.current
+    if (!el) return
+
+    const interval = setInterval(() => {
+      const cardWidth = 160 + 16 // card width: 160px + gap: 16px
+      if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 10) {
+        el.scrollTo({ left: 0, behavior: "smooth" })
+      } else {
+        el.scrollBy({ left: cardWidth, behavior: "smooth" })
+      }
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [topSeries])
 
   if (!role) {
     return (
@@ -439,7 +457,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top series: fixed list of the 6 highest-viewed series */}
+      {/* Top series row */}
       <div className="min-w-0 space-y-3 overflow-hidden">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           🔥 Top Series
@@ -488,8 +506,9 @@ export default function Dashboard() {
                   </h4>
                   <div className="flex justify-between items-center text-[11px] text-zinc-400">
                     <span>Chapter {project.chapters}</span>
-                    <span className="text-zinc-500 font-medium">
-                      ${(project.revenue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    <span className="flex items-center gap-1 text-zinc-500 font-medium" title={`Week ${project.latestReaderVoteWeek ?? "-"} reader votes`}>
+                      <BarChart3 className="w-3 h-3" />
+                      {formatVoteCount(project.latestReaderVotes)}
                     </span>
                   </div>
                 </div>
@@ -502,7 +521,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* New series carousel */}
+      {/* New series row */}
       <div className="border-t border-zinc-800/80 pt-6">
         <NewMangaGrid />
       </div>
@@ -700,7 +719,7 @@ export default function Dashboard() {
               Create New Task
             </DialogTitle>
             <DialogDescription className="text-zinc-400 text-xs">
-              Assign a new task to your studio assistants or self-assign for review.
+              Assign a new production task to your studio assistants.
             </DialogDescription>
           </DialogHeader>
 
@@ -748,7 +767,6 @@ export default function Dashboard() {
                     <SelectItem value="effects">Effects</SelectItem>
                     <SelectItem value="coloring">Coloring</SelectItem>
                     <SelectItem value="lettering">Lettering</SelectItem>
-                    <SelectItem value="review">Review</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
