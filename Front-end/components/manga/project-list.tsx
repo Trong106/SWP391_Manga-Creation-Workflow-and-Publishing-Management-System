@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Star, BarChart3, Bookmark, FileText, BookOpen } from "lucide-react"
+import { Star, BarChart3, Bookmark, FileText, BookOpen, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
@@ -64,6 +64,16 @@ export function ProjectList() {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
     if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
     return count.toLocaleString()
+  }
+
+  const scrollProjects = (direction: "left" | "right") => {
+    if (scrollRef.current) {
+      const scrollAmount = 300
+      scrollRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      })
+    }
   }
 
   return (
