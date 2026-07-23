@@ -97,6 +97,7 @@ export default function Dashboard() {
   const [topSeries, setTopSeries] = useState<any[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -463,6 +464,7 @@ export default function Dashboard() {
           🔥 Top Series
         </h2>
         <div
+          ref={scrollRef}
           className="grid max-w-full grid-cols-2 gap-4 pb-4 sm:grid-cols-3 lg:grid-cols-6"
         >
           {topSeries.map((project, idx) => {
