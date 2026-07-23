@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -77,7 +77,6 @@ interface Task {
   paymentAmount: number
   createdAt: string
   updatedAt: string
-  seriesStatus?: string | null
 }
 
 interface TaskResource {
@@ -109,7 +108,6 @@ export default function AssistantTasksPage() {
   const [activeFilter, setActiveFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("dueDate")
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null)
-  const startingTaskRef = useRef<Set<string>>(new Set())
 
   // State for Resource Modal
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
@@ -204,9 +202,6 @@ export default function AssistantTasksPage() {
 
   const handleStartTask = async (taskId: string) => {
     if (!token) return
-    if (startingTaskRef.current.has(taskId)) return
-    startingTaskRef.current.add(taskId)
-
     try {
       setStartingTaskId(taskId)
       const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/start`, {
@@ -221,20 +216,12 @@ export default function AssistantTasksPage() {
         throw new Error(errorData.message || "Failed to start task")
       }
 
-      const updatedTask: Task = await res.json()
-      setTasks((current) =>
-        current.map((task) =>
-          task.taskId === taskId
-            ? { ...task, ...updatedTask, status: "in_progress" }
-            : task,
-        ),
-      )
       toast.success("Task started successfully! Status updated to In Progress.")
+      fetchTasks()
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Something went wrong starting this task.")
     } finally {
-      startingTaskRef.current.delete(taskId)
       setStartingTaskId(null)
     }
   }
@@ -727,12 +714,6 @@ export default function AssistantTasksPage() {
                       <span className="text-zinc-500 font-mono text-[10px] min-w-[55px]">
                         P. #{task.pageNumber}
                       </span>
-
-                      {task.seriesStatus?.toLowerCase() === "cancelled" && (
-                        <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-1.5 py-0.5 shrink-0">
-                          Series Cancelled
-                        </Badge>
-                      )}
                     </div>
 
                     {/* Middle: Title & Description snippet */}
@@ -785,9 +766,9 @@ export default function AssistantTasksPage() {
                           <Button
                             id={`start-task-btn-${task.taskId}`}
                             onClick={() => handleStartTask(task.taskId)}
-                            disabled={startingTaskId === task.taskId || task.seriesStatus?.toLowerCase() === "cancelled"}
+                            disabled={startingTaskId === task.taskId}
                             size="sm"
-                            className="bg-primary hover:bg-primary-container text-background font-extrabold text-[10px] h-7 px-2.5 rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="bg-primary hover:bg-primary-container text-background font-extrabold text-[10px] h-7 px-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
                           >
                             {startingTaskId === task.taskId ? (
                               <Loader2 className="w-3 h-3 animate-spin" />

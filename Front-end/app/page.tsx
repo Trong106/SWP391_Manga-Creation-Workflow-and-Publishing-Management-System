@@ -465,7 +465,7 @@ export default function Dashboard() {
         </h2>
         <div
           ref={scrollRef}
-          className="grid max-w-full grid-cols-2 gap-4 pb-4 sm:grid-cols-3 lg:grid-cols-6"
+          className="flex max-w-full gap-4 overflow-x-auto pb-4 scrollbar-none scroll-smooth"
         >
           {topSeries.map((project, idx) => {
             const coverUrl = getFullCoverUrl(project.coverImageUrl)
@@ -473,7 +473,7 @@ export default function Dashboard() {
               <div
                 key={project.id}
                 onClick={() => handleCardClick(project.id)}
-                className="group cursor-pointer space-y-2 relative min-w-0"
+                className="w-40 shrink-0 group cursor-pointer space-y-2 relative"
               >
                 {/* Ranking tag */}
                 <div className="absolute top-2 left-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black shadow-lg">
