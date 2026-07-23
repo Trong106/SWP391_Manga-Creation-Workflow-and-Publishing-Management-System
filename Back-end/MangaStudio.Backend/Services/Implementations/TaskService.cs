@@ -42,6 +42,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Chỉ Mangaka sở hữu bộ truyện mới có quyền giao việc.");
         }
 
+        if (page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot assign tasks for a cancelled series.");
+        }
+
         if (string.Equals(page.Status, "approved", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Approved pages are locked and cannot receive new tasks.");
@@ -143,6 +148,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Only the assigned assistant can ask for clarification on this task.");
         }
 
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot request clarification for tasks belonging to a cancelled series.");
+        }
+
         var message = string.IsNullOrWhiteSpace(dto.Message)
             ? $"{task.Assignee?.FullName ?? "Assistant"} needs clarification for task \"{task.Title}\"."
             : dto.Message.Trim();
@@ -229,6 +239,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Bạn không có quyền sửa công việc này.");
         }
 
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot edit tasks belonging to a cancelled series.");
+        }
+
         if (dto.Title != null) task.Title = dto.Title;
         if (dto.Description != null) task.Description = dto.Description;
         if (dto.Type != null) task.Type = dto.Type;
@@ -261,6 +276,11 @@ public class TaskService : ITaskService
         if (task.Page.Chapter.Series.MangakaId != mangakaId)
         {
             throw new UnauthorizedAccessException("You do not have permission to re-task this work item.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot re-task for a cancelled series.");
         }
 
         if (!string.Equals(task.Status, "approved", StringComparison.OrdinalIgnoreCase))
@@ -327,6 +347,11 @@ public class TaskService : ITaskService
         if (task.AssigneeId != assistantId)
         {
             throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot submit work for a cancelled series.");
         }
 
         PageVersion? pageVersion = null;
@@ -438,6 +463,11 @@ public class TaskService : ITaskService
         if (submission.Task.AssignerId != reviewerId)
         {
             throw new UnauthorizedAccessException("Ban khong phai nguoi giao viec nay nen khong the duyet.");
+        }
+
+        if (submission.Task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot review tasks belonging to a cancelled series.");
         }
 
         if (!string.Equals(submission.Status, "submitted", StringComparison.OrdinalIgnoreCase))
@@ -589,6 +619,7 @@ public class TaskService : ITaskService
             SeriesTitle = t.Page?.Chapter?.Series?.Title,
             SeriesId = t.Page?.Chapter?.Series?.SeriesId,
             SeriesCoverImageUrl = t.Page?.Chapter?.Series?.CoverImageUrl,
+            SeriesStatus = t.Page?.Chapter?.Series?.Status,
             RegionId = t.RegionId,
             RegionType = t.Region?.Type,
             RegionX = t.Region?.X,
@@ -626,6 +657,11 @@ public class TaskService : ITaskService
         if (task.AssigneeId != assistantId)
         {
             throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot start tasks belonging to a cancelled series.");
         }
 
         if (task.Status == "in_progress")

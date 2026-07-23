@@ -582,6 +582,7 @@ export default function TaskAssignPage() {
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const selectedSeries = series.find(s => s.seriesId === selectedSeriesId)
+  const isSeriesCancelled = selectedSeries?.status?.toLowerCase() === "cancelled"
   const selectedChapter = chapters.find(c => c.chapterId === selectedChapterId)
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
   const selectedPageImageUrl = getFullImageUrl(selectedPage?.currentImageUrl ?? selectedPage?.imageUrl)
@@ -793,7 +794,8 @@ export default function TaskAssignPage() {
                   <DialogTrigger asChild>
                     <Button
                       size="sm"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold btn-magnetic"
+                      disabled={isSeriesCancelled}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold btn-magnetic disabled:opacity-40 disabled:cursor-not-allowed"
                       id="add-task-btn"
                     >
                       <Plus className="w-4 h-4 mr-1.5" />
@@ -1019,6 +1021,17 @@ export default function TaskAssignPage() {
             </CardHeader>
 
             <CardContent className="space-y-3">
+              {isSeriesCancelled && (
+                <div className="p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-200 flex items-start gap-2.5 mb-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-sm">Series Cancelled (Read-only Mode)</span>
+                    <p className="mt-1 text-red-300">
+                      This series has been cancelled by the Editorial Board. New tasks cannot be assigned, and existing tasks cannot be cancelled or re-tasked.
+                    </p>
+                  </div>
+                </div>
+              )}
               {!selectedPageId ? (
                 <div className="py-10 text-center text-zinc-500 text-sm flex flex-col items-center gap-3">
                   <Layers className="w-10 h-10 text-zinc-700" />
@@ -1098,10 +1111,11 @@ export default function TaskAssignPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="shrink-0 text-zinc-600 hover:text-destructive hover:bg-destructive/10 w-7 h-7"
+                        disabled={isSeriesCancelled}
+                        className="shrink-0 text-zinc-600 hover:text-destructive hover:bg-destructive/10 w-7 h-7 disabled:opacity-40 disabled:cursor-not-allowed"
                         onClick={() => handleCancelTask(task.taskId)}
                         id={`cancel-task-btn-${task.taskId}`}
-                        title="Cancel task"
+                        title={isSeriesCancelled ? "Cannot cancel task of a cancelled series" : "Cancel task"}
                       >
                         <X className="w-3.5 h-3.5" />
                       </Button>
@@ -1111,9 +1125,11 @@ export default function TaskAssignPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 shrink-0 border-amber-700/40 bg-amber-950/20 px-3 text-xs font-bold text-amber-300 hover:bg-amber-900/30 hover:text-amber-200"
+                        disabled={isSeriesCancelled}
+                        className="h-8 shrink-0 border-amber-700/40 bg-amber-950/20 px-3 text-xs font-bold text-amber-300 hover:bg-amber-900/30 hover:text-amber-200 disabled:opacity-40 disabled:cursor-not-allowed"
                         onClick={() => openReTaskDialog(task)}
                         id={`retask-btn-${task.taskId}`}
+                        title={isSeriesCancelled ? "Cannot re-task of a cancelled series" : ""}
                       >
                         Re-task
                       </Button>

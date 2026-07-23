@@ -471,11 +471,12 @@ export default function SeriesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
           {series.map((s) => {
             const coverUrl = getFullCoverUrl(s.coverImageUrl)
+            const isCancelled = s.status === "cancelled"
             return (
               <div
                 key={s.id}
                 onClick={() => handleCardClick(s.id)}
-                className="group cursor-pointer space-y-2.5"
+                className={`group cursor-pointer space-y-2.5 transition-all duration-300 ${isCancelled ? "opacity-55 grayscale hover:grayscale-0 hover:opacity-80" : ""}`}
               >
                 {/* Image Container */}
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">

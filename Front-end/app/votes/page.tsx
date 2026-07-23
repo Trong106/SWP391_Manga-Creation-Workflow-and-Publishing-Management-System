@@ -17,6 +17,11 @@ import {
   XCircle,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -131,6 +136,16 @@ export default function VotesPage() {
   const [decidingSeriesId, setDecidingSeriesId] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const importInputRef = useRef<HTMLInputElement>(null)
+
+  // Editorial decision dialog states
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false)
+  const [targetSeries, setTargetSeries] = useState<VoteEntry | null>(null)
+  const [decisionType, setDecisionType] = useState<"cancelled" | "hiatus" | "active" | null>(null)
+  const [decisionReason, setDecisionReason] = useState("")
+
+  // Series detail modal states
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   const threshold = historyData?.threshold ?? voteEntries[0]?.warningThreshold ?? 22000
   const selectedHistoryWeek = historyData?.weeks.find((week) => String(week.week) === selectedWeek)
@@ -356,38 +371,40 @@ export default function VotesPage() {
     downloadTextFile(`reader-vote-survey-report-${historyData.year}.csv`, csv)
   }
 
-  const handleEditorialDecision = async (
+  const handleEditorialDecision = (
     entry: VoteEntry,
     decision: "cancelled" | "hiatus" | "active"
   ) => {
-    if (!token) return
+    setTargetSeries(entry)
+    setDecisionType(decision)
+    const defaultReason =
+      entry.votes < threshold
+        ? `${periodLabel} reader vote count ${entry.votes} is below threshold ${threshold}.`
+        : "Editorial review from Reader Votes survey."
+    setDecisionReason(decision === "active" ? "" : defaultReason)
+    setIsDecisionModalOpen(true)
+  }
 
-    let reason = ""
-    if (decision !== "active") {
-      const defaultReason =
-        entry.votes < threshold
-          ? `${periodLabel} reader vote count ${entry.votes} is below threshold ${threshold}.`
-          : "Editorial review from Reader Votes survey."
-      reason = window.prompt(
-        decision === "cancelled"
-          ? "Reason for cancelling this series:"
-          : "Reason for moving this series to publication review / hiatus:",
-        defaultReason
-      ) || ""
-      if (!reason.trim()) return
-    } else if (!window.confirm("Reactivate this series for normal publication?")) {
+  const submitEditorialDecision = async () => {
+    if (!token || !targetSeries || !decisionType) return
+
+    const reason = decisionReason.trim()
+    if (decisionType !== "active" && !reason) {
+      toast.error("Please enter a reason for this decision.")
       return
     }
 
-    setDecidingSeriesId(entry.seriesId)
+    setDecidingSeriesId(targetSeries.seriesId)
+    setIsDecisionModalOpen(false)
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/series/${entry.seriesId}/editorial-decision`, {
+      const res = await fetch(`${API_BASE_URL}/api/series/${targetSeries.seriesId}/editorial-decision`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ decision, reason }),
+        body: JSON.stringify({ decision: decisionType, reason }),
       })
 
       if (!res.ok) {
@@ -395,12 +412,27 @@ export default function VotesPage() {
         throw new Error(data?.message || "Failed to apply editorial decision")
       }
 
+      toast.success(
+        decisionType === "cancelled"
+          ? "Series cancelled successfully."
+          : decisionType === "hiatus"
+          ? "Series moved to hiatus."
+          : "Series reactivated successfully."
+      )
       setRefreshKey((value) => value + 1)
     } catch (err: any) {
-      alert(err.message || "Server connection error")
+      toast.error(err.message || "Server connection error")
     } finally {
       setDecidingSeriesId(null)
+      setTargetSeries(null)
+      setDecisionType(null)
+      setDecisionReason("")
     }
+  }
+
+  const handleViewDetails = (seriesId: string) => {
+    setSelectedSeriesId(seriesId)
+    setIsDetailOpen(true)
   }
 
   return (
@@ -585,47 +617,56 @@ export default function VotesPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="w-8 h-8"
-                            title="View series"
-                            onClick={() => router.push("/series")}
+                            className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40 cursor-pointer"
+                            title="View Details"
+                            onClick={() => handleViewDetails(entry.seriesId)}
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {role === "editorial" && !isCancelled && (
+                          {role === "editorial" && (
                             <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-8 h-8 hover:text-amber-300"
-                                title="Move to publication review / hiatus"
-                                disabled={decidingSeriesId === entry.seriesId}
-                                onClick={() => handleEditorialDecision(entry, "hiatus")}
-                              >
-                                <PauseCircle className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-8 h-8 hover:text-red-300"
-                                title="Cancel series"
-                                disabled={decidingSeriesId === entry.seriesId}
-                                onClick={() => handleEditorialDecision(entry, "cancelled")}
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </Button>
+                              {/* Show Reactivate (active) button if series is cancelled or hiatus */}
+                              {(entry.seriesStatus?.toLowerCase() === "cancelled" || entry.seriesStatus?.toLowerCase() === "hiatus") && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40 cursor-pointer"
+                                  title="Reactivate series"
+                                  disabled={decidingSeriesId === entry.seriesId}
+                                  onClick={() => handleEditorialDecision(entry, "active")}
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </Button>
+                              )}
+
+                              {/* Show Pause (hiatus) button only if series is active */}
+                              {entry.seriesStatus?.toLowerCase() === "active" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/40 cursor-pointer"
+                                  title="Move to publication review / hiatus"
+                                  disabled={decidingSeriesId === entry.seriesId}
+                                  onClick={() => handleEditorialDecision(entry, "hiatus")}
+                                >
+                                  <PauseCircle className="w-4 h-4" />
+                                </Button>
+                              )}
+
+                              {/* Show Cancel (cancelled) button if series is NOT already cancelled */}
+                              {entry.seriesStatus?.toLowerCase() !== "cancelled" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="w-8 h-8 text-zinc-400 hover:text-red-300 hover:bg-zinc-800/40 cursor-pointer"
+                                  title="Cancel series"
+                                  disabled={decidingSeriesId === entry.seriesId}
+                                  onClick={() => handleEditorialDecision(entry, "cancelled")}
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </Button>
+                              )}
                             </>
-                          )}
-                          {role === "editorial" && isCancelled && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="w-8 h-8 hover:text-primary"
-                              title="Reactivate series"
-                              disabled={decidingSeriesId === entry.seriesId}
-                              onClick={() => handleEditorialDecision(entry, "active")}
-                            >
-                              <RotateCcw className="w-4 h-4" />
-                            </Button>
                           )}
                         </div>
                       </TableCell>
@@ -739,6 +780,83 @@ export default function VotesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Editorial Decision Modal */}
+      <Dialog open={isDecisionModalOpen} onOpenChange={setIsDecisionModalOpen}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <AlertTriangle className={`w-5 h-5 ${decisionType === "cancelled" ? "text-red-400" : decisionType === "hiatus" ? "text-amber-400" : "text-[#00dfc0]"}`} />
+              {decisionType === "cancelled" ? "Cancel Series" : decisionType === "hiatus" ? "Move Series to Hiatus" : "Reactivate Series"}
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
+              {decisionType === "cancelled" 
+                ? `Are you sure you want to cancel the publication of "${targetSeries?.series}"? This will lock all write operations for the author and assistants.` 
+                : decisionType === "hiatus" 
+                ? `Move "${targetSeries?.series}" to hiatus / publication review?` 
+                : `Reactivate "${targetSeries?.series}" and resume normal publication?`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {decisionType !== "active" && (
+            <div className="space-y-2 py-2">
+              <Label htmlFor="decision-reason" className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                Reason for Decision
+              </Label>
+              <Textarea
+                id="decision-reason"
+                value={decisionReason}
+                onChange={(e) => setDecisionReason(e.target.value)}
+                placeholder="Enter editorial reason..."
+                className="bg-zinc-900 border-zinc-700 text-white placeholder-zinc-650 resize-none h-24 text-xs focus-visible:ring-primary"
+              />
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setIsDecisionModalOpen(false)
+                setTargetSeries(null)
+                setDecisionType(null)
+                setDecisionReason("")
+              }} 
+              className="border-zinc-800 text-zinc-400 hover:bg-zinc-900 text-xs px-4"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={submitEditorialDecision}
+              className={`font-semibold text-xs px-4 ${
+                decisionType === "cancelled" 
+                  ? "bg-red-600 hover:bg-red-500 text-white" 
+                  : decisionType === "hiatus" 
+                  ? "bg-amber-500 hover:bg-amber-400 text-black" 
+                  : "bg-[#00dfc0] hover:bg-[#00dfc0]/90 text-black"
+              }`}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Series Detail Modal */}
+      {selectedSeriesId && (
+        <SeriesDetailModal
+          seriesId={selectedSeriesId}
+          isOpen={isDetailOpen}
+          onClose={() => {
+            setIsDetailOpen(false)
+            setSelectedSeriesId(null)
+          }}
+          onUpdate={() => setRefreshKey((value) => value + 1)}
+        />
+      )}
+
     </div>
   )
 }

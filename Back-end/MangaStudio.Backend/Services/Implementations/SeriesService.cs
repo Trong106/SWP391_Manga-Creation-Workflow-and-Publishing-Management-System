@@ -189,6 +189,11 @@ public class SeriesService : ISeriesService
             throw new UnauthorizedAccessException("Bạn không có quyền cập nhật bộ truyện này.");
         }
 
+        if (series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot update details for a cancelled series.");
+        }
+
         if (dto.Title != null) series.Title = dto.Title;
         if (dto.TitleJp != null) series.TitleJp = dto.TitleJp;
         if (dto.Synopsis != null)
@@ -264,7 +269,7 @@ public class SeriesService : ISeriesService
         {
             NotificationId = Guid.NewGuid(),
             UserId = series.MangakaId,
-            Type = decision == "cancelled" ? "series_cancelled" : decision == "hiatus" ? "series_at_risk" : "series_reactivated",
+            Type = "system",
             Title = notificationTitle,
             Message = notificationMessage,
             IsRead = false,

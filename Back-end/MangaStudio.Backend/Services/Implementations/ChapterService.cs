@@ -47,6 +47,11 @@ public class ChapterService : IChapterService
         await _createChapterLock.WaitAsync();
         try
         {
+            if (series.Status == "cancelled")
+            {
+                throw new InvalidOperationException("Cannot add a new chapter to a cancelled series.");
+            }
+
             var chapterExists = await _context.Chapters
                 .AnyAsync(c => c.SeriesId == seriesId && c.ChapterNumber == dto.ChapterNumber);
 
@@ -108,6 +113,11 @@ public class ChapterService : IChapterService
         if (chapter.Series.MangakaId != mangakaId)
         {
             throw new UnauthorizedAccessException("Bạn không có quyền sửa chương này.");
+        }
+
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot update chapters of a cancelled series.");
         }
 
         if (dto.Title != null) chapter.Title = dto.Title;
@@ -184,6 +194,11 @@ public class ChapterService : IChapterService
             .Include(c => c.Series)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
             ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
+
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot upload new pages for a cancelled series.");
+        }
 
         if (chapter.Series.MangakaId != uploadedById)
         {
@@ -390,6 +405,11 @@ public class ChapterService : IChapterService
             throw new UnauthorizedAccessException("Bạn không có quyền xóa trang này.");
         }
 
+        if (page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot delete pages from a cancelled series.");
+        }
+
         // Xóa các dữ liệu liên quan
         var annotations = _context.PageAnnotations.Where(a => a.PageId == pageId);
         _context.PageAnnotations.RemoveRange(annotations);
@@ -422,6 +442,11 @@ public class ChapterService : IChapterService
         if (chapter.Series.MangakaId != mangakaId)
         {
             throw new UnauthorizedAccessException("You do not have permission to submit this chapter.");
+        }
+
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot submit chapters of a cancelled series.");
         }
 
         if (chapter.MangaPages.Count == 0)

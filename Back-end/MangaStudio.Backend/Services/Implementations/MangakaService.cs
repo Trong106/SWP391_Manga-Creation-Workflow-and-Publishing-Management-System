@@ -74,6 +74,15 @@ public class MangakaService : IMangakaService
     /// <returns>Đường dẫn URL của trang vẽ đã upload.</returns>
     public async Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById, int? pageNumber = null)
     {
+        var chapter = await _context.Chapters
+            .Include(c => c.Series)
+            .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
+            ?? throw new KeyNotFoundException($"Chapter với ID {chapterId} không tồn tại.");
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot upload pages for a cancelled series.");
+        }
+
         // 1. Tải hình vẽ trang truyện lên Cloudinary
         string imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 

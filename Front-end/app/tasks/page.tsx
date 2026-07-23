@@ -726,6 +726,12 @@ export default function AssistantTasksPage() {
                       <span className="text-zinc-500 font-mono text-[10px] min-w-[55px]">
                         P. #{task.pageNumber}
                       </span>
+
+                      {task.seriesStatus?.toLowerCase() === "cancelled" && (
+                        <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-1.5 py-0.5 shrink-0">
+                          Series Cancelled
+                        </Badge>
+                      )}
                     </div>
 
                     {/* Middle: Title & Description snippet */}
@@ -778,9 +784,9 @@ export default function AssistantTasksPage() {
                           <Button
                             id={`start-task-btn-${task.taskId}`}
                             onClick={() => handleStartTask(task.taskId)}
-                            disabled={startingTaskId === task.taskId}
+                            disabled={startingTaskId === task.taskId || task.seriesStatus?.toLowerCase() === "cancelled"}
                             size="sm"
-                            className="bg-primary hover:bg-primary-container text-background font-extrabold text-[10px] h-7 px-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
+                            className="bg-primary hover:bg-primary-container text-background font-extrabold text-[10px] h-7 px-2.5 rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             {startingTaskId === task.taskId ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
