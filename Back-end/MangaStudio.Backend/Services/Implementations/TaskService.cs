@@ -42,6 +42,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Chỉ Mangaka sở hữu bộ truyện mới có quyền giao việc.");
         }
 
+        if (page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot assign tasks for a cancelled series.");
+        }
+
         if (dto.DueDate.HasValue && dto.DueDate.Value < DateOnly.FromDateTime(DateTime.Today))
         {
             throw new ArgumentException("Due date cannot be in the past.");
@@ -101,6 +106,11 @@ public class TaskService : ITaskService
         if (task.AssigneeId != assistantId)
         {
             throw new UnauthorizedAccessException("Only the assigned assistant can ask for clarification on this task.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot request clarification for tasks belonging to a cancelled series.");
         }
 
         var message = string.IsNullOrWhiteSpace(dto.Message)
@@ -196,6 +206,11 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Bạn không có quyền sửa công việc này.");
         }
 
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot edit tasks belonging to a cancelled series.");
+        }
+
         if (dto.Title != null) task.Title = dto.Title;
         if (dto.Description != null) task.Description = dto.Description;
         if (dto.Type != null) task.Type = dto.Type;
@@ -228,6 +243,11 @@ public class TaskService : ITaskService
         if (task.Page.Chapter.Series.MangakaId != mangakaId)
         {
             throw new UnauthorizedAccessException("You do not have permission to re-task this work item.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot re-task for a cancelled series.");
         }
 
         if (!string.Equals(task.Status, "approved", StringComparison.OrdinalIgnoreCase))
@@ -305,6 +325,11 @@ public class TaskService : ITaskService
         if (task.AssigneeId != assistantId)
         {
             throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot submit work for a cancelled series.");
         }
 
         PageVersion? pageVersion = null;
@@ -416,6 +441,11 @@ public class TaskService : ITaskService
         if (submission.Task.AssignerId != reviewerId)
         {
             throw new UnauthorizedAccessException("Ban khong phai nguoi giao viec nay nen khong the duyet.");
+        }
+
+        if (submission.Task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot review tasks belonging to a cancelled series.");
         }
 
         if (!string.Equals(submission.Status, "submitted", StringComparison.OrdinalIgnoreCase))
@@ -566,6 +596,7 @@ public class TaskService : ITaskService
             SeriesTitle = t.Page?.Chapter?.Series?.Title,
             SeriesId = t.Page?.Chapter?.Series?.SeriesId,
             SeriesCoverImageUrl = t.Page?.Chapter?.Series?.CoverImageUrl,
+            SeriesStatus = t.Page?.Chapter?.Series?.Status,
             RegionId = t.RegionId,
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? t.Assignee.FullName : null,
@@ -587,12 +618,19 @@ public class TaskService : ITaskService
     {
         var task = await _context.Tasks
             .Include(t => t.Page)
+                .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId)
             ?? throw new KeyNotFoundException($"Công việc với ID {taskId} không tồn tại.");
 
         if (task.AssigneeId != assistantId)
         {
             throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
+        }
+
+        if (task.Page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot start tasks belonging to a cancelled series.");
         }
 
         if (task.Status != "pending" && task.Status != "revision")

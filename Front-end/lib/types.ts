@@ -62,6 +62,7 @@ export interface Task {
   status: "pending" | "in_progress" | "submitted" | "revision" | "approved"
   dueDate: string
   payment: number
+  seriesStatus?: string | null
   createdAt: string
   updatedAt: string
 }

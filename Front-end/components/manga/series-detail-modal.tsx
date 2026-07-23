@@ -277,6 +277,9 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     if (role !== "mangaka" || lockedStatuses.includes((chapter.status || "").toLowerCase())) {
       return false
     }
+    if (series?.status?.toLowerCase() === "cancelled") {
+      return false
+    }
 
     const pageCount = chapter.pageCount ?? 0
     const approvedPageCount = chapter.approvedPageCount ?? 0
@@ -284,6 +287,9 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
   }
 
   const getSubmitChapterBlockReason = (chapter: any) => {
+    if (series?.status?.toLowerCase() === "cancelled") {
+      return "This series has been cancelled by the Editorial Board."
+    }
     const status = (chapter.status || "").toLowerCase()
     const lockedStatuses = ["tantou_review", "editorial_ready", "scheduled", "published"]
     if (lockedStatuses.includes(status)) {
@@ -329,6 +335,23 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
               <span className="text-primary font-medium">{series.title}</span>
             </div>
 
+            {series.status?.toLowerCase() === "cancelled" && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200 flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+                <div>
+                  <h4 className="font-bold text-red-100">Series Soft-Locked (Cancelled)</h4>
+                  <p className="mt-1 text-xs text-red-300">
+                    This series has been cancelled by the Editorial Board. All creation, upload, submission, and modification actions are locked. You can only view historical tasks and chapters.
+                  </p>
+                  {series.cancellationReason && (
+                    <p className="mt-2 text-xs font-semibold text-zinc-300">
+                      Reason: &ldquo;{series.cancellationReason}&rdquo;
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Layout trên: Ảnh bìa + Metadata */}
             <div className="flex flex-col md:flex-row gap-6">
               {/* Cột trái: Ảnh bìa (hoặc upload) */}
@@ -348,7 +371,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   )}
 
                   {/* Overlay Upload dành riêng cho Mangaka */}
-                  {role === "mangaka" && (
+                  {role === "mangaka" && series.status?.toLowerCase() !== "cancelled" && (
                     <label
                       htmlFor="cover-upload"
                       className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-xs"

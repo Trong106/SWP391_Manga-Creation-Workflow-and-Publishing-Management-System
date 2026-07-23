@@ -29,6 +29,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
+import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 
 interface SeriesRankingDto {
   seriesId: string
@@ -68,6 +80,16 @@ export default function SeriesRankingPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("weekly")
   const [decidingSeriesId, setDecidingSeriesId] = useState<string | null>(null)
 
+  // Modal states for Editorial Board decisions
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false)
+  const [decisionType, setDecisionType] = useState<"cancelled" | "hiatus" | "active" | null>(null)
+  const [decisionReason, setDecisionReason] = useState("")
+  const [targetSeries, setTargetSeries] = useState<SeriesRankingDto | null>(null)
+
+  // Details modal states
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+
   const fetchRanking = () => {
     if (!token) return
     setLoading(true)
@@ -100,35 +122,38 @@ export default function SeriesRankingPage() {
     fetchRanking()
   }, [token, selectedGenre, selectedSort, selectedTimeframe])
 
-  const handleEditorialDecision = async (
+  const handleEditorialDecision = (
     item: SeriesRankingDto,
     decision: "cancelled" | "hiatus" | "active"
   ) => {
-    if (!token) return
+    setTargetSeries(item)
+    setDecisionType(decision)
+    setDecisionReason(
+      decision === "active"
+        ? ""
+        : item.riskReason || "Based on low ranking / weak reader votes."
+    )
+    setIsDecisionModalOpen(true)
+  }
 
-    let reason = ""
-    if (decision !== "active") {
-      const defaultReason = item.riskReason || "Based on low ranking / weak reader votes."
-      reason = window.prompt(
-        decision === "cancelled"
-          ? "Reason for cancelling this series:"
-          : "Reason for moving this series to publication review / hiatus:",
-        defaultReason
-      ) || ""
-      if (!reason.trim()) return
-    } else if (!window.confirm("Reactivate this series for normal publication?")) {
+  const submitEditorialDecision = async () => {
+    if (!token || !targetSeries || !decisionType) return
+
+    if (decisionType !== "active" && !decisionReason.trim()) {
+      toast.error("Please enter a reason for this decision.")
       return
     }
 
-    setDecidingSeriesId(item.seriesId)
+    setDecidingSeriesId(targetSeries.seriesId)
+    setIsDecisionModalOpen(false)
     try {
-      const res = await fetch(`${API_BASE_URL}/api/series/${item.seriesId}/editorial-decision`, {
+      const res = await fetch(`${API_BASE_URL}/api/series/${targetSeries.seriesId}/editorial-decision`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ decision, reason })
+        body: JSON.stringify({ decision: decisionType, reason: decisionReason })
       })
 
       if (!res.ok) {
@@ -136,12 +161,27 @@ export default function SeriesRankingPage() {
         throw new Error(data?.message || "Failed to apply editorial decision")
       }
 
+      toast.success(
+        decisionType === "cancelled"
+          ? `Series "${targetSeries.title}" cancelled successfully.`
+          : decisionType === "hiatus"
+          ? `Series "${targetSeries.title}" moved to hiatus.`
+          : `Series "${targetSeries.title}" reactivated successfully.`
+      )
       fetchRanking()
     } catch (err: any) {
-      alert(err.message || "Server connection error")
+      toast.error(err.message || "Server connection error")
     } finally {
       setDecidingSeriesId(null)
+      setTargetSeries(null)
+      setDecisionType(null)
+      setDecisionReason("")
     }
+  }
+
+  const handleViewDetails = (seriesId: string) => {
+    setSelectedSeriesId(seriesId)
+    setIsDetailOpen(true)
   }
 
   const formatNumber = (num?: number | null) => {
@@ -467,49 +507,59 @@ export default function SeriesRankingPage() {
                         {/* Actions */}
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40"
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {role === "editorial" && item.seriesStatus !== "cancelled" && (
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               onClick={() => handleViewDetails(item.seriesId)}
+                               className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40 cursor-pointer"
+                               title="View Details"
+                             >
+                               <Eye className="w-4 h-4" />
+                             </Button>
+                            {role === "editorial" && (
                               <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="w-8 h-8 text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/40"
-                                  title="Move to publication review / hiatus"
-                                  disabled={decidingSeriesId === item.seriesId}
-                                  onClick={() => handleEditorialDecision(item, "hiatus")}
-                                >
-                                  <PauseCircle className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="w-8 h-8 text-zinc-400 hover:text-red-300 hover:bg-zinc-800/40"
-                                  title="Cancel series"
-                                  disabled={decidingSeriesId === item.seriesId}
-                                  onClick={() => handleEditorialDecision(item, "cancelled")}
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </Button>
+                                {/* Show Reactivate (active) button if series is cancelled or hiatus */}
+                                {(item.seriesStatus?.toLowerCase() === "cancelled" || item.seriesStatus?.toLowerCase() === "hiatus") && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40 cursor-pointer"
+                                    title="Reactivate series"
+                                    disabled={decidingSeriesId === item.seriesId}
+                                    onClick={() => handleEditorialDecision(item, "active")}
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                  </Button>
+                                )}
+
+                                {/* Show Pause (hiatus) button only if series is active */}
+                                {item.seriesStatus?.toLowerCase() === "active" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-8 h-8 text-zinc-400 hover:text-amber-300 hover:bg-zinc-800/40 cursor-pointer"
+                                    title="Move to publication review / hiatus"
+                                    disabled={decidingSeriesId === item.seriesId}
+                                    onClick={() => handleEditorialDecision(item, "hiatus")}
+                                  >
+                                    <PauseCircle className="w-4 h-4" />
+                                  </Button>
+                                )}
+
+                                {/* Show Cancel (cancelled) button if series is NOT already cancelled */}
+                                {item.seriesStatus?.toLowerCase() !== "cancelled" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-8 h-8 text-zinc-400 hover:text-red-300 hover:bg-zinc-800/40 cursor-pointer"
+                                    title="Cancel series"
+                                    disabled={decidingSeriesId === item.seriesId}
+                                    onClick={() => handleEditorialDecision(item, "cancelled")}
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </>
-                            )}
-                            {role === "editorial" && item.seriesStatus === "cancelled" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-8 h-8 text-zinc-400 hover:text-[#00dfc0] hover:bg-zinc-800/40"
-                                title="Reactivate series"
-                                disabled={decidingSeriesId === item.seriesId}
-                                onClick={() => handleEditorialDecision(item, "active")}
-                              >
-                                <RotateCcw className="w-4 h-4" />
-                              </Button>
                             )}
                           </div>
                         </td>
@@ -541,6 +591,83 @@ export default function SeriesRankingPage() {
         </section>
 
       </div>
+
+      {/* Editorial Decision Modal */}
+      <Dialog open={isDecisionModalOpen} onOpenChange={setIsDecisionModalOpen}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <AlertTriangle className={`w-5 h-5 ${decisionType === "cancelled" ? "text-red-400" : decisionType === "hiatus" ? "text-amber-400" : "text-[#00dfc0]"}`} />
+              {decisionType === "cancelled" ? "Cancel Series" : decisionType === "hiatus" ? "Move Series to Hiatus" : "Reactivate Series"}
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
+              {decisionType === "cancelled" 
+                ? `Are you sure you want to cancel the publication of "${targetSeries?.title}"? This will lock all write operations for the author and assistants.` 
+                : decisionType === "hiatus" 
+                ? `Move "${targetSeries?.title}" to hiatus / publication review?` 
+                : `Reactivate "${targetSeries?.title}" and resume normal publication?`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {decisionType !== "active" && (
+            <div className="space-y-2 py-2">
+              <Label htmlFor="decision-reason" className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                Reason for Decision
+              </Label>
+              <Textarea
+                id="decision-reason"
+                value={decisionReason}
+                onChange={(e) => setDecisionReason(e.target.value)}
+                placeholder="Enter editorial reason..."
+                className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-600 resize-none h-24 text-xs focus-visible:ring-primary"
+              />
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setIsDecisionModalOpen(false)
+                setTargetSeries(null)
+                setDecisionType(null)
+                setDecisionReason("")
+              }} 
+              className="border-zinc-800 text-zinc-400 hover:bg-zinc-900 text-xs px-4"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={submitEditorialDecision}
+              className={`font-semibold text-xs px-4 ${
+                decisionType === "cancelled" 
+                  ? "bg-red-600 hover:bg-red-500 text-white" 
+                  : decisionType === "hiatus" 
+                  ? "bg-amber-500 hover:bg-amber-400 text-black" 
+                  : "bg-[#00dfc0] hover:bg-[#00dfc0]/90 text-black"
+              }`}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Series Detail Modal */}
+      {selectedSeriesId && (
+        <SeriesDetailModal
+          seriesId={selectedSeriesId}
+          isOpen={isDetailOpen}
+          onClose={() => {
+            setIsDetailOpen(false)
+            setSelectedSeriesId(null)
+          }}
+          onUpdate={fetchRanking}
+        />
+      )}
+
     </div>
   )
 }

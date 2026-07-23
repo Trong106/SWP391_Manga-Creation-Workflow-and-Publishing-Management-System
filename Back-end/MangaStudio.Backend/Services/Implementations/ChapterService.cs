@@ -43,6 +43,11 @@ public class ChapterService : IChapterService
             throw new UnauthorizedAccessException("Bạn không có quyền thêm chương vào bộ truyện này.");
         }
 
+        if (series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot add a new chapter to a cancelled series.");
+        }
+
         var chapterExists = await _context.Chapters
             .AnyAsync(c => c.SeriesId == seriesId && c.ChapterNumber == dto.ChapterNumber);
 
@@ -99,6 +104,11 @@ public class ChapterService : IChapterService
         if (chapter.Series.MangakaId != mangakaId)
         {
             throw new UnauthorizedAccessException("Bạn không có quyền sửa chương này.");
+        }
+
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot update chapters of a cancelled series.");
         }
 
         if (dto.Title != null) chapter.Title = dto.Title;
@@ -166,6 +176,15 @@ public class ChapterService : IChapterService
     /// </summary>
     public async Task<UploadPagesResponseDto> UploadPages(Guid chapterId, List<IFormFile> files, Guid uploadedById)
     {
+        var chapter = await _context.Chapters
+            .Include(c => c.Series)
+            .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
+            ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot upload new pages for a cancelled series.");
+        }
+
         if (files == null || files.Count == 0)
         {
             throw new ArgumentException("Danh sách file tải lên không được trống.");
@@ -360,6 +379,11 @@ public class ChapterService : IChapterService
             throw new UnauthorizedAccessException("Bạn không có quyền xóa trang này.");
         }
 
+        if (page.Chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot delete pages from a cancelled series.");
+        }
+
         // Xóa các dữ liệu liên quan
         var annotations = _context.PageAnnotations.Where(a => a.PageId == pageId);
         _context.PageAnnotations.RemoveRange(annotations);
@@ -392,6 +416,11 @@ public class ChapterService : IChapterService
         if (chapter.Series.MangakaId != mangakaId)
         {
             throw new UnauthorizedAccessException("You do not have permission to submit this chapter.");
+        }
+
+        if (chapter.Series.Status == "cancelled")
+        {
+            throw new InvalidOperationException("Cannot submit chapters of a cancelled series.");
         }
 
         if (chapter.MangaPages.Count == 0)

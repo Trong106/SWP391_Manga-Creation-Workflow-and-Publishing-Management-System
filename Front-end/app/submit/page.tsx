@@ -51,6 +51,7 @@ interface Task {
   chapterTitle: string
   seriesTitle: string
   assignerName: string
+  seriesStatus?: string | null
 }
 
 interface RevisionAnnotation {
@@ -143,7 +144,8 @@ export default function SubmitWorkPage() {
           pageNumber: mt.pageNumber,
           chapterTitle: mt.chapterTitle || `Chapter ${matchingTask?.chapterNumber || ""}`,
           seriesTitle: matchingTask?.seriesTitle || "Neo-Tokyo Chronicles",
-          assignerName: mt.assignerName || "Yuki Tanaka"
+          assignerName: mt.assignerName || "Yuki Tanaka",
+          seriesStatus: mt.seriesStatus
         }
       })
 
@@ -174,6 +176,7 @@ export default function SubmitWorkPage() {
   }, [user?.id, token, taskIdParam])
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId)
+  const isSeriesCancelled = selectedTask?.seriesStatus?.toLowerCase() === "cancelled"
 
   useEffect(() => {
     const fetchTaskResource = async () => {
@@ -437,13 +440,14 @@ export default function SubmitWorkPage() {
               <Button 
                 onClick={handleSaveDraft} 
                 variant="outline" 
-                className="bg-transparent border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900"
+                disabled={isSeriesCancelled}
+                className="bg-transparent border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 disabled:opacity-40 disabled:pointer-events-none"
               >
                 Save Draft
               </Button>
               <Button 
                 onClick={handleSubmitTask} 
-                disabled={submitting || !file || !isQCComplete}
+                disabled={submitting || !file || !isQCComplete || isSeriesCancelled}
                 className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(0,223,192,0.15)] disabled:opacity-40 disabled:pointer-events-none"
               >
                 {submitting ? (
@@ -519,6 +523,18 @@ export default function SubmitWorkPage() {
             </Card>
           )}
 
+          {isSeriesCancelled && (
+            <div className="mb-6 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-sm text-red-200 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-red-100">Series Cancelled (Submissions Disabled)</h4>
+                <p className="mt-1 text-xs text-red-300">
+                  This task belongs to a series that has been cancelled by the Editorial Board. You can view the task details and historical resources, but uploading files and submitting work is disabled.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Main Layout Grid */}
           <div className="grid grid-cols-12 gap-6">
             
@@ -543,14 +559,16 @@ export default function SubmitWorkPage() {
                   <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                     {/* Dashed Drag/Drop Box */}
                     <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[300px] flex-1 ${
-                        isDragging 
-                          ? "border-primary bg-primary/5" 
-                          : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20"
+                      onDragOver={e => !isSeriesCancelled && handleDragOver(e)}
+                      onDragLeave={e => !isSeriesCancelled && handleDragLeave(e)}
+                      onDrop={e => !isSeriesCancelled && handleDrop(e)}
+                      onClick={() => !isSeriesCancelled && fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all min-h-[300px] flex-1 ${
+                        isSeriesCancelled
+                          ? "border-zinc-900 bg-zinc-950/20 cursor-not-allowed opacity-50"
+                          : isDragging 
+                            ? "border-primary bg-primary/5 cursor-pointer" 
+                            : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20 cursor-pointer"
                       }`}
                     >
                       <input 
@@ -624,7 +642,8 @@ export default function SubmitWorkPage() {
                         <Checkbox 
                           checked={checklist.dpi} 
                           onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, dpi: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                          disabled={isSeriesCancelled}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                         <div className="space-y-0.5">
                           <span className="font-bold text-xs text-zinc-200">Minimum 600 DPI</span>
@@ -640,7 +659,8 @@ export default function SubmitWorkPage() {
                         <Checkbox 
                           checked={checklist.layers} 
                           onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, layers: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                          disabled={isSeriesCancelled}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                         <div className="space-y-0.5">
                           <span className="font-bold text-xs text-zinc-200">Layer Structure Preserved</span>
@@ -656,7 +676,8 @@ export default function SubmitWorkPage() {
                         <Checkbox 
                           checked={checklist.transparency} 
                           onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, transparency: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                          disabled={isSeriesCancelled}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                         <div className="space-y-0.5">
                           <span className="font-bold text-xs text-zinc-200">Transparency Check</span>
@@ -672,7 +693,8 @@ export default function SubmitWorkPage() {
                         <Checkbox 
                           checked={checklist.aliasing} 
                           onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, aliasing: !!checked }))}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary"
+                          disabled={isSeriesCancelled}
+                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                         <div className="space-y-0.5">
                           <span className="font-bold text-xs text-zinc-200">Anti-Aliasing Off</span>
@@ -690,8 +712,9 @@ export default function SubmitWorkPage() {
                         id="submit-notes"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder="Add details about changes, notes on formatting, or issues that need Mangaka's review..."
-                        className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[90px] resize-none text-xs"
+                        disabled={isSeriesCancelled}
+                        placeholder={isSeriesCancelled ? "Submissions notes are disabled for cancelled series." : "Add details about changes, notes on formatting, or issues that need Mangaka's review..."}
+                        className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[90px] resize-none text-xs disabled:opacity-40"
                       />
                     </div>
                   </CardContent>
@@ -733,7 +756,8 @@ export default function SubmitWorkPage() {
                     <Button 
                       onClick={handleRequestPreReview}
                       variant="outline" 
-                      className="w-full bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-xs py-2 h-9 font-medium transition-colors"
+                      disabled={isSeriesCancelled}
+                      className="w-full bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-xs py-2 h-9 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <UserCheck className="w-3.5 h-3.5 mr-1.5" />
                       Request Pre-Review

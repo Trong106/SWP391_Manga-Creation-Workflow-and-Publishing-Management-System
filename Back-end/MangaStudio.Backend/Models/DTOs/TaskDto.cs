@@ -25,6 +25,7 @@ public class TaskDto
     public string? SeriesTitle { get; set; }
     public Guid? SeriesId { get; set; }
     public string? SeriesCoverImageUrl { get; set; }
+    public string? SeriesStatus { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
