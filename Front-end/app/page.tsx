@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth-context"
 import { StatsCards as MetricCard } from "@/components/manga/stats-cards"
 import { TeamActivity as RecentActivity } from "@/components/manga/team-activity"
 import { ProjectList as NewMangaGrid } from "@/components/manga/project-list"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 import { BarChart3, BookOpen, Star, Eye, Bookmark, TrendingUp, X, FolderOpen, Clock, Plus, Loader2, DollarSign, Calendar } from "lucide-react"
@@ -97,6 +97,7 @@ export default function Dashboard() {
   const [topSeries, setTopSeries] = useState<any[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -463,6 +464,7 @@ export default function Dashboard() {
           🔥 Top Series
         </h2>
         <div
+          ref={scrollRef}
           className="grid max-w-full grid-cols-2 gap-4 pb-4 sm:grid-cols-3 lg:grid-cols-6"
         >
           {topSeries.map((project, idx) => {
