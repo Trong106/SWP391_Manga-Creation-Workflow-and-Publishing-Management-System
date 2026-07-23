@@ -61,7 +61,6 @@ export function TopHeader() {
   const [seriesSearchData, setSeriesSearchData] = useState<any[]>([])
   const [taskSearchData, setTaskSearchData] = useState<any[]>([])
   const [teamSearchData, setTeamSearchData] = useState<any[]>([])
-  const [searchDataLoaded, setSearchDataLoaded] = useState(false)
 
   const fetchNotifications = () => {
     if (!token) return
@@ -95,14 +94,12 @@ export function TopHeader() {
   }, [token])
 
   useEffect(() => {
-    setSeriesSearchData([])
-    setTaskSearchData([])
-    setTeamSearchData([])
-    setSearchDataLoaded(false)
-  }, [token, role])
-
-  useEffect(() => {
-    if (!token || !searchFocused || searchQuery.trim().length < 2 || searchDataLoaded) return
+    if (!token) {
+      setSeriesSearchData([])
+      setTaskSearchData([])
+      setTeamSearchData([])
+      return
+    }
 
     const headers = { Authorization: `Bearer ${token}` }
     const readArray = async (url: string) => {
@@ -113,24 +110,17 @@ export function TopHeader() {
     }
 
     const canSearchTeam = role === "mangaka" || role === "tantou"
-    let cancelled = false
 
     Promise.allSettled([
       readArray(`${API_BASE_URL}/api/data/series`),
       readArray(`${API_BASE_URL}/api/data/tasks`),
       canSearchTeam ? readArray(`${API_BASE_URL}/api/data/team`) : Promise.resolve([]),
     ]).then(([seriesResult, tasksResult, teamResult]) => {
-      if (cancelled) return
       setSeriesSearchData(seriesResult.status === "fulfilled" ? seriesResult.value : [])
       setTaskSearchData(tasksResult.status === "fulfilled" ? tasksResult.value : [])
       setTeamSearchData(teamResult.status === "fulfilled" ? teamResult.value : [])
-      setSearchDataLoaded(true)
     })
-
-    return () => {
-      cancelled = true
-    }
-  }, [token, role, searchFocused, searchQuery, searchDataLoaded])
+  }, [token, role])
 
   const handleMarkAsRead = async (id: string) => {
     if (!token) return
