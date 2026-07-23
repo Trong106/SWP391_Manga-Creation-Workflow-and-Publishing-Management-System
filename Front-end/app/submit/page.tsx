@@ -435,11 +435,7 @@ export default function SubmitWorkPage() {
               </Button>
               <Button 
                 onClick={handleSubmitTask} 
-<<<<<<< HEAD
                 disabled={submitting || !file || !isQCComplete || isSeriesCancelled}
-=======
-                disabled={submitting || !file}
->>>>>>> origin/main
                 className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(0,223,192,0.15)] disabled:opacity-40 disabled:pointer-events-none"
               >
                 {submitting ? (
