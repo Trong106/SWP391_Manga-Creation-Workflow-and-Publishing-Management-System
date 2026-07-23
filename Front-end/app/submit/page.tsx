@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner"
 import { Toaster } from "@/components/ui/sonner"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Task {
   id: string
@@ -92,6 +93,16 @@ export default function SubmitWorkPage() {
   const [isDragging, setIsDragging] = useState<boolean>(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // QC Checklist states
+  const [checklist, setChecklist] = useState({
+    dpi: false,
+    layers: false,
+    transparency: false,
+    aliasing: false,
+  })
+
+  const isQCComplete = checklist.dpi && checklist.layers && checklist.transparency && checklist.aliasing
 
   // Fetch tasks assigned to the current Assistant
   const fetchTasks = async (preferredTaskId?: string | null) => {
@@ -165,6 +176,12 @@ export default function SubmitWorkPage() {
   const isSeriesCancelled = selectedTask?.seriesStatus?.toLowerCase() === "cancelled"
 
   useEffect(() => {
+    setChecklist({
+      dpi: false,
+      layers: false,
+      transparency: false,
+      aliasing: false,
+    })
     const fetchTaskResource = async () => {
       if (!token || !selectedTaskId) {
         setSelectedTaskResource(null)
@@ -267,6 +284,12 @@ export default function SubmitWorkPage() {
       // Reset form states
       setFile(null)
       setNote("")
+      setChecklist({
+        dpi: false,
+        layers: false,
+        transparency: false,
+        aliasing: false,
+      })
       setSelectedTaskId("")
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
@@ -548,7 +571,7 @@ export default function SubmitWorkPage() {
                     {/* Dashed Drag/Drop Box */}
                     <div
                       onDragOver={e => !isSeriesCancelled && handleDragOver(e)}
-                      onDragLeave={e => !isSeriesCancelled && handleDragLeave(e)}
+                      onDragLeave={() => !isSeriesCancelled && handleDragLeave()}
                       onDrop={e => !isSeriesCancelled && handleDrop(e)}
                       onClick={() => !isSeriesCancelled && fileInputRef.current?.click()}
                       className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all min-h-[300px] flex-1 ${

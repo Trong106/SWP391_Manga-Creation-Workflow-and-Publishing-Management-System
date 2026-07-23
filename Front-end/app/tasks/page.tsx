@@ -77,6 +77,7 @@ interface Task {
   paymentAmount: number
   createdAt: string
   updatedAt: string
+  seriesStatus?: string | null
 }
 
 interface TaskResource {
