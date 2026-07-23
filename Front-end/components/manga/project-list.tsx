@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Star, Eye, Bookmark, FileText, BookOpen } from "lucide-react"
+import { Star, BarChart3, Bookmark, FileText, BookOpen } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
@@ -16,12 +16,13 @@ export function ProjectList() {
   const [loading, setLoading] = useState(true)
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const now = useNow()
 
   const fetchSeries = () => {
     if (!token) return
 
-    fetch(`${API_BASE_URL}/api/data/series`, {
+    fetch(`${API_BASE_URL}/api/data/series-reader-votes`, {
       headers: {
         "Authorization": `Bearer ${token}`
       }
@@ -29,7 +30,7 @@ export function ProjectList() {
       .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
-          // Sắp xếp theo thứ tự cập nhật mới nhất đến cũ nhất cho mục "Danh Sách Truyện Tranh Mới"
+          // Sort by latest update first for the new series list.
           const sorted = [...data].sort(
             (a, b) => parseApiDateTime(b.updatedAtRaw)!.getTime() - parseApiDateTime(a.updatedAtRaw)!.getTime()
           )
@@ -58,6 +59,12 @@ export function ProjectList() {
     setIsModalOpen(true)
   }
 
+  const formatVoteCount = (value?: number | null) => {
+    const count = value ?? 0
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
+    return count.toLocaleString()
+  }
 
   return (
     <div className="space-y-6">
@@ -72,16 +79,36 @@ export function ProjectList() {
       ) : projects.length === 0 ? (
         <div className="text-center py-12 text-zinc-400 text-sm">No new series found.</div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
-          {projects.map((project) => {
-            const coverUrl = getFullCoverUrl(project.coverImageUrl)
-            const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
-            return (
-              <div
-                key={project.id}
-                onClick={() => handleCardClick(project.id)}
-                className="group cursor-pointer space-y-2.5"
-              >
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => scrollProjects("left")}
+            className="absolute left-0 top-[40%] z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/90 text-zinc-300 shadow-xl transition-colors hover:border-primary/60 hover:text-white"
+            aria-label="Scroll new series left"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollProjects("right")}
+            className="absolute right-0 top-[40%] z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-800 bg-zinc-950/90 text-zinc-300 shadow-xl transition-colors hover:border-primary/60 hover:text-white"
+            aria-label="Scroll new series right"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div
+            ref={scrollRef}
+            className="flex max-w-full gap-5 overflow-x-auto px-12 pb-3 scrollbar-none scroll-smooth"
+          >
+            {projects.map((project) => {
+              const coverUrl = getFullCoverUrl(project.coverImageUrl)
+              const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => handleCardClick(project.id)}
+                  className="group w-48 shrink-0 cursor-pointer space-y-2.5"
+                >
                 {/* Image Container */}
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                   {project.coverImageUrl ? (
@@ -116,14 +143,15 @@ export function ProjectList() {
                   <div className="flex items-center justify-between text-xs text-zinc-400">
                     <span>Chapter {project.chapters ?? 0}</span>
                     <span className="flex items-center gap-0.5 text-[10px] text-zinc-500">
-                      <Eye className="w-3 h-3" />
-                      {project.readerCount >= 1000 ? `${(project.readerCount / 1000).toFixed(1)}k` : project.readerCount}
+                      <BarChart3 className="w-3 h-3" />
+                      {formatVoteCount(project.totalReaderVotes)}
                     </span>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

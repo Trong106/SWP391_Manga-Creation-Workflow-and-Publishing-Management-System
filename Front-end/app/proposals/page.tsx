@@ -58,6 +58,21 @@ interface Proposal {
   ranking: number | null
   readerCount: number
   rating: number | null
+  boardVote: ProposalBoardVote | null
+}
+
+interface ProposalBoardVote {
+  voteSessionId: string
+  boardSize: number
+  approveVotes: number
+  rejectVotes: number
+  abstainVotes: number
+  requiredApproveVotes: number
+  decision: string
+  meetingNote: string | null
+  recordedById: string
+  recordedByName: string
+  recordedAt: string
 }
 
 interface UserOption {
@@ -101,8 +116,12 @@ export default function ProposalsPage() {
   // Review Dialog states
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
-  const [reviewDecision, setReviewDecision] = useState<"approved" | "rejected">("approved")
   const [reviewFeedback, setReviewFeedback] = useState("")
+  const [boardSize, setBoardSize] = useState(5)
+  const [approveVotes, setApproveVotes] = useState(3)
+  const [rejectVotes, setRejectVotes] = useState(2)
+  const [abstainVotes, setAbstainVotes] = useState(0)
+  const [requiredApproveVotes, setRequiredApproveVotes] = useState(3)
   const [tantouUsers, setTantouUsers] = useState<UserOption[]>([])
   const [selectedTantouId, setSelectedTantouId] = useState("")
   const [submittingReview, setSubmittingReview] = useState(false)
@@ -164,8 +183,12 @@ export default function ProposalsPage() {
 
   const handleOpenReview = (proposal: Proposal) => {
     setSelectedProposal(proposal)
-    setReviewDecision("approved")
     setReviewFeedback("")
+    setBoardSize(5)
+    setApproveVotes(3)
+    setRejectVotes(2)
+    setAbstainVotes(0)
+    setRequiredApproveVotes(3)
     setSelectedTantouId(tantouUsers[0]?.userId || "")
     setIsReviewOpen(true)
   }
@@ -177,7 +200,20 @@ export default function ProposalsPage() {
 
   const handlePostReview = async () => {
     if (!selectedProposal || !token) return
-    if (reviewDecision === "approved" && !selectedTantouId) {
+    const projectedDecision = approveVotes >= requiredApproveVotes ? "approved" : "rejected"
+    const totalVotes = approveVotes + rejectVotes + abstainVotes
+
+    if (totalVotes > boardSize) {
+      alert("Total votes cannot exceed board size.")
+      return
+    }
+
+    if (requiredApproveVotes > boardSize) {
+      alert("Required approve votes cannot exceed board size.")
+      return
+    }
+
+    if (projectedDecision === "approved" && !selectedTantouId) {
       alert("Please select a Tantou Editor before approving this proposal.")
       return
     }
@@ -191,9 +227,14 @@ export default function ProposalsPage() {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          decision: reviewDecision,
+          boardSize,
+          approveVotes,
+          rejectVotes,
+          abstainVotes,
+          requiredApproveVotes,
           feedback: reviewFeedback,
-          tantouId: reviewDecision === "approved" ? selectedTantouId : null
+          meetingNote: reviewFeedback,
+          tantouId: projectedDecision === "approved" ? selectedTantouId : null
         })
       })
 
@@ -254,6 +295,8 @@ export default function ProposalsPage() {
   const pendingCount = proposals.filter((p) => p.status.toLowerCase() === "submitted").length
   const approvedCount = proposals.filter((p) => p.status.toLowerCase() === "approved").length
   const rejectedCount = proposals.filter((p) => p.status.toLowerCase() === "rejected").length
+  const projectedDecision = approveVotes >= requiredApproveVotes ? "approved" : "rejected"
+  const totalBoardVotes = approveVotes + rejectVotes + abstainVotes
 
   return (
     <div className="space-y-6">
@@ -482,7 +525,7 @@ export default function ProposalsPage() {
                     <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 text-xs text-zinc-400 border-t border-zinc-800/40">
                       <span className="flex items-center gap-1.5">
                         <Users className="w-4 h-4 text-zinc-500" />
-                        Readers: <strong className="text-zinc-200">{proposal.readerCount.toLocaleString()}</strong>
+                        Reader Votes: <strong className="text-zinc-200">{proposal.readerCount.toLocaleString()}</strong>
                       </span>
                       {proposal.rating !== null && (
                         <span className="flex items-center gap-1.5">
@@ -503,6 +546,15 @@ export default function ProposalsPage() {
                           <span>Reviewer: <strong className="text-zinc-300">{proposal.reviewedByName}</strong></span>
                           {reviewDateStr && <span>Reviewed: <span className="text-zinc-400 font-medium">{reviewDateStr}</span></span>}
                         </div>
+                        {proposal.boardVote && (
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 text-xs">
+                            <span className="rounded bg-zinc-950 px-2 py-1 text-zinc-300">Board: {proposal.boardVote.boardSize}</span>
+                            <span className="rounded bg-green-950/40 px-2 py-1 text-green-300">Approve: {proposal.boardVote.approveVotes}</span>
+                            <span className="rounded bg-red-950/40 px-2 py-1 text-red-300">Reject: {proposal.boardVote.rejectVotes}</span>
+                            <span className="rounded bg-zinc-950 px-2 py-1 text-zinc-300">Abstain: {proposal.boardVote.abstainVotes}</span>
+                            <span className="rounded bg-zinc-950 px-2 py-1 text-zinc-300">Need: {proposal.boardVote.requiredApproveVotes}</span>
+                          </div>
+                        )}
                         {proposal.feedback && (
                           <div className="text-zinc-300 italic pt-1 border-t border-zinc-800/30">
                             &ldquo;{proposal.feedback}&rdquo;
@@ -519,7 +571,7 @@ export default function ProposalsPage() {
                         onClick={() => handleOpenReview(proposal)}
                         className="bg-[#00dfc0] text-black font-bold hover:bg-[#00dfc0]/90 px-5"
                       >
-                        Review Proposal
+                        Record Board Vote
                       </Button>
                     </div>
                   )}
@@ -534,42 +586,55 @@ export default function ProposalsPage() {
       <Dialog open={isReviewOpen} onOpenChange={(open) => !open && handleCloseReview()}>
         <DialogContent className="bg-[#18181b] text-white border-zinc-800 sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle className="text-white">Review Series Proposal</DialogTitle>
+            <DialogTitle className="text-white">Record Board Vote</DialogTitle>
             <DialogDescription className="text-zinc-400">
-              Provide your review decision and feedback for <strong className="text-zinc-300">{selectedProposal?.seriesTitle}</strong>.
+              Enter the Editorial Board meeting result for <strong className="text-zinc-300">{selectedProposal?.seriesTitle}</strong>.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-zinc-300">Decision</Label>
-              <Select
-                value={reviewDecision}
-                onValueChange={(val: "approved" | "rejected") => setReviewDecision(val)}
-              >
-                <SelectTrigger className="w-full bg-zinc-900 border-zinc-800 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-                  <SelectItem value="approved">Approve Publication</SelectItem>
-                  <SelectItem value="rejected">Reject Proposal</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="board-size" className="text-zinc-300">Board Size</Label>
+                <Input id="board-size" type="number" min={1} max={30} value={boardSize} onChange={(e) => setBoardSize(Number(e.target.value))} className="bg-zinc-900 border-zinc-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="required-approve" className="text-zinc-300">Required Approve</Label>
+                <Input id="required-approve" type="number" min={1} max={boardSize} value={requiredApproveVotes} onChange={(e) => setRequiredApproveVotes(Number(e.target.value))} className="bg-zinc-900 border-zinc-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="approve-votes" className="text-zinc-300">Approve Votes</Label>
+                <Input id="approve-votes" type="number" min={0} max={boardSize} value={approveVotes} onChange={(e) => setApproveVotes(Number(e.target.value))} className="bg-zinc-900 border-zinc-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reject-votes" className="text-zinc-300">Reject Votes</Label>
+                <Input id="reject-votes" type="number" min={0} max={boardSize} value={rejectVotes} onChange={(e) => setRejectVotes(Number(e.target.value))} className="bg-zinc-900 border-zinc-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="abstain-votes" className="text-zinc-300">Abstain Votes</Label>
+                <Input id="abstain-votes" type="number" min={0} max={boardSize} value={abstainVotes} onChange={(e) => setAbstainVotes(Number(e.target.value))} className="bg-zinc-900 border-zinc-800 text-white" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-zinc-300">Computed Decision</Label>
+                <div className={`rounded-md border px-3 py-2 text-sm font-bold ${projectedDecision === "approved" ? "border-[#00dfc0]/40 bg-[#00dfc0]/10 text-[#00dfc0]" : "border-red-500/40 bg-red-500/10 text-red-300"}`}>
+                  {projectedDecision === "approved" ? "Approved" : "Rejected"} ({totalBoardVotes}/{boardSize} votes)
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="review-feedback" className="text-zinc-300">Feedback / Review Note</Label>
+              <Label htmlFor="review-feedback" className="text-zinc-300">Meeting Note / Review Reason</Label>
               <Textarea
                 id="review-feedback"
                 value={reviewFeedback}
                 onChange={(e) => setReviewFeedback(e.target.value)}
-                placeholder="Write detail reasons, notes, or suggestions..."
+                placeholder="Summarize the board discussion, decision reason, or revision suggestion..."
                 rows={4}
                 className="bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-600 focus-visible:ring-[#00dfc0]"
               />
             </div>
 
-            {reviewDecision === "approved" && (
+            {projectedDecision === "approved" && (
               <div className="space-y-2">
                 <Label className="text-zinc-300">Assign Tantou Editor</Label>
                 <Select value={selectedTantouId} onValueChange={setSelectedTantouId}>

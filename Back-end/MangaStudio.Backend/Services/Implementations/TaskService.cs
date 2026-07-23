@@ -47,6 +47,11 @@ public class TaskService : ITaskService
             throw new InvalidOperationException("Cannot assign tasks for a cancelled series.");
         }
 
+        if (string.Equals(page.Status, "approved", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Approved pages are locked and cannot receive new tasks.");
+        }
+
         if (dto.DueDate.HasValue && dto.DueDate.Value < DateOnly.FromDateTime(DateTime.Today))
         {
             throw new ArgumentException("Due date cannot be in the past.");
@@ -63,6 +68,41 @@ public class TaskService : ITaskService
             }
         }
 
+        Guid? regionId = dto.RegionId;
+        if (dto.Region != null)
+        {
+            if (dto.Region.X + dto.Region.Width > 100 || dto.Region.Y + dto.Region.Height > 100)
+            {
+                throw new ArgumentException("Selected region must stay inside the manga page.");
+            }
+
+            var region = new PageRegion
+            {
+                RegionId = Guid.NewGuid(),
+                PageId = pageId,
+                Type = dto.Region.Type,
+                X = dto.Region.X,
+                Y = dto.Region.Y,
+                Width = dto.Region.Width,
+                Height = dto.Region.Height,
+                AssignedToId = dto.AssigneeId,
+                Status = "pending",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.PageRegions.Add(region);
+            regionId = region.RegionId;
+        }
+        else if (regionId.HasValue)
+        {
+            var regionExists = await _context.PageRegions
+                .AnyAsync(r => r.RegionId == regionId.Value && r.PageId == pageId);
+            if (!regionExists)
+            {
+                throw new ArgumentException("Selected region does not belong to this page.");
+            }
+        }
+
         var task = new MangaStudio.Backend.Models.Entities.Task
         {
             TaskId = Guid.NewGuid(),
@@ -70,7 +110,7 @@ public class TaskService : ITaskService
             Description = dto.Description,
             Type = dto.Type,
             PageId = pageId,
-            RegionId = dto.RegionId,
+            RegionId = regionId,
             AssigneeId = dto.AssigneeId,
             AssignerId = assignerId,
             Status = "pending",
@@ -129,16 +169,6 @@ public class TaskService : ITaskService
         };
 
         _context.Notifications.Add(notification);
-        _context.AuditLogs.Add(new AuditLog
-        {
-            AuditLogId = Guid.NewGuid(),
-            UserId = assistantId,
-            Action = "task_clarification_requested",
-            EntityType = "task",
-            EntityId = task.TaskId,
-            DetailsJson = $"{{\"taskTitle\":\"{EscapeJson(task.Title)}\",\"pageId\":\"{task.PageId}\",\"chapterId\":\"{task.Page.ChapterId}\",\"message\":\"{EscapeJson(message)}\"}}",
-            CreatedAt = DateTime.UtcNow
-        });
 
         await _context.SaveChangesAsync();
 
@@ -164,6 +194,7 @@ public class TaskService : ITaskService
             .Where(t => t.PageId == pageId)
             .Include(t => t.Assignee)
             .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -181,6 +212,7 @@ public class TaskService : ITaskService
             .Where(t => t.AssigneeId == assistantId)
             .Include(t => t.Assignee)
             .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -195,6 +227,7 @@ public class TaskService : ITaskService
     public async Task<TaskDto> UpdateTask(Guid taskId, Guid mangakaId, UpdateTaskDto dto)
     {
         var task = await _context.Tasks
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -278,17 +311,6 @@ public class TaskService : ITaskService
         {
             task.Page.Status = "assigned";
         }
-
-        _context.AuditLogs.Add(new AuditLog
-        {
-            AuditLogId = Guid.NewGuid(),
-            UserId = mangakaId,
-            Action = "task_retasked",
-            EntityType = "task",
-            EntityId = task.TaskId,
-            DetailsJson = $"{{\"taskTitle\":\"{EscapeJson(task.Title)}\",\"pageId\":\"{task.PageId}\",\"newDueDate\":\"{dto.NewDueDate:yyyy-MM-dd}\"}}",
-            CreatedAt = DateTime.UtcNow
-        });
 
         if (task.AssigneeId.HasValue)
         {
@@ -550,6 +572,7 @@ public class TaskService : ITaskService
         var t = await _context.Tasks
             .Include(t => t.Assignee)
             .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -598,6 +621,11 @@ public class TaskService : ITaskService
             SeriesCoverImageUrl = t.Page?.Chapter?.Series?.CoverImageUrl,
             SeriesStatus = t.Page?.Chapter?.Series?.Status,
             RegionId = t.RegionId,
+            RegionType = t.Region?.Type,
+            RegionX = t.Region?.X,
+            RegionY = t.Region?.Y,
+            RegionWidth = t.Region?.Width,
+            RegionHeight = t.Region?.Height,
             AssigneeId = t.AssigneeId,
             AssigneeName = t.Assignee != null ? t.Assignee.FullName : null,
             AssignerId = t.AssignerId,
@@ -617,6 +645,9 @@ public class TaskService : ITaskService
     public async Task<TaskDto> StartTask(Guid taskId, Guid assistantId)
     {
         var task = await _context.Tasks
+            .Include(t => t.Assignee)
+            .Include(t => t.Assigner)
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -631,6 +662,11 @@ public class TaskService : ITaskService
         if (task.Page.Chapter.Series.Status == "cancelled")
         {
             throw new InvalidOperationException("Cannot start tasks belonging to a cancelled series.");
+        }
+
+        if (task.Status == "in_progress")
+        {
+            return MapTaskToDto(task);
         }
 
         if (task.Status != "pending" && task.Status != "revision")
@@ -648,7 +684,7 @@ public class TaskService : ITaskService
         task.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        return await GetTaskById(task.TaskId);
+        return MapTaskToDto(task);
     }
 
     /// <summary>
@@ -685,6 +721,12 @@ public class TaskService : ITaskService
             SeriesTitle = task.Page.Chapter?.Series?.Title,
             ChapterNumber = task.Page.Chapter?.ChapterNumber ?? 0,
             RevisionNote = annotations.FirstOrDefault()?.Body,
+            RegionId = task.RegionId,
+            RegionType = task.Region?.Type,
+            RegionX = task.Region?.X,
+            RegionY = task.Region?.Y,
+            RegionWidth = task.Region?.Width,
+            RegionHeight = task.Region?.Height,
             RevisionAnnotations = annotations
         };
     }
@@ -709,12 +751,4 @@ public class TaskService : ITaskService
         };
     }
 
-    private static string EscapeJson(string? value)
-    {
-        return (value ?? string.Empty)
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\r", "\\r")
-            .Replace("\n", "\\n");
-    }
 }

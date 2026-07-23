@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import dynamic from "next/dynamic"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -11,11 +11,14 @@ import {
   FileText,
   TrendingUp,
   Bookmark,
-  AlertCircle
+  AlertCircle,
+  Folder,
+  Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { readJsonOrThrow } from "@/lib/http"
 import {
   Dialog,
   DialogContent,
@@ -68,28 +71,34 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
 }
 
+const PRELIMINARY_PAGE_PATTERN = /\.(png|jpe?g|psd|clip)$/i
+const MAX_PRELIMINARY_PAGE_SIZE = 50 * 1024 * 1024
+
+const getFileSortName = (file: File) => {
+  const fileWithPath = file as File & { webkitRelativePath?: string }
+  return fileWithPath.webkitRelativePath || file.name
+}
+
 export default function SeriesPage() {
   const { user, token, role, logout } = useAuth()
   const [series, setSeries] = useState<Series[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCreatingSeries, setIsCreatingSeries] = useState(false)
+  const createSeriesLockRef = useRef(false)
   
   // Creation form states
   const [newTitle, setNewTitle] = useState("")
   const [newTitleJp, setNewTitleJp] = useState("")
   const [newGenre, setNewGenre] = useState("")
   const [newSynopsis, setNewSynopsis] = useState("")
+  const [newChapterTitle, setNewChapterTitle] = useState("Chapter 001")
+  const [preliminaryPages, setPreliminaryPages] = useState<File[]>([])
 
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const fetchSeries = () => {
-    if (role !== "mangaka") {
-      setSeries([])
-      setLoading(false)
-      return
-    }
-
     if (user?.id && token) {
       setLoading(true)
       fetch(`${API_BASE_URL}/api/series`, {
@@ -109,24 +118,27 @@ export default function SeriesPage() {
         })
         .then((data) => {
           if (data && Array.isArray(data)) {
-            const mapped = data.map((item: any) => ({
-              id: item.seriesId || item.id,
-              title: item.title,
-              titleJp: item.titleJp || "",
-              genre: item.genres?.join(" / ") || "General",
-              genres: item.genres || [],
-              status: item.status?.toLowerCase() || "proposal",
-              chapters: item.chapterCount ?? item.chapters ?? 0,
-              readers: item.readerCount ?? item.readers ?? 0,
-              rating: item.rating ?? 0,
-              ranking: item.ranking ?? null,
-              riskLevel: item.riskLevel || "normal",
-              riskReason: item.riskReason || null,
-              cancellationReason: item.cancellationReason || null,
-              coverImageUrl: item.coverImageUrl,
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt
-            }))
+            const canViewProposal = role === "mangaka" || role === "editorial"
+            const mapped = data
+              .map((item: any) => ({
+                id: item.seriesId || item.id,
+                title: item.title,
+                titleJp: item.titleJp || "",
+                genre: item.genres?.join(" / ") || "General",
+                genres: item.genres || [],
+                status: item.status?.toLowerCase() || "proposal",
+                chapters: item.chapterCount ?? item.chapters ?? 0,
+                readers: item.readerCount ?? item.readers ?? 0,
+                rating: item.rating ?? 0,
+                ranking: item.ranking ?? null,
+                riskLevel: item.riskLevel || "normal",
+                riskReason: item.riskReason || null,
+                cancellationReason: item.cancellationReason || null,
+                coverImageUrl: item.coverImageUrl,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt
+              }))
+              .filter((item) => canViewProposal || item.status !== "proposal")
             setSeries(mapped)
           }
           setLoading(false)
@@ -144,38 +156,56 @@ export default function SeriesPage() {
   }, [user?.id, token, role])
 
   const handleCreateSeries = async () => {
-    if (!newTitle.trim() || !token) return
+    if (createSeriesLockRef.current || isCreatingSeries || !newTitle.trim() || !token) return
 
+    const orderedPreliminaryPages = [...preliminaryPages].sort((a, b) =>
+      getFileSortName(a).localeCompare(getFileSortName(b), undefined, { numeric: true, sensitivity: "base" }),
+    )
+    const invalidFile = orderedPreliminaryPages.find((file) => !PRELIMINARY_PAGE_PATTERN.test(file.name))
+    if (invalidFile) {
+      alert(`Unsupported manuscript file: ${invalidFile.name}. Use PNG, JPG, JPEG, PSD, or CLIP files.`)
+      return
+    }
+    const oversizedFile = orderedPreliminaryPages.find((file) => file.size > MAX_PRELIMINARY_PAGE_SIZE)
+    if (oversizedFile) {
+      alert(`Manuscript file is too large: ${oversizedFile.name}. Each file must be 50 MB or smaller.`)
+      return
+    }
+
+    createSeriesLockRef.current = true
+    setIsCreatingSeries(true)
     try {
-      const res = await fetch(`${API_BASE_URL}/api/series`, {
+      const formData = new FormData()
+      formData.append("title", newTitle.trim())
+      formData.append("titleJp", newTitleJp)
+      formData.append("synopsis", newSynopsis)
+      if (newGenre) formData.append("genres", newGenre)
+      formData.append("chapterTitle", newChapterTitle || "Chapter 001")
+      orderedPreliminaryPages.forEach((file) => formData.append("preliminaryPages", file))
+
+      const res = await fetch(`${API_BASE_URL}/api/series/with-manuscript`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          title: newTitle,
-          titleJp: newTitleJp,
-          synopsis: newSynopsis,
-          genres: newGenre ? [newGenre] : []
-        })
+        body: formData
       })
 
-      if (res.ok) {
-        // Clear form
-        setNewTitle("")
-        setNewTitleJp("")
-        setNewSynopsis("")
-        setNewGenre("")
-        setIsCreateOpen(false)
-        fetchSeries()
-      } else {
-        const errorData = await res.json()
-        alert(errorData.message || "Error creating series")
-      }
+      await readJsonOrThrow(res, "Error creating series")
+      setNewTitle("")
+      setNewTitleJp("")
+      setNewSynopsis("")
+      setNewGenre("")
+      setNewChapterTitle("Chapter 001")
+      setPreliminaryPages([])
+      setIsCreateOpen(false)
+      fetchSeries()
     } catch (err) {
       console.error(err)
-      alert("Server connection error")
+      alert(err instanceof Error ? err.message : "Server connection error")
+    } finally {
+      createSeriesLockRef.current = false
+      setIsCreatingSeries(false)
     }
   }
 
@@ -194,22 +224,6 @@ export default function SeriesPage() {
   const activeSeries = series.filter((s) => s.status === "active" || s.status === "ongoing").length
   const riskSeries = series.filter((s) => s.riskLevel && s.riskLevel !== "normal")
 
-  if (role !== "mangaka") {
-    return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/15 text-destructive">
-          <AlertCircle className="h-8 w-8" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-destructive">Access Denied</h1>
-          <p className="mt-2 max-w-md text-sm text-zinc-400">
-            My Series is reserved for Mangaka accounts. Use your role-specific sidebar to continue the workflow.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -217,24 +231,25 @@ export default function SeriesPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 text-white">
             <BookOpen className="w-6 h-6 text-primary" />
-            My Series
+            Series Portfolio
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage all your manga series and chapters
+            Browse manga series and open chapters across the studio workflow
           </p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Series
-            </Button>
-          </DialogTrigger>
+        {role === "mangaka" && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Series
+              </Button>
+            </DialogTrigger>
           <DialogContent className="w-[calc(100vw-2rem)] max-w-none sm:max-w-[1100px] bg-[#18181b] text-white border-zinc-800 max-h-[92vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Series</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Start a new manga series. You can add chapters and pages later.
+                Submit a new proposal. Preliminary manuscript pages are saved directly as Chapter 1.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -254,7 +269,7 @@ export default function SeriesPage() {
                   id="titleJp"
                   value={newTitleJp}
                   onChange={(e) => setNewTitleJp(e.target.value)}
-                  placeholder="日本語タイトル"
+                  placeholder="Japanese title"
                   className="bg-zinc-900 border-zinc-800 text-white"
                 />
               </div>
@@ -285,15 +300,77 @@ export default function SeriesPage() {
                 </div>
                 <SynopsisRichTextEditor value={newSynopsis} onChange={setNewSynopsis} />
               </div>
+              <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
+                <div>
+                  <Label htmlFor="chapterTitle" className="text-zinc-300">Preliminary Manuscript - Chapter 1</Label>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    These pages will be stored as Chapter 1 and reused after the proposal is approved.
+                  </p>
+                </div>
+                <Input
+                  id="chapterTitle"
+                  value={newChapterTitle}
+                  onChange={(e) => setNewChapterTitle(e.target.value)}
+                  placeholder="Chapter 001"
+                  className="bg-zinc-900 border-zinc-800 text-white"
+                />
+                <input
+                  id="preliminaryPages"
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,.psd,.clip"
+                  className="hidden"
+                  onChange={(event) => setPreliminaryPages(Array.from(event.target.files || []))}
+                />
+                <input
+                  id="preliminaryPagesFolder"
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,.psd,.clip"
+                  className="hidden"
+                  {...{ webkitdirectory: "", directory: "" }}
+                  onChange={(event) => setPreliminaryPages(Array.from(event.target.files || []))}
+                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                    onClick={() => document.getElementById("preliminaryPages")?.click()}
+                  >
+                    <Folder className="mr-2 h-4 w-4" />
+                    Browse Pages
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
+                    onClick={() => document.getElementById("preliminaryPagesFolder")?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload Folder
+                  </Button>
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Selected pages: <span className="text-zinc-300 font-semibold">{preliminaryPages.length}</span>. The system will normalize names to page_001, page_002...
+                </p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-900" onClick={() => setIsCreateOpen(false)}>
                 Cancel
               </Button>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCreateSeries}>Create Series</Button>
+              <Button
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleCreateSeries}
+                disabled={isCreatingSeries || !newTitle.trim()}
+              >
+                {isCreatingSeries ? "Creating Series..." : "Create Series"}
+              </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
       </div>
 
       {/* Stats */}

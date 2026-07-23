@@ -15,6 +15,8 @@ public partial class SeriesProposal
 
     public string Status { get; set; } = null!;
 
+    public string? ProposalSynopsis { get; set; }
+
     public string? ReviewNote { get; set; }
 
     public DateTime SubmittedAt { get; set; }
@@ -22,6 +24,8 @@ public partial class SeriesProposal
     public DateTime? ReviewedAt { get; set; }
 
     public virtual User? ReviewedBy { get; set; }
+
+    public virtual ICollection<ProposalBoardVote> ProposalBoardVotes { get; set; } = new List<ProposalBoardVote>();
 
     public virtual Series Series { get; set; } = null!;
 

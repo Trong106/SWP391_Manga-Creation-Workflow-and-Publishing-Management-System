@@ -54,7 +54,7 @@ public class MangakaService : IMangakaService
     public async Task<List<MangaSeriesDto>> GetSeries(Guid mangakaId)
     {
         return await _context.Series
-            .Where(x => x.MangakaId == mangakaId)
+            .Where(x => x.MangakaId == mangakaId && x.Status != "proposal")
             .Select(x => new MangaSeriesDto
             {
                 Id = x.SeriesId,

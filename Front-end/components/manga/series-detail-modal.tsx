@@ -352,9 +352,9 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
               </div>
             )}
 
-            {/* Layout trên: Ảnh bìa + Metadata */}
+            {/* Top layout: cover image and metadata */}
             <div className="flex flex-col md:flex-row gap-6">
-              {/* Cột trái: Ảnh bìa (hoặc upload) */}
+              {/* Left column: cover image or upload */}
               <div className="w-full md:w-56 shrink-0 relative group">
                 <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700 flex items-center justify-center">
                   {series.coverImageUrl ? (
@@ -441,13 +441,13 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   {series.readerCount !== undefined && series.readerCount !== null && (
                     <div className="flex items-center gap-2">
                       <Eye className="w-4 h-4 text-zinc-500 shrink-0" />
-                      <span className="text-zinc-400 min-w-24">Views:</span>
+                      <span className="text-zinc-400 min-w-24">Reader Votes:</span>
                       <span className="text-zinc-200 font-medium">{(series.readerCount || 0).toLocaleString()}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Thể loại */}
+                {/* Genres */}
                 <div className="flex flex-wrap gap-1.5">
                   {series.genres?.map((genre: string) => (
                     <Badge key={genre} variant="secondary" className="bg-zinc-800 text-zinc-300 border-none text-[11px] px-2 py-0.5">
@@ -554,7 +554,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
               </div>
             )}
 
-            {/* Giới thiệu truyện */}
+            {/* Series synopsis */}
             <div className="space-y-3 border-t border-zinc-800 pt-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-white flex items-center gap-2">

@@ -1,4 +1,4 @@
-﻿/* Empty database schema export. Generated 2026-06-26 20:47:44 */
+/* Empty database schema export. Generated 2026-07-21 */
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS dbo.PageRegions;
 DROP TABLE IF EXISTS dbo.PageVersions;
 DROP TABLE IF EXISTS dbo.MangaPages;
 DROP TABLE IF EXISTS dbo.Chapters;
+DROP TABLE IF EXISTS dbo.ProposalBoardVotes;
 DROP TABLE IF EXISTS dbo.SeriesProposals;
 DROP TABLE IF EXISTS dbo.SeriesGenres;
 DROP TABLE IF EXISTS dbo.Series;
@@ -101,6 +102,7 @@ CREATE TABLE dbo.SeriesProposals
     SubmittedById   UNIQUEIDENTIFIER NOT NULL,
     ReviewedById    UNIQUEIDENTIFIER NULL,
     Status          VARCHAR(30) NOT NULL CONSTRAINT DF_SeriesProposals_Status DEFAULT 'submitted',
+    ProposalSynopsis NVARCHAR(MAX) NULL,
     ReviewNote      NVARCHAR(MAX) NULL,
     SubmittedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_SeriesProposals_SubmittedAt DEFAULT SYSUTCDATETIME(),
     ReviewedAt      DATETIME2(0) NULL,
@@ -108,6 +110,32 @@ CREATE TABLE dbo.SeriesProposals
     CONSTRAINT FK_SeriesProposals_Series FOREIGN KEY (SeriesId) REFERENCES dbo.Series(SeriesId),
     CONSTRAINT FK_SeriesProposals_SubmittedBy FOREIGN KEY (SubmittedById) REFERENCES dbo.Users(UserId),
     CONSTRAINT FK_SeriesProposals_ReviewedBy FOREIGN KEY (ReviewedById) REFERENCES dbo.Users(UserId)
+);
+
+CREATE TABLE dbo.ProposalBoardVotes
+(
+    VoteSessionId       UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_ProposalBoardVotes PRIMARY KEY DEFAULT NEWID(),
+    ProposalId          UNIQUEIDENTIFIER NOT NULL,
+    BoardSize           INT NOT NULL,
+    ApproveVotes        INT NOT NULL,
+    RejectVotes         INT NOT NULL,
+    AbstainVotes        INT NOT NULL CONSTRAINT DF_ProposalBoardVotes_AbstainVotes DEFAULT 0,
+    RequiredApproveVotes INT NOT NULL,
+    Decision            VARCHAR(30) NOT NULL,
+    MeetingNote         NVARCHAR(1000) NULL,
+    RecordedById        UNIQUEIDENTIFIER NOT NULL,
+    RecordedAt          DATETIME2(0) NOT NULL CONSTRAINT DF_ProposalBoardVotes_RecordedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_ProposalBoardVotes_Decision CHECK (Decision IN ('approved','rejected')),
+    CONSTRAINT CK_ProposalBoardVotes_Counts CHECK (
+        BoardSize BETWEEN 1 AND 30
+        AND RequiredApproveVotes BETWEEN 1 AND BoardSize
+        AND ApproveVotes >= 0
+        AND RejectVotes >= 0
+        AND AbstainVotes >= 0
+        AND ApproveVotes + RejectVotes + AbstainVotes <= BoardSize
+    ),
+    CONSTRAINT FK_ProposalBoardVotes_Proposal FOREIGN KEY (ProposalId) REFERENCES dbo.SeriesProposals(ProposalId),
+    CONSTRAINT FK_ProposalBoardVotes_RecordedBy FOREIGN KEY (RecordedById) REFERENCES dbo.Users(UserId)
 );
 
 CREATE TABLE dbo.Chapters
@@ -121,9 +149,13 @@ CREATE TABLE dbo.Chapters
     SubmittedForPublishingAt DATETIME2(0) NULL,
     CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Chapters_CreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Chapters_UpdatedAt DEFAULT SYSUTCDATETIME(),
+    TantouReviewNote NVARCHAR(MAX) NULL,
+    TantouReviewedById UNIQUEIDENTIFIER NULL,
+    TantouReviewedAt DATETIME2(0) NULL,
     CONSTRAINT UQ_Chapters_Series_Number UNIQUE (SeriesId, ChapterNumber),
     CONSTRAINT CK_Chapters_Status CHECK (Status IN ('draft','in_progress','review','approved','published','cancelled')),
-    CONSTRAINT FK_Chapters_Series FOREIGN KEY (SeriesId) REFERENCES dbo.Series(SeriesId)
+    CONSTRAINT FK_Chapters_Series FOREIGN KEY (SeriesId) REFERENCES dbo.Series(SeriesId),
+    CONSTRAINT FK_Chapters_TantouReviewedBy FOREIGN KEY (TantouReviewedById) REFERENCES dbo.Users(UserId)
 );
 
 CREATE TABLE dbo.MangaPages
@@ -191,7 +223,7 @@ CREATE TABLE dbo.Tasks
     PaymentAmount   DECIMAL(12,2) NOT NULL CONSTRAINT DF_Tasks_PaymentAmount DEFAULT 0,
     CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Tasks_CreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Tasks_UpdatedAt DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT CK_Tasks_Type CHECK (Type IN ('line_art','background','effects','coloring','lettering','review')),
+    CONSTRAINT CK_Tasks_Type CHECK (Type IN ('line_art','background','effects','coloring','lettering')),
     CONSTRAINT CK_Tasks_Status CHECK (Status IN ('pending','in_progress','submitted','revision','approved','cancelled')),
     CONSTRAINT FK_Tasks_Page FOREIGN KEY (PageId) REFERENCES dbo.MangaPages(PageId),
     CONSTRAINT FK_Tasks_Region FOREIGN KEY (RegionId) REFERENCES dbo.PageRegions(RegionId),
@@ -323,15 +355,14 @@ CREATE TABLE dbo.AuditLogs
 (
     AuditLogId      UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_AuditLogs PRIMARY KEY DEFAULT NEWID(),
     UserId          UNIQUEIDENTIFIER NULL,
-    Action          NVARCHAR(120) NOT NULL,
-    EntityType      NVARCHAR(120) NOT NULL,
-    EntityId        UNIQUEIDENTIFIER NULL,
-    DetailsJson     NVARCHAR(MAX) NULL,
+    Action          NVARCHAR(100) NOT NULL,
+    EntityName      NVARCHAR(100) NOT NULL,
+    EntityId        NVARCHAR(100) NULL,
+    Details         NVARCHAR(MAX) NULL,
+    IpAddress       VARCHAR(50) NULL,
     CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_AuditLogs_CreatedAt DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT CK_AuditLogs_DetailsJson CHECK (DetailsJson IS NULL OR ISJSON(DetailsJson) = 1),
     CONSTRAINT FK_AuditLogs_User FOREIGN KEY (UserId) REFERENCES dbo.Users(UserId)
 );
-GO
 
 CREATE INDEX IX_Users_RoleId ON dbo.Users(RoleId);
 CREATE INDEX IX_Series_MangakaId ON dbo.Series(MangakaId);
@@ -345,5 +376,4 @@ CREATE INDEX IX_Tasks_PageId ON dbo.Tasks(PageId);
 CREATE INDEX IX_Notifications_UserId_IsRead ON dbo.Notifications(UserId, IsRead, CreatedAt DESC);
 CREATE INDEX IX_PayrollRecords_AssistantId_Status ON dbo.PayrollRecords(AssistantId, Status);
 CREATE INDEX IX_ReaderVotes_Week_Rank ON dbo.ReaderVotes(YearNumber, WeekNumber, RankNumber);
-CREATE INDEX IX_AuditLogs_Entity ON dbo.AuditLogs(EntityType, EntityId, CreatedAt DESC);
 GO

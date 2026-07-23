@@ -14,6 +14,11 @@ public class TaskDto
     public int PageNumber { get; set; }
     public string? ChapterTitle { get; set; }
     public Guid? RegionId { get; set; }
+    public string? RegionType { get; set; }
+    public decimal? RegionX { get; set; }
+    public decimal? RegionY { get; set; }
+    public decimal? RegionWidth { get; set; }
+    public decimal? RegionHeight { get; set; }
     public Guid? AssigneeId { get; set; }
     public string? AssigneeName { get; set; }
     public Guid AssignerId { get; set; }
@@ -41,11 +46,13 @@ public class CreateTaskDto
     public string? Description { get; set; }
 
     [Required(ErrorMessage = "Task type is required.")]
-    [RegularExpression("^(line_art|background|effects|coloring|lettering|review)$",
-        ErrorMessage = "Invalid type. Accepted values: line_art, background, effects, coloring, lettering, review.")]
+    [RegularExpression("^(line_art|background|effects|coloring|lettering)$",
+        ErrorMessage = "Invalid type. Accepted values: line_art, background, effects, coloring, lettering.")]
     public string Type { get; set; } = null!;
 
     public Guid? RegionId { get; set; }
+
+    public CreateTaskRegionDto? Region { get; set; }
 
     public Guid? AssigneeId { get; set; }
 
@@ -63,8 +70,8 @@ public class UpdateTaskDto
 
     public string? Description { get; set; }
 
-    [RegularExpression("^(line_art|background|effects|coloring|lettering|review)$",
-        ErrorMessage = "Invalid type. Accepted values: line_art, background, effects, coloring, lettering, review.")]
+    [RegularExpression("^(line_art|background|effects|coloring|lettering)$",
+        ErrorMessage = "Invalid type. Accepted values: line_art, background, effects, coloring, lettering.")]
     public string? Type { get; set; }
 
     public Guid? RegionId { get; set; }
@@ -79,6 +86,26 @@ public class UpdateTaskDto
     [RegularExpression("^(pending|in_progress|submitted|revision|approved|cancelled)$",
         ErrorMessage = "Invalid status.")]
     public string? Status { get; set; }
+}
+
+public class CreateTaskRegionDto
+{
+    [Required]
+    [RegularExpression("^(line_art|background|effects|coloring|lettering|custom)$",
+        ErrorMessage = "Invalid region type.")]
+    public string Type { get; set; } = "custom";
+
+    [Range(0, 100)]
+    public decimal X { get; set; }
+
+    [Range(0, 100)]
+    public decimal Y { get; set; }
+
+    [Range(0.1, 100)]
+    public decimal Width { get; set; }
+
+    [Range(0.1, 100)]
+    public decimal Height { get; set; }
 }
 
 /// <summary>DTO hiển thị thông tin trợ lý.</summary>
@@ -101,6 +128,12 @@ public class TaskResourceDto
     public string? SeriesTitle { get; set; }
     public int ChapterNumber { get; set; }
     public string? RevisionNote { get; set; }
+    public Guid? RegionId { get; set; }
+    public string? RegionType { get; set; }
+    public decimal? RegionX { get; set; }
+    public decimal? RegionY { get; set; }
+    public decimal? RegionWidth { get; set; }
+    public decimal? RegionHeight { get; set; }
     public List<AnnotationDto> RevisionAnnotations { get; set; } = new();
 }
 

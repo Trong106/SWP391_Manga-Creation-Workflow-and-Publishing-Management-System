@@ -17,6 +17,7 @@ namespace MangaStudio.Backend.Controllers;
 [Authorize]
 public class MangaStudioDataController : ControllerBase
 {
+    private const int ReaderVoteWarningThreshold = 22000;
     private readonly AppDbContext _dbContext;
 
     public MangaStudioDataController(AppDbContext dbContext)
@@ -36,13 +37,77 @@ public class MangaStudioDataController : ControllerBase
     public async Task<IActionResult> GetSeriesList()
     {
         var series = await _dbContext.Series
-            .Include(s => s.Mangaka)
-            .Include(s => s.SeriesGenres)
-            .Include(s => s.Chapters)
-                .ThenInclude(c => c.MangaPages)
-                    .ThenInclude(p => p.Tasks)
-                        .ThenInclude(t => t.Assignee)
-            .Include(s => s.SeriesProposals)
+            .AsNoTracking()
+            .Where(s => s.Status != "proposal")
+            .Select(s => new
+            {
+                s.SeriesId,
+                s.Title,
+                s.TitleJp,
+                Author = s.Mangaka != null ? s.Mangaka.FullName : "Yuki Tanaka",
+                s.CreatedAt,
+                s.UpdatedAt,
+                Genres = s.SeriesGenres.Select(g => g.Genre).ToList(),
+                Chapters = s.Chapters.Count(),
+                Status = s.Status.ToLower(),
+                Starred = s.Ranking.HasValue && s.Ranking <= 3,
+                s.Ranking,
+                s.Rating,
+                s.ReaderCount,
+                LatestReaderVote = s.ReaderVotes
+                    .OrderByDescending(v => v.YearNumber)
+                    .ThenByDescending(v => v.WeekNumber)
+                    .Select(v => new
+                    {
+                        v.Votes,
+                        v.WeekNumber,
+                        v.YearNumber
+                    })
+                    .FirstOrDefault(),
+                TotalReaderVotes = s.ReaderVotes.Sum(v => (int?)v.Votes) ?? 0,
+                Revenue = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Sum(t => (decimal?)t.PaymentAmount) ?? 0m,
+                s.CoverImageUrl,
+                s.Synopsis,
+                ProposalStatus = s.SeriesProposals
+                    .OrderByDescending(p => p.SubmittedAt)
+                    .Select(p => p.Status)
+                    .FirstOrDefault(),
+                ProposalFeedback = s.SeriesProposals
+                    .OrderByDescending(p => p.SubmittedAt)
+                    .Select(p => p.ReviewNote)
+                    .FirstOrDefault(),
+                Team = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Where(t => t.Assignee != null)
+                    .Select(t => t.Assignee!.FullName)
+                    .Distinct()
+                    .ToList(),
+                ApprovedCount = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Count(t => t.Status == "approved"),
+                TodoCount = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Count(t => t.Status == "pending"),
+                DoingCount = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Count(t => t.Status == "in_progress"),
+                ReviewCount = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Count(t => t.Status == "submitted" || t.Status == "revision"),
+                TotalCount = s.Chapters
+                    .SelectMany(c => c.MangaPages)
+                    .SelectMany(p => p.Tasks)
+                    .Count()
+            })
+            .OrderByDescending(s => s.UpdatedAt)
             .ToListAsync();
 
         var result = series.Select(s => new
@@ -50,41 +115,80 @@ public class MangaStudioDataController : ControllerBase
             id      = s.SeriesId.ToString(),
             title   = s.Title,
             titleJp = s.TitleJp,
-            author  = s.Mangaka?.FullName ?? "Yuki Tanaka",
+            author  = s.Author,
             createdAt = s.CreatedAt.ToString("dd/MM/yyyy"),
             createdAtRaw = s.CreatedAt,
             updatedAtRaw = s.UpdatedAt,
-            genre   = s.SeriesGenres.Any()
-                        ? string.Join(" / ", s.SeriesGenres.Select(g => g.Genre))
+            genre   = s.Genres.Any()
+                        ? string.Join(" / ", s.Genres)
                         : "General",
-            genres  = s.SeriesGenres.Select(g => g.Genre).ToList(),
-            chapters = s.Chapters.Count,
-            status   = s.Status.ToLower(),
-            starred  = s.Ranking.HasValue && s.Ranking <= 3,
+            genres  = s.Genres,
+            chapters = s.Chapters,
+            status   = s.Status,
+            starred  = s.Starred,
             ranking  = s.Ranking,
             rating   = s.Rating,
             readerCount = s.ReaderCount,
-            revenue  = s.ReaderCount * 0.15,
+            latestReaderVotes = s.LatestReaderVote?.Votes ?? 0,
+            latestReaderVoteWeek = s.LatestReaderVote?.WeekNumber,
+            latestReaderVoteYear = s.LatestReaderVote?.YearNumber,
+            totalReaderVotes = s.TotalReaderVotes,
+            revenue  = s.Revenue,
             coverImageUrl = s.CoverImageUrl,
             synopsis = s.Synopsis,
-            proposalStatus = s.SeriesProposals.OrderByDescending(p => p.SubmittedAt).Select(p => p.Status).FirstOrDefault(),
-            proposalFeedback = s.SeriesProposals.OrderByDescending(p => p.SubmittedAt).Select(p => p.ReviewNote).FirstOrDefault(),
-            team = s.Chapters
-                .SelectMany(c => c.MangaPages)
-                .SelectMany(p => p.Tasks)
-                .Where(t => t.Assignee != null)
-                .Select(t => t.Assignee!.FullName)
-                .Distinct()
-                .ToList(),
-            progress = s.Status.ToLower() == "completed" 
+            proposalStatus = s.ProposalStatus,
+            proposalFeedback = s.ProposalFeedback,
+            team = s.Team,
+            progress = s.Status == "completed" 
                 ? 100 
-                : s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Any()
-                    ? (int)Math.Round((double)s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "approved") / s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count() * 100)
+                : s.TotalCount > 0
+                    ? (int)Math.Round((double)s.ApprovedCount / s.TotalCount * 100)
                     : 0,
-            todoCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "pending"),
-            doingCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "in_progress"),
-            reviewCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count(t => t.Status == "submitted" || t.Status == "revision"),
-            totalCount = s.Chapters.SelectMany(c => c.MangaPages).SelectMany(p => p.Tasks).Count()
+            todoCount = s.TodoCount,
+            doingCount = s.DoingCount,
+            reviewCount = s.ReviewCount,
+            totalCount = s.TotalCount
+        });
+
+        return Ok(result);
+    }
+
+    // GET api/data/series-reader-votes
+    [HttpGet("series-reader-votes")]
+    [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
+    public async Task<IActionResult> GetSeriesReaderVotes()
+    {
+        var series = await _dbContext.Series
+            .Where(s => s.Status != "proposal")
+            .Include(s => s.Mangaka)
+            .Include(s => s.Chapters)
+            .Include(s => s.ReaderVotes)
+            .ToListAsync();
+
+        var result = series.Select(s =>
+        {
+            var latestReaderVote = s.ReaderVotes
+                .OrderByDescending(v => v.YearNumber)
+                .ThenByDescending(v => v.WeekNumber)
+                .FirstOrDefault();
+
+            return new
+            {
+                id = s.SeriesId.ToString(),
+                title = s.Title,
+                titleJp = s.TitleJp,
+                author = s.Mangaka?.FullName ?? "Yuki Tanaka",
+                chapters = s.Chapters.Count,
+                status = s.Status.ToLower(),
+                ranking = s.Ranking,
+                rating = s.Rating,
+                coverImageUrl = s.CoverImageUrl,
+                updatedAtRaw = s.UpdatedAt,
+                latestReaderVotes = latestReaderVote?.Votes ?? 0,
+                latestReaderVoteWeek = latestReaderVote?.WeekNumber,
+                latestReaderVoteYear = latestReaderVote?.YearNumber,
+                totalReaderVotes = s.ReaderVotes.Sum(v => v.Votes)
+            };
         });
 
         return Ok(result);
@@ -194,24 +298,37 @@ public class MangaStudioDataController : ControllerBase
                 var proposals = await _dbContext.SeriesProposals
                     .CountAsync(p => p.Status == "submitted");
 
-                var totalVotes = await _dbContext.ReaderVotes.SumAsync(v => (long)v.Votes);
-
-                var topSeries = await _dbContext.Series
-                    .Where(s => s.Ranking == 1)
-                    .Select(s => s.Title)
+                var latestVoteWeek = await _dbContext.ReaderVotes
+                    .GroupBy(v => new { v.YearNumber, v.WeekNumber })
+                    .OrderByDescending(g => g.Key.YearNumber)
+                    .ThenByDescending(g => g.Key.WeekNumber)
+                    .Select(g => new
+                    {
+                        g.Key.YearNumber,
+                        g.Key.WeekNumber,
+                        TotalVotes = g.Sum(v => (long)v.Votes)
+                    })
                     .FirstOrDefaultAsync();
 
-                var topRankValue = await _dbContext.Series
-                    .Where(s => s.Ranking != null)
-                    .OrderBy(s => s.Ranking)
-                    .Select(s => s.Ranking)
-                    .FirstOrDefaultAsync();
+                var totalVotes = latestVoteWeek?.TotalVotes ?? 0;
+
+                string? topSurveySeries = null;
+                if (latestVoteWeek != null)
+                {
+                    topSurveySeries = await _dbContext.ReaderVotes
+                        .Include(v => v.Series)
+                        .Where(v => v.YearNumber == latestVoteWeek.YearNumber &&
+                                    v.WeekNumber == latestVoteWeek.WeekNumber)
+                        .OrderBy(v => v.RankNumber)
+                        .Select(v => v.Series.Title)
+                        .FirstOrDefaultAsync();
+                }
 
                 return Ok(new[]
                 {
-                    new { title = "New Proposals",  val = $"{proposals} pending",              change = "Awaiting decision",                                     icon = "⚖️" },
-                    new { title = "Reader Votes",   val = $"{(totalVotes / 1000.0):F1}K",      change = "Total accumulated votes",                               icon = "🗳️" },
-                    new { title = "Global Ranking", val = topRankValue.HasValue ? $"Top {topRankValue}" : "N/A", change = topSeries ?? "No ranked series yet",   icon = "🏆" }
+                    new { title = "New Proposals",     val = $"{proposals} pending",         change = "Awaiting decision",                                                               icon = "⚖️" },
+                    new { title = "Reader Votes",      val = $"{(totalVotes / 1000.0):F1}K", change = latestVoteWeek == null ? "No survey imported yet" : $"Week {latestVoteWeek.WeekNumber}, {latestVoteWeek.YearNumber} survey", icon = "🗳️" },
+                    new { title = "Top Survey Series", val = topSurveySeries ?? "N/A",       change = latestVoteWeek == null ? "No reader vote survey yet" : "Current survey leader",     icon = "🏆" }
                 });
             }
 
@@ -220,78 +337,162 @@ public class MangaStudioDataController : ControllerBase
         }
     }
 
-    // GET api/data/audit-logs
-    [HttpGet("audit-logs")]
-    [Authorize(Roles = "editorial")]
-    public async Task<IActionResult> GetAuditLogs()
-    {
-        var logs = await _dbContext.AuditLogs
-            .Include(l => l.User!)
-            .ThenInclude(u => u.Role)
-            .OrderByDescending(l => l.CreatedAt)
-            .ToListAsync();
-
-        var result = logs.Select(l => new
-        {
-            id = l.AuditLogId.ToString(),
-            user = new
-            {
-                name   = l.User != null ? l.User.FullName : "System",
-                avatar = l.User?.Avatar,
-                role   = l.User?.Role?.Name ?? "Automated"
-            },
-            action     = l.Action,
-            entityType = l.EntityType,
-            entityName = l.EntityId.HasValue
-                ? $"{l.EntityType} (ID: {l.EntityId.Value.ToString()[..8]})"
-                : l.EntityType,
-            details   = l.DetailsJson ?? "No additional details available.",
-            timestamp = l.CreatedAt,
-            category  = GetCategory(l.EntityType)
-        });
-
-        return Ok(result);
-    }
-
     // GET api/data/reader-votes
-    [HttpGet("reader-votes")]
-    [Authorize(Roles = "editorial")]
-    public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
-    {
-        // Get current week votes
-        var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
-        var currentYear = year ?? DateTime.UtcNow.Year;
-        var previousWeek = currentWeek > 1 ? currentWeek - 1 : 52;
-        var previousYear = currentWeek > 1 ? currentYear : currentYear - 1;
+     [HttpGet("reader-votes")]
+     [Authorize(Roles = "editorial")]
+     public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
+     {
+         var currentWeek = week ?? System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
+         var currentYear = year ?? DateTime.UtcNow.Year;
 
-        var currentVotes = await _dbContext.ReaderVotes
+         var previousSurvey = await _dbContext.ReaderVotes
+             .Where(v =>
+                 v.YearNumber < currentYear ||
+                 (v.YearNumber == currentYear && v.WeekNumber < currentWeek))
+             .GroupBy(v => new { v.YearNumber, v.WeekNumber })
+             .OrderByDescending(g => g.Key.YearNumber)
+             .ThenByDescending(g => g.Key.WeekNumber)
+             .Select(g => new { g.Key.YearNumber, g.Key.WeekNumber })
+             .FirstOrDefaultAsync();
+
+         var currentVotes = await _dbContext.ReaderVotes
+             .Include(v => v.Series)
+                .ThenInclude(s => s.Mangaka)
+             .Where(v => v.WeekNumber == currentWeek && v.YearNumber == currentYear)
+             .OrderBy(v => v.RankNumber)
+             .ToListAsync();
+
+         Dictionary<Guid, (int votes, int rank)> previousVotesDict = previousSurvey == null
+             ? new Dictionary<Guid, (int votes, int rank)>()
+             : await _dbContext.ReaderVotes
+                 .Where(v => v.WeekNumber == previousSurvey.WeekNumber && v.YearNumber == previousSurvey.YearNumber)
+                 .ToDictionaryAsync(v => v.SeriesId, v => (v.Votes, v.RankNumber));
+
+         var result = currentVotes.Select(v =>
+         {
+             var hasPrevious = previousVotesDict.TryGetValue(v.SeriesId, out var prev);
+             var previousVotes = hasPrevious ? prev.votes : v.Votes;
+             var previousRank = hasPrevious ? prev.rank : v.RankNumber;
+             return new
+             {
+                 id            = v.ReaderVoteId.ToString(),
+                 seriesId      = v.SeriesId.ToString(),
+                 series        = v.Series.Title,
+                 authorName    = v.Series.Mangaka?.FullName ?? "Yuki Tanaka",
+                 coverImageUrl = v.Series.CoverImageUrl,
+                 seriesStatus  = v.Series.Status,
+                 votes         = v.Votes,
+                 previousVotes = hasPrevious ? previousVotes : 0,
+                 change        = v.Votes - previousVotes,
+                 rank          = v.RankNumber,
+                 previousRank  = previousRank,
+                 warningThreshold = ReaderVoteWarningThreshold,
+                 isBelowThreshold = v.Votes < ReaderVoteWarningThreshold,
+                 periodLabel = $"Week {currentWeek}, {currentYear}",
+                 previousPeriodLabel = previousSurvey == null ? null : $"Week {previousSurvey.WeekNumber}, {previousSurvey.YearNumber}"
+             };
+         });
+
+         return Ok(result);
+     }
+
+    // GET api/data/reader-votes/history
+    [HttpGet("reader-votes/history")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> GetReaderVoteHistory([FromQuery] int? year)
+    {
+        var targetYear = year ?? DateTime.UtcNow.Year;
+
+        var voteRows = await _dbContext.ReaderVotes
             .Include(v => v.Series)
-            .Where(v => v.WeekNumber == currentWeek && v.YearNumber == currentYear)
-            .OrderBy(v => v.RankNumber)
+                .ThenInclude(s => s.Mangaka)
+            .Where(v => v.YearNumber == targetYear || v.YearNumber == targetYear - 1)
             .ToListAsync();
 
-        // Get previous week votes for comparison
-        var previousVotesDict = await _dbContext.ReaderVotes
-            .Where(v => v.WeekNumber == previousWeek && v.YearNumber == previousYear)
-            .ToDictionaryAsync(v => v.SeriesId, v => new { votes = v.Votes, rank = v.RankNumber });
+        var surveyGroups = voteRows
+            .Where(v => v.YearNumber == targetYear)
+            .GroupBy(v => new { v.YearNumber, v.WeekNumber })
+            .OrderByDescending(g => g.Key.YearNumber)
+            .ThenByDescending(g => g.Key.WeekNumber)
+            .ToList();
 
-        var result = currentVotes.Select(v =>
-        {
-            previousVotesDict.TryGetValue(v.SeriesId, out var prev);
-            return new
+        var allSurveyKeys = voteRows
+            .GroupBy(v => new { v.YearNumber, v.WeekNumber })
+            .Select(g => g.Key)
+            .OrderByDescending(k => k.YearNumber)
+            .ThenByDescending(k => k.WeekNumber)
+            .ToList();
+
+        var lookup = voteRows
+            .GroupBy(v => new { v.YearNumber, v.WeekNumber, v.SeriesId })
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var weeks = surveyGroups
+            .Select(g =>
             {
-                id            = v.ReaderVoteId.ToString(),
-                seriesId      = v.SeriesId.ToString(),
-                series        = v.Series.Title,
-                votes         = v.Votes,
-                previousVotes = prev?.votes ?? 0,
-                change        = v.Votes - (prev?.votes ?? v.Votes),
-                rank          = v.RankNumber,
-                previousRank  = prev?.rank ?? v.RankNumber
-            };
-        });
+                var ordered = g.OrderBy(v => v.RankNumber).ToList();
+                var previousSurvey = allSurveyKeys
+                    .Where(k =>
+                        k.YearNumber < g.Key.YearNumber ||
+                        (k.YearNumber == g.Key.YearNumber && k.WeekNumber < g.Key.WeekNumber))
+                    .OrderByDescending(k => k.YearNumber)
+                    .ThenByDescending(k => k.WeekNumber)
+                    .FirstOrDefault();
+                var top = ordered.FirstOrDefault();
+                var importedAt = ordered
+                    .OrderByDescending(v => v.CreatedAt)
+                    .Select(v => v.CreatedAt)
+                    .FirstOrDefault();
 
-        return Ok(result);
+                return new
+                {
+                    year = g.Key.YearNumber,
+                    week = g.Key.WeekNumber,
+                    periodLabel = $"Week {g.Key.WeekNumber}, {g.Key.YearNumber}",
+                    importedAt = importedAt == default ? (DateTime?)null : importedAt,
+                    sourceFileName = "CSV import",
+                    rowCount = ordered.Count,
+                    totalVotes = ordered.Sum(v => v.Votes),
+                    topSeries = top?.Series.Title ?? "N/A",
+                    belowThresholdCount = ordered.Count(v => v.Votes < ReaderVoteWarningThreshold),
+                    threshold = ReaderVoteWarningThreshold,
+                    entries = ordered.Select(v =>
+                    {
+                        ReaderVote? previous = null;
+                        if (previousSurvey != null)
+                        {
+                            lookup.TryGetValue(new { previousSurvey.YearNumber, previousSurvey.WeekNumber, v.SeriesId }, out previous);
+                        }
+
+                        return new
+                        {
+                            id = v.ReaderVoteId.ToString(),
+                            seriesId = v.SeriesId.ToString(),
+                            series = v.Series.Title,
+                            authorName = v.Series.Mangaka?.FullName ?? "Yuki Tanaka",
+                            coverImageUrl = v.Series.CoverImageUrl,
+                            seriesStatus = v.Series.Status,
+                            rank = v.RankNumber,
+                            previousRank = previous?.RankNumber ?? v.RankNumber,
+                            votes = v.Votes,
+                            previousVotes = previous?.Votes ?? 0,
+                            change = v.Votes - (previous?.Votes ?? v.Votes),
+                            warningThreshold = ReaderVoteWarningThreshold,
+                            isBelowThreshold = v.Votes < ReaderVoteWarningThreshold,
+                            periodLabel = $"Week {g.Key.WeekNumber}, {g.Key.YearNumber}",
+                            previousPeriodLabel = previousSurvey == null ? null : $"Week {previousSurvey.WeekNumber}, {previousSurvey.YearNumber}"
+                        };
+                    }).ToList()
+                };
+            })
+            .ToList();
+
+        return Ok(new
+        {
+            year = targetYear,
+            threshold = ReaderVoteWarningThreshold,
+            weeks
+        });
     }
 
     // POST api/data/reader-votes
@@ -337,7 +538,9 @@ public class MangaStudioDataController : ControllerBase
         await _dbContext.ReaderVotes.AddRangeAsync(newVotesList);
 
         // Update the corresponding Series rankings in the Series table to stay in sync
-        var seriesList = await _dbContext.Series.ToListAsync();
+        var seriesList = await _dbContext.Series
+            .Where(s => s.Status != "proposal")
+            .ToListAsync();
         foreach (var vote in newVotesList)
         {
             var series = seriesList.FirstOrDefault(s => s.SeriesId == vote.SeriesId);
@@ -350,6 +553,200 @@ public class MangaStudioDataController : ControllerBase
         await _dbContext.SaveChangesAsync();
 
         return Ok(new { message = "Weekly votes saved successfully." });
+    }
+
+    // POST api/data/reader-votes/import
+    [HttpPost("reader-votes/import")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> ImportReaderVotes(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest("CSV file is required.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension != ".csv" && extension != ".txt")
+            return BadRequest("Only .csv or .txt files are supported.");
+
+        var series = await _dbContext.Series
+            .Where(s => s.Status != "proposal")
+            .ToListAsync();
+        var byId = series.ToDictionary(s => s.SeriesId, s => s);
+        var byTitle = series
+            .GroupBy(s => s.Title.Trim().ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var importedRows = new List<(int Year, int Week, Guid SeriesId, int Votes)>();
+        using (var stream = file.OpenReadStream())
+        using (var reader = new StreamReader(stream))
+        {
+            var headerLine = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(headerLine))
+                return BadRequest("CSV file is empty.");
+
+            var headers = SplitCsvLine(headerLine)
+                .Select((name, index) => new { Name = name.Trim().ToLowerInvariant(), Index = index })
+                .ToDictionary(x => x.Name, x => x.Index);
+
+            if (!headers.ContainsKey("year") || !headers.ContainsKey("week") || !headers.ContainsKey("votes") ||
+                (!headers.ContainsKey("seriesid") && !headers.ContainsKey("seriestitle")))
+            {
+                return BadRequest("CSV must include year, week, votes, and either seriesId or seriesTitle.");
+            }
+
+            var lineNumber = 1;
+            while (!reader.EndOfStream)
+            {
+                lineNumber++;
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                var columns = SplitCsvLine(line);
+                string Cell(string name) => headers.TryGetValue(name, out var index) && index < columns.Count ? columns[index].Trim() : "";
+
+                if (!int.TryParse(Cell("year"), out var year) || year < 2000)
+                    return BadRequest($"Invalid year at line {lineNumber}.");
+                if (!int.TryParse(Cell("week"), out var week) || week < 1 || week > 53)
+                    return BadRequest($"Invalid week at line {lineNumber}.");
+                if (!int.TryParse(Cell("votes"), out var votes) || votes < 0)
+                    return BadRequest($"Invalid votes at line {lineNumber}.");
+
+                Series? matchedSeries = null;
+                var seriesIdText = Cell("seriesid");
+                if (!string.IsNullOrWhiteSpace(seriesIdText) && Guid.TryParse(seriesIdText, out var seriesId))
+                    byId.TryGetValue(seriesId, out matchedSeries);
+
+                if (matchedSeries == null)
+                {
+                    var title = Cell("seriestitle").ToLowerInvariant();
+                    if (!string.IsNullOrWhiteSpace(title))
+                        byTitle.TryGetValue(title, out matchedSeries);
+                }
+
+                if (matchedSeries == null)
+                    return BadRequest($"Series was not found at line {lineNumber}.");
+
+                importedRows.Add((year, week, matchedSeries.SeriesId, votes));
+            }
+        }
+
+        if (!importedRows.Any())
+            return BadRequest("No vote rows were found.");
+
+        var affectedWeeks = importedRows
+            .Select(r => new { r.Year, r.Week })
+            .Distinct()
+            .ToList();
+
+        foreach (var affected in affectedWeeks)
+        {
+            var existing = await _dbContext.ReaderVotes
+                .Where(v => v.YearNumber == affected.Year && v.WeekNumber == affected.Week)
+                .ToListAsync();
+            _dbContext.ReaderVotes.RemoveRange(existing);
+
+            var ranked = importedRows
+                .Where(r => r.Year == affected.Year && r.Week == affected.Week)
+                .GroupBy(r => r.SeriesId)
+                .Select(g => new { SeriesId = g.Key, Votes = g.Sum(x => x.Votes) })
+                .OrderByDescending(x => x.Votes)
+                .ToList();
+
+            for (var i = 0; i < ranked.Count; i++)
+            {
+                var rank = i + 1;
+                _dbContext.ReaderVotes.Add(new ReaderVote
+                {
+                    ReaderVoteId = Guid.NewGuid(),
+                    SeriesId = ranked[i].SeriesId,
+                    WeekNumber = affected.Week,
+                    YearNumber = affected.Year,
+                    Votes = ranked[i].Votes,
+                    RankNumber = rank,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                if (byId.TryGetValue(ranked[i].SeriesId, out var targetSeries))
+                {
+                    targetSeries.Ranking = rank;
+
+                    if (ranked[i].Votes < ReaderVoteWarningThreshold)
+                    {
+                        var marker = $"Week {affected.Week}, {affected.Year}";
+                        var alreadyWarned = await _dbContext.Notifications.AnyAsync(n =>
+                            n.UserId == targetSeries.MangakaId &&
+                            n.Type == "reader_vote_risk" &&
+                            n.Link == "/votes" &&
+                            n.Message.Contains(targetSeries.Title) &&
+                            n.Message.Contains(marker));
+
+                        if (!alreadyWarned)
+                        {
+                            _dbContext.Notifications.Add(new Notification
+                            {
+                                NotificationId = Guid.NewGuid(),
+                                UserId = targetSeries.MangakaId,
+                                Type = "reader_vote_risk",
+                                Title = "Series below reader vote threshold",
+                                Message = $"{targetSeries.Title} received {ranked[i].Votes:N0} votes in {marker}, below the threshold of {ReaderVoteWarningThreshold:N0}. Review the next release plan with Tantou.",
+                                IsRead = false,
+                                Link = "/votes",
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Reader votes imported successfully.",
+            rows = importedRows.Count,
+            weeks = affectedWeeks.Count,
+            importedWeeks = affectedWeeks
+                .OrderByDescending(w => w.Year)
+                .ThenByDescending(w => w.Week)
+                .Select(w => new { year = w.Year, week = w.Week })
+                .ToList()
+        });
+    }
+
+    private static List<string> SplitCsvLine(string line)
+    {
+        var values = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    current.Append('"');
+                    i++;
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (ch == ',' && !inQuotes)
+            {
+                values.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(ch);
+            }
+        }
+
+        values.Add(current.ToString());
+        return values;
     }
 
     // GET api/data/publish-schedule
@@ -497,10 +894,8 @@ public class MangaStudioDataController : ControllerBase
     public async Task<IActionResult> GetTasks()
     {
         var taskQuery = _dbContext.Tasks
-            .Include(t => t.Page)
-                .ThenInclude(p => p.Chapter)
-                    .ThenInclude(c => c.Series)
-            .Include(t => t.Assignee)
+            .AsNoTracking()
+            .Where(t => t.Page.Chapter.Series.Status != "proposal")
             .AsQueryable();
 
         var currentUserId = GetCurrentUserId();
@@ -513,28 +908,32 @@ public class MangaStudioDataController : ControllerBase
             taskQuery = taskQuery.Where(t => t.AssignerId == currentUserId);
         }
 
-        var tasksList = await taskQuery
+        var result = await taskQuery
             .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new
+            {
+                id           = t.TaskId.ToString(),
+                title        = t.Title,
+                description  = t.Description,
+                type         = t.Type.ToLower(),
+                pageId       = t.PageId.ToString(),
+                pageNumber   = t.Page.PageNumber,
+                regionId     = t.RegionId != null ? t.RegionId.ToString() : null,
+                regionType   = t.Region != null ? t.Region.Type : null,
+                regionX      = t.Region != null ? (double?)t.Region.X : null,
+                regionY      = t.Region != null ? (double?)t.Region.Y : null,
+                regionWidth  = t.Region != null ? (double?)t.Region.Width : null,
+                regionHeight = t.Region != null ? (double?)t.Region.Height : null,
+                assigneeId   = t.AssigneeId != null ? t.AssigneeId.ToString() : null,
+                assigneeName = t.Assignee != null ? t.Assignee.FullName : "Unassigned",
+                assigneeAvatar = t.Assignee != null ? t.Assignee.Avatar : null,
+                status       = t.Status.ToLower(),
+                dueDate      = t.DueDate != null ? t.DueDate.Value.ToString("yyyy-MM-dd") : null,
+                payment      = (double)t.PaymentAmount,
+                chapterNumber  = t.Page.Chapter.ChapterNumber,
+                seriesTitle    = t.Page.Chapter.Series.Title
+            })
             .ToListAsync();
-
-        var result = tasksList.Select(t => new
-        {
-            id           = t.TaskId.ToString(),
-            title        = t.Title,
-            description  = t.Description,
-            type         = t.Type.ToLower(),
-            pageId       = t.PageId.ToString(),
-            pageNumber   = t.Page.PageNumber,
-            regionId     = t.RegionId?.ToString(),
-            assigneeId   = t.AssigneeId?.ToString(),
-            assigneeName = t.Assignee?.FullName ?? "Unassigned",
-            assigneeAvatar = t.Assignee?.Avatar,
-            status       = t.Status.ToLower(),
-            dueDate      = t.DueDate?.ToString("yyyy-MM-dd"),
-            payment      = (double)t.PaymentAmount,
-            chapterNumber  = t.Page?.Chapter?.ChapterNumber ?? 0,
-            seriesTitle    = t.Page?.Chapter?.Series?.Title
-        });
 
         return Ok(result);
     }
@@ -549,7 +948,7 @@ public class MangaStudioDataController : ControllerBase
             .Include(s => s.SeriesGenres)
             .Include(s => s.Chapters)
                 .ThenInclude(c => c.MangaPages)
-            .Where(s => s.Chapters.Any(c => c.MangaPages.Any(p => p.Status == "review" || p.Status == "submitted")))
+            .Where(s => s.Status != "proposal" && s.Chapters.Any(c => c.MangaPages.Any(p => p.Status == "review" || p.Status == "submitted")))
             .ToListAsync();
 
         var result = seriesList
@@ -613,6 +1012,7 @@ public class MangaStudioDataController : ControllerBase
                 .ThenInclude(c => c.User)
             .Include(p => p.Chapter)
                 .ThenInclude(c => c.Series)
+            .Where(p => p.Chapter.Series.Status != "proposal")
             .OrderBy(p => p.PageNumber)
             .ToListAsync();
 
@@ -742,16 +1142,6 @@ public class MangaStudioDataController : ControllerBase
 
         return Ok(result);
     }
-
-    private static string GetCategory(string entityType) =>
-        entityType.ToLower() switch
-        {
-            "series"  => "series",
-            "chapter" => "chapter",
-            "user"    => "user",
-            "payment" => "payment",
-            _         => "system"
-        };
 
     private static Guid? GetCurrentVersionId(MangaPage page)
     {

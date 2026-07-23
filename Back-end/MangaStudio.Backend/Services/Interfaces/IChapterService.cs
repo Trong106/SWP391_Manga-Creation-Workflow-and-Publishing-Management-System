@@ -29,6 +29,4 @@ public interface IChapterService
     Task<ChapterDto> ReviewChapter(Guid chapterId, Guid tantouId, ReviewChapterDto dto);
 
     Task<ChapterVersionCompareDto> GetChapterVersions(Guid chapterId);
-
-    Task<List<ChapterAuditEventDto>> GetChapterAuditTimeline(Guid chapterId);
 }

@@ -809,7 +809,7 @@ function MangakaReviewPage() {
               )}
             </div>
 
-            {/* Cột phải: Thumbnails & Bình luận */}
+            {/* Right column: thumbnails and comments */}
             <div className="space-y-6">
               {/* Grid Thumbnail trang */}
               <Card className="bg-zinc-900 border-zinc-800 text-white">

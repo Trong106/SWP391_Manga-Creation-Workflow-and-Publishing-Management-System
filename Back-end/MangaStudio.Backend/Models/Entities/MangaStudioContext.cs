@@ -17,8 +17,6 @@ public partial class MangaStudioContext : DbContext
 
     public virtual DbSet<AssistantProfile> AssistantProfiles { get; set; }
 
-    public virtual DbSet<AuditLog> AuditLogs { get; set; }
-
     public virtual DbSet<Chapter> Chapters { get; set; }
 
     public virtual DbSet<MangaPage> MangaPages { get; set; }
@@ -36,6 +34,8 @@ public partial class MangaStudioContext : DbContext
     public virtual DbSet<PayrollRecord> PayrollRecords { get; set; }
 
     public virtual DbSet<PublishSchedule> PublishSchedules { get; set; }
+
+    public virtual DbSet<ProposalBoardVote> ProposalBoardVotes { get; set; }
 
     public virtual DbSet<ReaderVote> ReaderVotes { get; set; }
 
@@ -78,22 +78,6 @@ public partial class MangaStudioContext : DbContext
                 .HasForeignKey<AssistantProfile>(d => d.AssistantId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AssistantProfiles_Users");
-        });
-
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.HasIndex(e => new { e.EntityType, e.EntityId, e.CreatedAt }, "IX_AuditLogs_Entity").IsDescending(false, false, true);
-
-            entity.Property(e => e.AuditLogId).HasDefaultValueSql("(newid())");
-            entity.Property(e => e.Action).HasMaxLength(120);
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(0)
-                .HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.EntityType).HasMaxLength(120);
-
-            entity.HasOne(d => d.User).WithMany(p => p.AuditLogs)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("FK_AuditLogs_User");
         });
 
         modelBuilder.Entity<Chapter>(entity =>
@@ -338,6 +322,32 @@ public partial class MangaStudioContext : DbContext
                 .HasConstraintName("FK_PublishSchedules_Chapter");
         });
 
+        modelBuilder.Entity<ProposalBoardVote>(entity =>
+        {
+            entity.HasKey(e => e.VoteSessionId);
+
+            entity.HasIndex(e => e.ProposalId, "IX_ProposalBoardVotes_ProposalId");
+
+            entity.Property(e => e.VoteSessionId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.Decision)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+            entity.Property(e => e.MeetingNote).HasMaxLength(1000);
+            entity.Property(e => e.RecordedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.Proposal).WithMany(p => p.ProposalBoardVotes)
+                .HasForeignKey(d => d.ProposalId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProposalBoardVotes_Proposal");
+
+            entity.HasOne(d => d.RecordedBy).WithMany(p => p.ProposalBoardVotes)
+                .HasForeignKey(d => d.RecordedById)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProposalBoardVotes_RecordedBy");
+        });
+
         modelBuilder.Entity<ReaderVote>(entity =>
         {
             entity.HasIndex(e => new { e.YearNumber, e.WeekNumber, e.RankNumber }, "IX_ReaderVotes_Week_Rank");
@@ -437,6 +447,7 @@ public partial class MangaStudioContext : DbContext
             entity.HasKey(e => e.ProposalId);
 
             entity.Property(e => e.ProposalId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.ProposalSynopsis);
             entity.Property(e => e.ReviewedAt).HasPrecision(0);
             entity.Property(e => e.Status)
                 .HasMaxLength(30)

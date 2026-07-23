@@ -21,6 +21,7 @@ public class ChapterService : IChapterService
 {
     private readonly AppDbContext _context;
     private readonly IStorageService _storageService;
+    private static readonly SemaphoreSlim _createChapterLock = new SemaphoreSlim(1, 1);
     private static readonly SemaphoreSlim _uploadLock = new SemaphoreSlim(1, 1);
 
     public ChapterService(AppDbContext context, IStorageService storageService)
@@ -43,35 +44,43 @@ public class ChapterService : IChapterService
             throw new UnauthorizedAccessException("Bạn không có quyền thêm chương vào bộ truyện này.");
         }
 
-        if (series.Status == "cancelled")
+        await _createChapterLock.WaitAsync();
+        try
         {
-            throw new InvalidOperationException("Cannot add a new chapter to a cancelled series.");
+            if (series.Status == "cancelled")
+            {
+                throw new InvalidOperationException("Cannot add a new chapter to a cancelled series.");
+            }
+
+            var chapterExists = await _context.Chapters
+                .AnyAsync(c => c.SeriesId == seriesId && c.ChapterNumber == dto.ChapterNumber);
+
+            if (chapterExists)
+            {
+                throw new ArgumentException($"Chapter {dto.ChapterNumber} already exists in this series.");
+            }
+
+            var chapter = new Chapter
+            {
+                ChapterId = Guid.NewGuid(),
+                SeriesId = seriesId,
+                ChapterNumber = dto.ChapterNumber,
+                Title = dto.Title ?? string.Empty,
+                Status = "draft",
+                DueDate = dto.DueDate.HasValue ? DateOnly.FromDateTime(dto.DueDate.Value) : null,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Chapters.Add(chapter);
+            await _context.SaveChangesAsync();
+
+            return await GetChapterById(chapter.ChapterId);
         }
-
-        var chapterExists = await _context.Chapters
-            .AnyAsync(c => c.SeriesId == seriesId && c.ChapterNumber == dto.ChapterNumber);
-
-        if (chapterExists)
+        finally
         {
-            throw new ArgumentException($"Số chương {dto.ChapterNumber} đã tồn tại trong bộ truyện này.");
+            _createChapterLock.Release();
         }
-
-        var chapter = new Chapter
-        {
-            ChapterId = Guid.NewGuid(),
-            SeriesId = seriesId,
-            ChapterNumber = dto.ChapterNumber,
-            Title = dto.Title ?? string.Empty,
-            Status = "draft",
-            DueDate = dto.DueDate.HasValue ? DateOnly.FromDateTime(dto.DueDate.Value) : null,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        _context.Chapters.Add(chapter);
-        await _context.SaveChangesAsync();
-
-        return await GetChapterById(chapter.ChapterId);
     }
 
     /// <summary>
@@ -176,18 +185,29 @@ public class ChapterService : IChapterService
     /// </summary>
     public async Task<UploadPagesResponseDto> UploadPages(Guid chapterId, List<IFormFile> files, Guid uploadedById)
     {
+        if (files == null || files.Count == 0)
+        {
+            throw new ArgumentException("Danh sách file tải lên không được trống.");
+        }
+
         var chapter = await _context.Chapters
             .Include(c => c.Series)
             .FirstOrDefaultAsync(c => c.ChapterId == chapterId)
-            ?? throw new KeyNotFoundException($"Chương truyện với ID {chapterId} không tồn tại.");
+            ?? throw new KeyNotFoundException($"Chapter with ID {chapterId} was not found.");
+
         if (chapter.Series.Status == "cancelled")
         {
             throw new InvalidOperationException("Cannot upload new pages for a cancelled series.");
         }
 
-        if (files == null || files.Count == 0)
+        if (chapter.Series.MangakaId != uploadedById)
         {
-            throw new ArgumentException("Danh sách file tải lên không được trống.");
+            throw new UnauthorizedAccessException("You do not have permission to upload pages to this chapter.");
+        }
+
+        if (IsChapterUploadLocked(chapter.Status))
+        {
+            throw new InvalidOperationException("This chapter has been approved by Tantou or entered the publishing flow. Pages can no longer be added or overwritten.");
         }
 
         var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".psd", ".clip" };
@@ -361,6 +381,12 @@ public class ChapterService : IChapterService
         }
 
         return resultDto;
+    }
+
+    private static bool IsChapterUploadLocked(string status)
+    {
+        var normalizedStatus = status.ToLowerInvariant();
+        return normalizedStatus is "editorial_ready" or "scheduled" or "published";
     }
 
     /// <summary>
@@ -663,36 +689,6 @@ public class ChapterService : IChapterService
                 })
                 .ToList()
         };
-    }
-
-    public async Task<List<ChapterAuditEventDto>> GetChapterAuditTimeline(Guid chapterId)
-    {
-        var pageIds = await _context.MangaPages
-            .Where(p => p.ChapterId == chapterId)
-            .Select(p => p.PageId)
-            .ToListAsync();
-
-        var chapterIdText = chapterId.ToString();
-
-        return await _context.AuditLogs
-            .Include(a => a.User)
-            .Where(a =>
-                (a.EntityType == "chapter" && a.EntityId == chapterId) ||
-                (a.EntityType == "page" && a.EntityId != null && pageIds.Contains(a.EntityId.Value)) ||
-                (a.DetailsJson != null && a.DetailsJson.Contains(chapterIdText)))
-            .OrderByDescending(a => a.CreatedAt)
-            .Select(a => new ChapterAuditEventDto
-            {
-                AuditLogId = a.AuditLogId,
-                UserId = a.UserId,
-                UserName = a.User != null ? a.User.FullName : null,
-                Action = a.Action,
-                EntityType = a.EntityType,
-                EntityId = a.EntityId,
-                DetailsJson = a.DetailsJson,
-                CreatedAt = a.CreatedAt
-            })
-            .ToListAsync();
     }
 
     private static ChapterDto MapToDto(Chapter c)

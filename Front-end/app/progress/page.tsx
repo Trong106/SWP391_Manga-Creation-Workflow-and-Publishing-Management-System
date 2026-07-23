@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import dynamic from "next/dynamic"
 import { BarChart3, Clock, BookOpen, Loader2, Sparkles, TrendingUp, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -8,9 +9,21 @@ import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { API_BASE_URL } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
-import { WorkflowBoard } from "@/components/manga/workflow-board"
 import { SeriesDetailModal } from "@/components/manga/series-detail-modal"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+const WorkflowBoard = dynamic(
+  () => import("@/components/manga/workflow-board").then((mod) => mod.WorkflowBoard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-border bg-card text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#00dfc0]" />
+        Loading production pipeline...
+      </div>
+    ),
+  }
+)
 
 interface SeriesProgress {
   id: string
@@ -59,7 +72,21 @@ export default function ProgressPage() {
       })
       .then((data) => {
         if (Array.isArray(data)) {
-          setSeriesList(data)
+          setSeriesList(data.map((item: any) => ({
+            id: item.id ?? item.seriesId,
+            title: item.title ?? "Untitled Series",
+            genre: item.genre ?? (Array.isArray(item.genres) ? item.genres.join(" / ") : "General"),
+            chapters: item.chapters ?? item.chapterCount ?? 0,
+            progress: Number.isFinite(Number(item.progress)) ? Number(item.progress) : 0,
+            status: String(item.status ?? "active").toLowerCase(),
+            team: Array.isArray(item.team) ? item.team : [],
+            color: item.color ?? "bg-primary",
+            coverImageUrl: item.coverImageUrl ?? null,
+            todoCount: item.todoCount ?? 0,
+            doingCount: item.doingCount ?? 0,
+            reviewCount: item.reviewCount ?? 0,
+            totalCount: item.totalCount ?? 0,
+          })).filter((item) => item.id))
         }
         setLoading(false)
       })
@@ -178,7 +205,7 @@ export default function ProgressPage() {
                         {/* Status cell */}
                         <td className="py-4 px-6">
                           <Badge variant="outline" className={`text-xs ${statusColors[series.status] || "bg-secondary text-secondary-foreground"}`}>
-                            {series.status.charAt(0).toUpperCase() + series.status.slice(1)}
+                            {series.status ? series.status.charAt(0).toUpperCase() + series.status.slice(1) : "Active"}
                           </Badge>
                         </td>
 

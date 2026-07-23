@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Upload, ImageIcon, Folder, ChevronRight, Check, Plus, GripVertical } from "lucide-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { Upload, ImageIcon, Folder, ChevronRight, Check, Plus, GripVertical, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,6 +44,13 @@ interface ChapterPage {
   status: string
 }
 
+interface ChapterOption {
+  chapterId: string
+  chapterNumber: number
+  title?: string
+  status: string
+}
+
 interface UploadHistoryItem {
   pageVersionId: string
   pageId: string
@@ -57,22 +64,26 @@ interface UploadHistoryItem {
 }
 
 const PAGE_FILE_PATTERN = /^page_(\d{3,})\.(png|jpe?g|psd|clip)$/i
+const LOCKED_CHAPTER_STATUSES = new Set(["editorial_ready", "scheduled", "published"])
+const PRODUCTION_SERIES_STATUSES = new Set(["active", "ongoing", "hiatus", "completed"])
 
 export default function UploadPage() {
   const { user, token } = useAuth()
   const [selectedSeries, setSelectedSeries] = useState("")
   const [seriesList, setSeriesList] = useState<any[]>([])
-  const [chapters, setChapters] = useState<any[]>([])
+  const [chapters, setChapters] = useState<ChapterOption[]>([])
   const [selectedChapterId, setSelectedChapterId] = useState<string>("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newChapterNumber, setNewChapterNumber] = useState("")
   const [newChapterTitle, setNewChapterTitle] = useState("")
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
+  const createChapterLockRef = useRef(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [chapterPages, setChapterPages] = useState<ChapterPage[]>([])
   const [uploadHistory, setUploadHistory] = useState<UploadHistoryItem[]>([])
   const [isLoadingPages, setIsLoadingPages] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState<string[]>([])
+  const [missingPagesWarning, setMissingPagesWarning] = useState<string[]>([])
   const [overwriteWarning, setOverwriteWarning] = useState<string[]>([])
   const [pendingOverwriteFiles, setPendingOverwriteFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -87,15 +98,15 @@ export default function UploadPage() {
       })
         .then((res) => readJsonOrThrow(res, "Failed to fetch series"))
         .then((data) => {
-          const mapped = data.map((item: any) => ({
-            id: item.id,
-            title: item.title
-          }))
+          const mapped = data
+            .map((item: any) => ({
+              id: item.id,
+              title: item.title,
+              status: String(item.status ?? "active").toLowerCase(),
+              coverImageUrl: item.coverImageUrl,
+            }))
+            .filter((item: any) => PRODUCTION_SERIES_STATUSES.has(item.status))
           setSeriesList(mapped)
-          if (mapped.length > 0) {
-            // Mặc định chọn bộ truyện đầu tiên
-            setSelectedSeries(mapped[0].id)
-          }
         })
         .catch((err) => console.error("Failed to load series:", err))
     }
@@ -115,10 +126,9 @@ export default function UploadPage() {
         .then((data) => {
           setChapters(data)
           if (data.length > 0) {
-            // Keep selection if it's still in the new list, otherwise pick the first one
             const exists = data.some((c: any) => c.chapterId === selectedChapterId)
             if (!exists) {
-              setSelectedChapterId(data[0].chapterId)
+              setSelectedChapterId("")
             }
           } else {
             setSelectedChapterId("")
@@ -197,6 +207,7 @@ export default function UploadPage() {
 
   // Hàm tạo chương mới qua API
   const handleCreateChapter = async () => {
+    if (createChapterLockRef.current || isCreatingChapter) return
     if (!selectedSeries) {
       toast.error("Please select a series first.")
       return
@@ -211,6 +222,7 @@ export default function UploadPage() {
       return
     }
 
+    createChapterLockRef.current = true
     setIsCreatingChapter(true)
     try {
       const response = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
@@ -261,6 +273,7 @@ export default function UploadPage() {
       console.error("Failed to create chapter:", err)
       toast.error(err.message || "An error occurred while creating the chapter.")
     } finally {
+      createChapterLockRef.current = false
       setIsCreatingChapter(false)
     }
   }
@@ -269,6 +282,10 @@ export default function UploadPage() {
   const handleFiles = async (files: File[], allowOverwrite = false) => {
     if (!selectedChapterId) {
       toast.error("Please select or create a chapter before uploading pages.")
+      return
+    }
+    if (isChapterUploadLocked) {
+      toast.error("This chapter has been approved by Tantou or scheduled for publishing, so pages can no longer be uploaded.")
       return
     }
 
@@ -282,6 +299,8 @@ export default function UploadPage() {
     const orderedFiles = parsedFiles
       .map(({ file, match }) => ({ file, pageNumber: Number(match![1]) }))
       .sort((a, b) => a.pageNumber - b.pageNumber)
+    const minPageNumber = orderedFiles[0]?.pageNumber ?? 0
+    const maxPageNumber = orderedFiles[orderedFiles.length - 1]?.pageNumber ?? 0
     const existingPageNumbers = new Set(chapterPages.map((page) => page.pageNumber))
     const seenPageNumbers = new Set<number>()
     const duplicateNames = orderedFiles.flatMap(({ file, pageNumber }) => {
@@ -291,6 +310,18 @@ export default function UploadPage() {
     })
     if (duplicateNames.length > 0) {
       setDuplicateWarning([...new Set(duplicateNames)])
+      return
+    }
+
+    const selectedPageNumbers = new Set(orderedFiles.map(({ pageNumber }) => pageNumber))
+    const missingPageNumbers = Array.from(
+      { length: Math.max(0, maxPageNumber - minPageNumber + 1) },
+      (_, index) => minPageNumber + index,
+    ).filter((pageNumber) => !selectedPageNumbers.has(pageNumber))
+    if (missingPageNumbers.length > 0) {
+      const missingNames = missingPageNumbers.map((pageNumber) => `page_${String(pageNumber).padStart(3, "0")}`)
+      setMissingPagesWarning(missingNames)
+      toast.error(`Missing pages: ${missingNames.join(", ")}. Upload was stopped before Cloudinary.`)
       return
     }
 
@@ -352,6 +383,7 @@ export default function UploadPage() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
+    if (uploadDisabled) return
     setIsDragging(true)
   }
 
@@ -365,6 +397,12 @@ export default function UploadPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
+    if (uploadDisabled) {
+      toast.error(isChapterUploadLocked
+        ? "This chapter is locked after Tantou approval or publishing schedule."
+        : "Please select a chapter before uploading pages.")
+      return
+    }
     if (e.dataTransfer.files) {
       void handleFiles(Array.from(e.dataTransfer.files))
     }
@@ -379,6 +417,16 @@ export default function UploadPage() {
   const formatUploadTime = (value?: string | null) => {
     if (!value) return ""
     return new Date(value).toLocaleString()
+  }
+
+  const selectedChapter = chapters.find((chapter) => chapter.chapterId === selectedChapterId)
+  const selectedChapterStatus = selectedChapter?.status?.toLowerCase() ?? ""
+  const isChapterUploadLocked = LOCKED_CHAPTER_STATUSES.has(selectedChapterStatus)
+  const uploadDisabled = !selectedChapterId || isChapterUploadLocked
+
+  const formatStatusLabel = (status?: string | null) => {
+    if (!status) return "Draft"
+    return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
   }
 
   return (
@@ -431,6 +479,7 @@ export default function UploadPage() {
                         chapters.map((ch) => (
                           <SelectItem key={ch.chapterId} value={ch.chapterId}>
                             Ch. {ch.chapterNumber} {ch.title ? `- ${ch.title}` : ""}
+                            {LOCKED_CHAPTER_STATUSES.has(ch.status?.toLowerCase()) ? " (locked)" : ""}
                           </SelectItem>
                         ))
                       )}
@@ -473,7 +522,7 @@ export default function UploadPage() {
                   <Button
                     className="w-full bg-primary text-primary-foreground"
                     onClick={handleCreateChapter}
-                    disabled={isCreatingChapter}
+                    disabled={isCreatingChapter || !selectedSeries || !newChapterNumber.trim()}
                   >
                     {isCreatingChapter ? "Creating..." : "Create Chapter"}
                   </Button>
@@ -481,6 +530,47 @@ export default function UploadPage() {
               </Dialog>
             </CardContent>
           </Card>
+
+          {!selectedSeries && seriesList.length > 0 && (
+            <Card className="bg-card border-border flex-none">
+              <CardHeader>
+                <CardTitle>Chapter Upload Queue</CardTitle>
+                <CardDescription>Choose the series that will receive this page batch</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {seriesList.map((series) => (
+                    <button
+                      key={series.id}
+                      type="button"
+                      onClick={() => setSelectedSeries(series.id)}
+                      className="group flex items-center gap-3 rounded-xl border border-border/60 bg-secondary/30 p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/10"
+                    >
+                      <div className="h-16 w-12 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                        {series.coverImageUrl ? (
+                          <img
+                            src={getFullImageUrl(series.coverImageUrl)}
+                            alt={series.title}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold group-hover:text-primary">{series.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Status: <span className="capitalize">{series.status || "active"}</span>
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Upload Zone */}
           <Card className="bg-card border-border flex-none">
@@ -491,7 +581,9 @@ export default function UploadPage() {
             <CardContent>
               <div
                 className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
-                  isDragging
+                  uploadDisabled
+                    ? "border-border bg-secondary/20 opacity-70"
+                    : isDragging
                     ? "dropzone-active"
                     : "border-border hover:border-primary/50 hover:bg-primary/3"
                 }`}
@@ -505,10 +597,18 @@ export default function UploadPage() {
                 <p className={`text-lg font-medium mb-2 transition-colors duration-200 ${
                   isDragging ? "text-primary" : ""
                 }`}>
-                  {isDragging ? "Release to upload!" : "Drop your pages here"}
+                  {!selectedChapterId
+                    ? "Select a chapter before uploading"
+                    : isChapterUploadLocked
+                      ? "Chapter locked after Tantou approval"
+                      : isDragging
+                        ? "Release to upload!"
+                        : "Drop your pages here"}
                 </p>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Support: PNG, JPG, PSD, CLIP (max 50MB per file)
+                  {isChapterUploadLocked
+                    ? "Approved or publishing chapters cannot receive new page uploads."
+                    : "Support: PNG, JPG, PSD, CLIP. File names must be page_001, page_002..."}
                 </p>
                 <input
                   type="file"
@@ -523,14 +623,40 @@ export default function UploadPage() {
                     }
                   }}
                 />
+                <input
+                  type="file"
+                  id="folder-browse"
+                  multiple
+                  className="hidden"
+                  accept=".png,.jpg,.jpeg,.psd,.clip,image/png,image/jpeg"
+                  {...{ webkitdirectory: "", directory: "" }}
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      void handleFiles(Array.from(e.target.files))
+                      e.target.value = ""
+                    }
+                  }}
+                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
                 <Button
                   variant="outline"
                   className="btn-magnetic"
+                  disabled={uploadDisabled}
                   onClick={() => document.getElementById("file-browse")?.click()}
                 >
                   <Folder className="w-4 h-4 mr-2" />
                   Browse Files
                 </Button>
+                <Button
+                  variant="outline"
+                  className="btn-magnetic"
+                  disabled={uploadDisabled}
+                  onClick={() => document.getElementById("folder-browse")?.click()}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Folder
+                </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -661,7 +787,7 @@ export default function UploadPage() {
                 <span className="text-muted-foreground">Chapter</span>
                 <span className="font-medium">
                   {selectedChapterId
-                    ? `Ch. ${chapters.find((c) => c.chapterId === selectedChapterId)?.chapterNumber || ""}`
+                    ? `Ch. ${selectedChapter?.chapterNumber || ""}`
                     : "Not selected"}
                 </span>
               </div>
@@ -671,12 +797,25 @@ export default function UploadPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Status</span>
-                <Badge className="bg-warning/20 text-warning">Draft</Badge>
+                <Badge className={isChapterUploadLocked ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-warning"}>
+                  {isChapterUploadLocked ? "Locked" : formatStatusLabel(selectedChapter?.status)}
+                </Badge>
               </div>
+              {isChapterUploadLocked && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  Tantou has approved this chapter or it is already in the publishing flow. Page upload is closed.
+                </div>
+              )}
               <div className="pt-4 border-t border-border">
-                <Button className="w-full bg-primary text-primary-foreground" disabled={!selectedSeries || !selectedChapterId || chapterPages.length === 0}>
+                <Button
+                  className="w-full bg-primary text-primary-foreground"
+                  disabled={!selectedSeries || !selectedChapterId || chapterPages.length === 0}
+                  onClick={() => {
+                    window.location.href = `/tasks/assign?seriesId=${encodeURIComponent(selectedSeries)}&chapterId=${encodeURIComponent(selectedChapterId)}`
+                  }}
+                >
                   <ChevronRight className="w-4 h-4 mr-2" />
-                  Continue to Region Selection
+                  Assign Tasks for This Chapter
                 </Button>
               </div>
             </CardContent>
@@ -688,6 +827,7 @@ export default function UploadPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <p>- Name files sequentially (page_001, page_002...)</p>
+              <p>- Folder uploads must not skip page numbers</p>
               <p>- Use high resolution (300 DPI minimum)</p>
               <p>- Keep consistent page dimensions</p>
               <p>- Upload all pages before assigning tasks</p>
@@ -708,6 +848,26 @@ export default function UploadPage() {
             {duplicateWarning.map((name) => <p key={name} className="text-sm font-medium text-destructive">{name}</p>)}
           </div>
           <Button onClick={() => setDuplicateWarning([])}>Choose different files</Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={missingPagesWarning.length > 0} onOpenChange={(open) => !open && setMissingPagesWarning([])}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Missing page numbers</DialogTitle>
+            <DialogDescription>
+              The upload was stopped before Cloudinary because the selected batch is not sequential.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-destructive/30 bg-destructive/10 p-3">
+            {missingPagesWarning.map((name) => (
+              <p key={name} className="flex items-center gap-2 text-sm font-medium text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                Missing {name}
+              </p>
+            ))}
+          </div>
+          <Button onClick={() => setMissingPagesWarning([])}>Choose corrected folder</Button>
         </DialogContent>
       </Dialog>
 
