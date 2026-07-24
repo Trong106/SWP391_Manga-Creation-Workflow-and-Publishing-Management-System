@@ -267,6 +267,7 @@ public class TaskService : ITaskService
         }
 
         var task = await _context.Tasks
+            .Include(t => t.Region)
             .Include(t => t.Page)
                 .ThenInclude(p => p.Chapter)
                     .ThenInclude(c => c.Series)
@@ -699,6 +700,7 @@ public class TaskService : ITaskService
             .Include(t => t.Page)
                 .ThenInclude(p => p.PageAnnotations)
                     .ThenInclude(a => a.CreatedBy)
+            .Include(t => t.Region)
             .FirstOrDefaultAsync(t => t.TaskId == taskId);
 
         if (task == null || task.Page == null)

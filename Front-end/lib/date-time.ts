@@ -25,7 +25,7 @@ export const formatRelativeTime = (
   if (!date || Number.isNaN(date.getTime())) return ""
 
   const deltaSeconds = Math.round((date.getTime() - nowMs) / 1000)
-  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
+  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
   const ranges: Array<[number, Intl.RelativeTimeFormatUnit]> = [
     [60, "second"],
     [60, "minute"],

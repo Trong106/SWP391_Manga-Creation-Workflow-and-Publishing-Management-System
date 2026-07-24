@@ -22,12 +22,10 @@ import {
   Check, 
   Trash, 
   BookOpen, 
-  Layers, 
   Clock, 
   Sparkles, 
   AlertCircle, 
   UserCheck, 
-  HelpCircle,
   FileCode,
   ImageIcon,
   Send,
@@ -286,11 +284,6 @@ export default function SubmitWorkPage() {
     toast.success("Draft work saved successfully! (Simulated)")
   }
 
-  const handleRequestPreReview = () => {
-    if (!selectedTask) return
-    toast.info(`Pre-review request sent to ${selectedTask.assignerName}!`)
-  }
-
   // Format task type for user display
   const formatTaskType = (type: string) => {
     return type
@@ -435,11 +428,7 @@ export default function SubmitWorkPage() {
               </Button>
               <Button 
                 onClick={handleSubmitTask} 
-<<<<<<< HEAD
-                disabled={submitting || !file || !isQCComplete || isSeriesCancelled}
-=======
-                disabled={submitting || !file}
->>>>>>> origin/main
+                disabled={submitting || !file || isSeriesCancelled}
                 className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(0,223,192,0.15)] disabled:opacity-40 disabled:pointer-events-none"
               >
                 {submitting ? (
@@ -528,10 +517,10 @@ export default function SubmitWorkPage() {
           )}
 
           {/* Main Layout Grid */}
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-12 gap-4 xl:gap-5 items-start">
             
-            {/* Left Column: Upload Form (8 cols) */}
-            <div className="col-span-12 lg:col-span-8">
+            {/* Left Column: Upload Form */}
+            <div className="col-span-12 xl:col-span-8">
               <div className="grid grid-cols-1 gap-6 items-stretch">
                 
                 {/* Specialized Upload Area */}
@@ -552,7 +541,7 @@ export default function SubmitWorkPage() {
                     {/* Dashed Drag/Drop Box */}
                     <div
                       onDragOver={e => !isSeriesCancelled && handleDragOver(e)}
-                      onDragLeave={e => !isSeriesCancelled && handleDragLeave(e)}
+                      onDragLeave={() => !isSeriesCancelled && handleDragLeave()}
                       onDrop={e => !isSeriesCancelled && handleDrop(e)}
                       onClick={() => !isSeriesCancelled && fileInputRef.current?.click()}
                       className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all min-h-[300px] flex-1 ${
@@ -612,118 +601,41 @@ export default function SubmitWorkPage() {
                   </CardContent>
                 </Card>
 
-                {/* Quality Control Checklist & Submission Notes */}
-                <Card className="bg-card border-border flex flex-col justify-between h-full">
-                  <CardHeader>
+                {/* Submission Notes */}
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-3">
                     <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                      <Check className="w-5 h-5 text-primary" />
-                      Studio Quality Control
+                      <FileCode className="w-5 h-5 text-primary" />
+                      Submission Notes
                     </CardTitle>
                     <CardDescription className="text-zinc-400 text-xs">
-                      Please double-check all technical details to ensure compatibility with high-resolution printing.
+                      Add any production notes the Mangaka should review with this submitted file.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
-                    {/* QC Checklist Grid (Single Column Stack) */}
-                    <div className="grid grid-cols-1 gap-3">
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.dpi ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.dpi} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, dpi: !!checked }))}
-                          disabled={isSeriesCancelled}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Minimum 600 DPI</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">Required for high-resolution print production.</p>
-                        </div>
-                      </label>
-
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.layers ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.layers} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, layers: !!checked }))}
-                          disabled={isSeriesCancelled}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Layer Structure Preserved</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">Lineart, Tones, and SFX on separate layers.</p>
-                        </div>
-                      </label>
-
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.transparency ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.transparency} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, transparency: !!checked }))}
-                          disabled={isSeriesCancelled}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Transparency Check</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">No stray pixels on alpha channel backgrounds.</p>
-                        </div>
-                      </label>
-
-                      <label 
-                        className={`flex items-start gap-3 p-3 bg-zinc-950/40 border rounded-xl cursor-pointer transition-all ${
-                          checklist.aliasing ? "border-primary/40 bg-primary/5" : "border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <Checkbox 
-                          checked={checklist.aliasing} 
-                          onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, aliasing: !!checked }))}
-                          disabled={isSeriesCancelled}
-                          className="mt-1 border-zinc-700 text-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                        />
-                        <div className="space-y-0.5">
-                          <span className="font-bold text-xs text-zinc-200">Anti-Aliasing Off</span>
-                          <p className="text-zinc-555 text-[10px] leading-snug">Binary (Aliased) lines for screentone compatibility.</p>
-                        </div>
-                      </label>
-                    </div>
-
-                    {/* Submission Notes */}
-                    <div className="space-y-2 pt-2">
-                      <Label htmlFor="submit-notes" className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">
-                        Submission Notes (Optional)
-                      </Label>
-                      <Textarea 
-                        id="submit-notes"
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        disabled={isSeriesCancelled}
-                        placeholder={isSeriesCancelled ? "Submissions notes are disabled for cancelled series." : "Add details about changes, notes on formatting, or issues that need Mangaka's review..."}
-                        className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[90px] resize-none text-xs disabled:opacity-40"
-                      />
-                    </div>
+                  <CardContent>
+                    <Textarea 
+                      id="submit-notes"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      disabled={isSeriesCancelled}
+                      placeholder={isSeriesCancelled ? "Submission notes are disabled for cancelled series." : "Optional notes about changes, formatting, or issues that need Mangaka review..."}
+                      className="min-h-[120px] resize-none border-zinc-850 bg-zinc-950/60 text-sm text-white placeholder-zinc-650 focus-visible:ring-primary disabled:opacity-40"
+                    />
                   </CardContent>
                 </Card>
               </div>
             </div>
 
-            {/* Right Column: Workflow & Reviewer (4 cols) */}
-            <div className="col-span-12 lg:col-span-4">
-              <Card className="bg-card border-border h-full flex flex-col justify-between">
+            {/* Right Column: Workflow & Reviewer */}
+            <div className="col-span-12 xl:col-span-4">
+              <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                     <UserCheck className="w-5 h-5 text-primary" />
                     Reviewer & Progress
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                <CardContent className="space-y-5">
                   {/* Task Reviewer Info */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -744,15 +656,6 @@ export default function SubmitWorkPage() {
                       </div>
                     </div>
 
-                    <Button 
-                      onClick={handleRequestPreReview}
-                      variant="outline" 
-                      disabled={isSeriesCancelled}
-                      className="w-full bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-xs py-2 h-9 font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                      Request Pre-Review
-                    </Button>
                   </div>
 
                   <div className="border-t border-zinc-900/60 my-2"></div>

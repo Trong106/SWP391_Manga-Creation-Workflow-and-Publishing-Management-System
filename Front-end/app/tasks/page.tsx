@@ -77,6 +77,7 @@ interface Task {
   paymentAmount: number
   createdAt: string
   updatedAt: string
+  seriesStatus?: string | null
 }
 
 interface TaskResource {
@@ -87,6 +88,12 @@ interface TaskResource {
   seriesTitle?: string | null
   chapterNumber: number
   revisionNote?: string | null
+  regionId?: string | null
+  regionType?: string | null
+  regionX?: number | null
+  regionY?: number | null
+  regionWidth?: number | null
+  regionHeight?: number | null
   revisionAnnotations?: RevisionAnnotation[]
 }
 
@@ -856,6 +863,20 @@ export default function AssistantTasksPage() {
                         alt="Manga Page Original Preview"
                         className="block max-h-[58vh] max-w-full rounded-lg object-contain"
                       />
+                      {selectedTaskResource.regionX != null &&
+                        selectedTaskResource.regionY != null &&
+                        selectedTaskResource.regionWidth != null &&
+                        selectedTaskResource.regionHeight != null && (
+                          <div
+                            className="pointer-events-none absolute z-30 rounded-md border-2 border-primary bg-primary/15 shadow-[0_0_22px_rgba(20,184,166,0.6)]"
+                            style={{
+                              left: `${selectedTaskResource.regionX}%`,
+                              top: `${selectedTaskResource.regionY}%`,
+                              width: `${selectedTaskResource.regionWidth}%`,
+                              height: `${selectedTaskResource.regionHeight}%`,
+                            }}
+                          />
+                        )}
                       {(selectedTaskResource.revisionAnnotations || []).map((annotation) => {
                         const isBox = annotation.width && annotation.height
                         return (
