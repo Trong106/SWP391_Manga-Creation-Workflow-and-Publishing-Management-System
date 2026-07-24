@@ -342,6 +342,8 @@ public class WorkflowService : IWorkflowService
         };
 
         _context.PublishSchedules.Add(schedule);
+        chapter.Status = "scheduled";
+        chapter.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         return await GetPublishScheduleById(schedule.PublishScheduleId);
@@ -365,6 +367,39 @@ public class WorkflowService : IWorkflowService
 
         MarkSchedulePublished(schedule, editorialId);
         
+        await _context.SaveChangesAsync();
+
+        return await GetPublishScheduleById(schedule.PublishScheduleId);
+    }
+
+    public async Task<PublishScheduleDto> CancelPublishSchedule(Guid scheduleId, Guid editorialId)
+    {
+        var schedule = await _context.PublishSchedules
+            .Include(s => s.Chapter)
+                .ThenInclude(c => c.Series)
+            .FirstOrDefaultAsync(s => s.PublishScheduleId == scheduleId)
+            ?? throw new KeyNotFoundException($"Không tìm thấy lịch xuất bản với ID {scheduleId}");
+
+        if (string.Equals(schedule.Status, "published", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Published chapters cannot have their release schedule cancelled.");
+        }
+
+        if (string.Equals(schedule.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return await GetPublishScheduleById(schedule.PublishScheduleId);
+        }
+
+        schedule.Status = "cancelled";
+        schedule.ApprovedById = editorialId;
+        schedule.PublishedAt = null;
+
+        if (schedule.Chapter != null)
+        {
+            schedule.Chapter.Status = "editorial_ready";
+            schedule.Chapter.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _context.SaveChangesAsync();
 
         return await GetPublishScheduleById(schedule.PublishScheduleId);

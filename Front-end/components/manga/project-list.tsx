@@ -1,9 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Star, BarChart3, Bookmark, FileText, BookOpen } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { BarChart3, Bookmark, BookOpen } from "lucide-react"
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 import { useAuth } from "@/lib/auth-context"
 import { SeriesDetailModal } from "./series-detail-modal"
@@ -78,16 +76,16 @@ export function ProjectList() {
       ) : projects.length === 0 ? (
         <div className="text-center py-12 text-zinc-400 text-sm">No new series found.</div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
-          {projects.map((project) => {
-            const coverUrl = getFullCoverUrl(project.coverImageUrl)
-            const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
-            return (
-              <div
-                key={project.id}
-                onClick={() => handleCardClick(project.id)}
-                className="group cursor-pointer space-y-2.5"
-              >
+        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {projects.map((project) => {
+              const coverUrl = getFullCoverUrl(project.coverImageUrl)
+              const updatedTime = formatRelativeTime(project.updatedAtRaw, now)
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => handleCardClick(project.id)}
+                  className="group cursor-pointer space-y-2.5"
+                >
                 {/* Image Container */}
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                   {project.coverImageUrl ? (
@@ -127,9 +125,9 @@ export function ProjectList() {
                     </span>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+                </div>
+              )
+            })}
         </div>
       )}
 

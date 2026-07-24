@@ -22,12 +22,10 @@ import {
   Check, 
   Trash, 
   BookOpen, 
-  Layers, 
   Clock, 
   Sparkles, 
   AlertCircle, 
   UserCheck, 
-  HelpCircle,
   FileCode,
   ImageIcon,
   Send,
@@ -283,11 +281,6 @@ export default function SubmitWorkPage() {
     toast.success("Draft work saved successfully! (Simulated)")
   }
 
-  const handleRequestPreReview = () => {
-    if (!selectedTask) return
-    toast.info(`Pre-review request sent to ${selectedTask.assignerName}!`)
-  }
-
   // Format task type for user display
   const formatTaskType = (type: string) => {
     return type
@@ -431,7 +424,7 @@ export default function SubmitWorkPage() {
               </Button>
               <Button 
                 onClick={handleSubmitTask} 
-                disabled={submitting || !file}
+                disabled={submitting || !file || isSeriesCancelled}
                 className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(0,223,192,0.15)] disabled:opacity-40 disabled:pointer-events-none"
               >
                 {submitting ? (
@@ -508,10 +501,10 @@ export default function SubmitWorkPage() {
           )}
 
           {/* Main Layout Grid */}
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-12 gap-4 xl:gap-5 items-start">
             
-            {/* Left Column: Upload Form (8 cols) */}
-            <div className="col-span-12 lg:col-span-8">
+            {/* Left Column: Upload Form */}
+            <div className="col-span-12 xl:col-span-8">
               <div className="grid grid-cols-1 gap-6 items-stretch">
                 
                 {/* Specialized Upload Area */}
@@ -531,14 +524,16 @@ export default function SubmitWorkPage() {
                   <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
                     {/* Dashed Drag/Drop Box */}
                     <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all min-h-[300px] flex-1 ${
-                        isDragging 
-                          ? "border-primary bg-primary/5" 
-                          : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20"
+                      onDragOver={e => !isSeriesCancelled && handleDragOver(e)}
+                      onDragLeave={() => !isSeriesCancelled && handleDragLeave()}
+                      onDrop={e => !isSeriesCancelled && handleDrop(e)}
+                      onClick={() => !isSeriesCancelled && fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all min-h-[300px] flex-1 ${
+                        isSeriesCancelled
+                          ? "border-zinc-900 bg-zinc-950/20 cursor-not-allowed opacity-50"
+                          : isDragging 
+                            ? "border-primary bg-primary/5 cursor-pointer" 
+                            : "border-zinc-800 hover:border-primary/50 hover:bg-zinc-900/20 cursor-pointer"
                       }`}
                     >
                       <input 
@@ -590,6 +585,28 @@ export default function SubmitWorkPage() {
                   </CardContent>
                 </Card>
 
+                {/* Submission Notes */}
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
+                      <FileCode className="w-5 h-5 text-primary" />
+                      Submission Notes
+                    </CardTitle>
+                    <CardDescription className="text-zinc-400 text-xs">
+                      Add any production notes the Mangaka should review with this submitted file.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea 
+                      id="submit-notes"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      disabled={isSeriesCancelled}
+                      placeholder={isSeriesCancelled ? "Submission notes are disabled for cancelled series." : "Optional notes about changes, formatting, or issues that need Mangaka review..."}
+                      className="min-h-[120px] resize-none border-zinc-850 bg-zinc-950/60 text-sm text-white placeholder-zinc-650 focus-visible:ring-primary disabled:opacity-40"
+                    />
+                  </CardContent>
+                </Card>
               </div>
               <Card className="mt-6 bg-card border-border">
                 <CardHeader>
@@ -613,16 +630,16 @@ export default function SubmitWorkPage() {
               </Card>
             </div>
 
-            {/* Right Column: Workflow & Reviewer (4 cols) */}
-            <div className="col-span-12 lg:col-span-4">
-              <Card className="bg-card border-border h-full flex flex-col justify-between">
+            {/* Right Column: Workflow & Reviewer */}
+            <div className="col-span-12 xl:col-span-4">
+              <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                     <UserCheck className="w-5 h-5 text-primary" />
                     Reviewer & Progress
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+                <CardContent className="space-y-5">
                   {/* Task Reviewer Info */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -643,14 +660,6 @@ export default function SubmitWorkPage() {
                       </div>
                     </div>
 
-                    <Button 
-                      onClick={handleRequestPreReview}
-                      variant="outline" 
-                      className="w-full bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 text-xs py-2 h-9 font-medium transition-colors"
-                    >
-                      <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                      Request Pre-Review
-                    </Button>
                   </div>
 
                   <div className="border-t border-zinc-900/60 my-2"></div>

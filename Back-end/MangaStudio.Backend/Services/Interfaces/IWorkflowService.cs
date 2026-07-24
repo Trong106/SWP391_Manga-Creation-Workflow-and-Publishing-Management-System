@@ -29,6 +29,9 @@ public interface IWorkflowService
     /// <summary>Tantou phê duyệt lịch xuất bản.</summary>
     Task<PublishScheduleDto> ApprovePublishSchedule(Guid scheduleId, Guid tantouId);
 
+    /// <summary>Hủy lịch xuất bản và đưa chapter về trạng thái sẵn sàng lên lịch.</summary>
+    Task<PublishScheduleDto> CancelPublishSchedule(Guid scheduleId, Guid editorialId);
+
     // === Payroll ===
 
     /// <summary>Lấy danh sách bản ghi lương của trợ lý (Mangaka xem).</summary>

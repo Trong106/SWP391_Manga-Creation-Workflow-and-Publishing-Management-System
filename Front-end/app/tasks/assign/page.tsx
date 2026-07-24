@@ -16,6 +16,7 @@ import {
   X,
   Crosshair,
   Eraser,
+  Eye,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -206,6 +207,7 @@ export default function TaskAssignPage() {
   const [selectedRegion, setSelectedRegion] = useState<RegionSelection | null>(null)
   const [draftRegion, setDraftRegion] = useState<RegionSelection | null>(null)
   const [isDrawingRegion, setIsDrawingRegion] = useState(false)
+  const [inspectTask, setInspectTask] = useState<TaskRecord | null>(null)
   const drawStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const authHeader = { Authorization: `Bearer ${token}` }
@@ -430,6 +432,7 @@ export default function TaskAssignPage() {
       !form.title.trim() ? "Task Title" : null,
       !form.type ? "Task Type" : null,
       !form.assigneeId ? "Assign To" : null,
+      !form.dueDate ? "Due Date" : null,
     ].filter(Boolean)
 
     if (missingFields.length > 0) {
@@ -583,6 +586,11 @@ export default function TaskAssignPage() {
   const selectedChapter = chapters.find(c => c.chapterId === selectedChapterId)
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
   const selectedPageImageUrl = getFullImageUrl(selectedPage?.currentImageUrl ?? selectedPage?.imageUrl)
+  const inspectTaskHasRegion =
+    inspectTask?.regionX != null &&
+    inspectTask?.regionY != null &&
+    inspectTask?.regionWidth != null &&
+    inspectTask?.regionHeight != null
   const isSelectedPageApproved = selectedPage?.status?.toLowerCase() === "approved"
   const selectedTaskType = TASK_TYPES.find(t => t.value === form.type)
   const formBasePay = selectedTaskType?.basePay ?? 0
@@ -798,8 +806,8 @@ export default function TaskAssignPage() {
                       Add Task
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-4xl">
-                    <DialogHeader>
+                  <DialogContent className="flex h-[min(920px,calc(100dvh-2rem))] w-[min(760px,calc(100vw-2rem))] max-w-none flex-col overflow-hidden border-zinc-800 bg-zinc-950 p-0 text-white">
+                    <DialogHeader className="shrink-0 border-b border-zinc-800/70 px-6 pb-4 pt-6">
                       <DialogTitle>Create New Task</DialogTitle>
                       <DialogDescription className="text-zinc-400">
                         Assign a production task for Page {selectedPage?.pageNumber}
@@ -808,7 +816,7 @@ export default function TaskAssignPage() {
                       </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-4 py-2">
+                    <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
                       <div className="space-y-2">
                         <Label className="text-sm text-zinc-300">Quick Templates</Label>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -846,9 +854,9 @@ export default function TaskAssignPage() {
                         </div>
 
                         {selectedPageImageUrl ? (
-                          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
+                          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-center">
                             <div
-                              className="relative mx-auto max-h-[360px] max-w-full touch-none overflow-hidden rounded-lg border border-zinc-800 bg-black/50 cursor-crosshair"
+                              className="relative mx-auto inline-block max-h-[320px] max-w-full touch-none overflow-hidden rounded-lg border border-zinc-800 bg-black/50 align-middle cursor-crosshair"
                               onPointerDown={handleRegionPointerDown}
                               onPointerMove={handleRegionPointerMove}
                               onPointerUp={finishRegionDrawing}
@@ -857,7 +865,7 @@ export default function TaskAssignPage() {
                               <img
                                 src={selectedPageImageUrl}
                                 alt={`Page ${selectedPage?.pageNumber}`}
-                                className="block max-h-[360px] w-full select-none object-contain"
+                                className="block max-h-[320px] max-w-full select-none object-contain"
                                 draggable={false}
                               />
                               {selectedRegion && (
@@ -976,9 +984,11 @@ export default function TaskAssignPage() {
 
                         {/* Due Date */}
                         <div className="space-y-1.5">
-                          <Label className="text-sm text-zinc-300">Due Date</Label>
+                          <Label className="text-sm text-zinc-300">Due Date <span className="text-red-400">*</span></Label>
                           <Input
                             type="date"
+                            required
+                            min={todayDate}
                             value={form.dueDate}
                             onChange={e => updateForm({ dueDate: e.target.value })}
                             className="bg-zinc-900 border-zinc-700 text-white"
@@ -990,13 +1000,13 @@ export default function TaskAssignPage() {
                     </div>
 
                     {formError && (
-                      <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                      <div className="mx-6 mb-4 flex shrink-0 items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <span>{formError}</span>
                       </div>
                     )}
 
-                    <DialogFooter>
+                    <DialogFooter className="shrink-0 border-t border-zinc-800/70 px-6 py-4">
                       <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="border-zinc-700 text-zinc-300 hover:bg-zinc-900">
                         Cancel
                       </Button>
@@ -1044,7 +1054,17 @@ export default function TaskAssignPage() {
                 pageTasks.map(task => (
                   <div
                     key={task.taskId}
-                    className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-zinc-950/50 rounded-xl border border-zinc-900/60 hover:border-primary/20 transition-colors group"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setInspectTask(task)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        setInspectTask(task)
+                      }
+                    }}
+                    className="flex cursor-pointer flex-col gap-3 rounded-xl border border-zinc-900/60 bg-zinc-950/50 p-4 transition-colors hover:border-primary/35 hover:bg-zinc-900/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:flex-row sm:items-center group"
+                    title="Click to review this task region"
                   >
                     {/* Type badge */}
                     <Badge className={`text-[10px] uppercase font-bold tracking-wider shrink-0 border ${typeColors[task.type] ?? "bg-zinc-800 text-zinc-300"}`}>
@@ -1091,13 +1111,21 @@ export default function TaskAssignPage() {
                       {task.status.replace("_", " ")}
                     </Badge>
 
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-500 transition-colors group-hover:border-primary/40 group-hover:text-primary">
+                      <Eye className="h-3.5 w-3.5" />
+                    </div>
+
                     {/* Cancel (only for pending) */}
                     {task.status === "pending" && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="shrink-0 text-zinc-600 hover:text-destructive hover:bg-destructive/10 w-7 h-7"
-                        onClick={() => handleCancelTask(task.taskId)}
+                        disabled={isSeriesCancelled}
+                        className="shrink-0 text-zinc-600 hover:text-destructive hover:bg-destructive/10 w-7 h-7 disabled:opacity-40 disabled:cursor-not-allowed"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleCancelTask(task.taskId)
+                        }}
                         id={`cancel-task-btn-${task.taskId}`}
                         title="Cancel task"
                       >
@@ -1109,8 +1137,12 @@ export default function TaskAssignPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 shrink-0 border-amber-700/40 bg-amber-950/20 px-3 text-xs font-bold text-amber-300 hover:bg-amber-900/30 hover:text-amber-200"
-                        onClick={() => openReTaskDialog(task)}
+                        disabled={isSeriesCancelled}
+                        className="h-8 shrink-0 border-amber-700/40 bg-amber-950/20 px-3 text-xs font-bold text-amber-300 hover:bg-amber-900/30 hover:text-amber-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          openReTaskDialog(task)
+                        }}
                         id={`retask-btn-${task.taskId}`}
                       >
                         Re-task
@@ -1121,6 +1153,99 @@ export default function TaskAssignPage() {
               )}
             </CardContent>
           </Card>
+
+          <Dialog open={!!inspectTask} onOpenChange={(open) => !open && setInspectTask(null)}>
+            <DialogContent className="flex h-[min(820px,calc(100dvh-2rem))] w-[min(760px,calc(100vw-2rem))] max-w-none flex-col overflow-hidden border-zinc-800 bg-zinc-950 p-0 text-white">
+              <DialogHeader className="shrink-0 border-b border-zinc-800/70 px-6 pb-4 pt-6">
+                <DialogTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5 text-primary" />
+                  Task Region Preview
+                </DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Review the page region assigned to this task.
+                </DialogDescription>
+              </DialogHeader>
+
+              {inspectTask && (
+                <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 text-center">
+                    {selectedPageImageUrl ? (
+                      <div className="relative mx-auto inline-block max-h-[540px] max-w-full overflow-hidden rounded-lg border border-zinc-800 bg-black/50 align-middle">
+                        <img
+                          src={selectedPageImageUrl}
+                          alt={`Page ${selectedPage?.pageNumber}`}
+                          className="block max-h-[540px] max-w-full select-none object-contain"
+                          draggable={false}
+                        />
+                        {inspectTaskHasRegion && (
+                          <div
+                            className="pointer-events-none absolute rounded-md border-2 border-primary bg-primary/20 shadow-[0_0_0_9999px_rgba(0,0,0,0.28),0_0_22px_rgba(20,184,166,0.55)]"
+                            style={{
+                              left: `${inspectTask.regionX}%`,
+                              top: `${inspectTask.regionY}%`,
+                              width: `${inspectTask.regionWidth}%`,
+                              height: `${inspectTask.regionHeight}%`,
+                            }}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex min-h-[340px] items-center justify-center rounded-lg border border-dashed border-zinc-800 text-sm text-zinc-500">
+                        This page does not have an image preview yet.
+                      </div>
+                    )}
+                    {!inspectTaskHasRegion && (
+                      <p className="mt-3 text-xs text-amber-300">
+                        This task does not have a saved region. Create a new task by drag-selecting a page area.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 rounded-xl border border-zinc-850 bg-zinc-900/40 p-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Task</p>
+                      <p className="mt-1 font-bold text-white">{inspectTask.title}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Type</p>
+                      <Badge className={`mt-1 border text-[10px] uppercase font-bold ${typeColors[inspectTask.type] ?? "bg-zinc-800 text-zinc-300"}`}>
+                        {inspectTask.type.replace("_", " ")}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Assigned To</p>
+                      <p className="mt-1 text-zinc-200">{inspectTask.assigneeName || "No assistant"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Due Date</p>
+                      <p className="mt-1 text-zinc-200">
+                        {inspectTask.dueDate
+                          ? new Date(inspectTask.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                          : "Not set"}
+                      </p>
+                    </div>
+                    {inspectTask.description && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Description</p>
+                        <p className="mt-1 text-zinc-300">{inspectTask.description}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="shrink-0 border-t border-zinc-800/70 px-6 py-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setInspectTask(null)}
+                  className="border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900 hover:text-white"
+                >
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <Dialog open={reTaskDialogOpen} onOpenChange={setReTaskDialogOpen}>
             <DialogContent className="bg-zinc-950 border-zinc-800 text-white max-w-md">

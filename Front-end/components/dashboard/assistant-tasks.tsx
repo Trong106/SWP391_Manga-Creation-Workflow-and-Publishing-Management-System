@@ -38,6 +38,12 @@ interface TaskResource {
   imageUrl: string
   seriesTitle?: string
   chapterNumber?: number
+  regionId?: string | null
+  regionType?: string | null
+  regionX?: number | null
+  regionY?: number | null
+  regionWidth?: number | null
+  regionHeight?: number | null
 }
 
 const mockTasks = [
@@ -341,11 +347,27 @@ export function AssistantTasks() {
               <div className="space-y-4">
                 <div className="relative overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2 text-center group">
                   {selectedTaskResource.imageUrl ? (
-                    <img
-                      src={selectedTaskResource.imageUrl.startsWith("http") ? selectedTaskResource.imageUrl : `${API_BASE_URL}${selectedTaskResource.imageUrl}`}
-                      alt="Manga Page Original Preview"
-                      className="mx-auto block max-h-[58vh] max-w-full rounded-lg object-contain"
-                    />
+                    <div className="relative inline-block max-h-[58vh] max-w-full align-middle">
+                      <img
+                        src={selectedTaskResource.imageUrl.startsWith("http") ? selectedTaskResource.imageUrl : `${API_BASE_URL}${selectedTaskResource.imageUrl}`}
+                        alt="Manga Page Original Preview"
+                        className="block max-h-[58vh] max-w-full rounded-lg object-contain"
+                      />
+                      {selectedTaskResource.regionX != null &&
+                        selectedTaskResource.regionY != null &&
+                        selectedTaskResource.regionWidth != null &&
+                        selectedTaskResource.regionHeight != null && (
+                          <div
+                            className="pointer-events-none absolute z-30 rounded-md border-2 border-primary bg-primary/15 shadow-[0_0_22px_rgba(20,184,166,0.6)]"
+                            style={{
+                              left: `${selectedTaskResource.regionX}%`,
+                              top: `${selectedTaskResource.regionY}%`,
+                              width: `${selectedTaskResource.regionWidth}%`,
+                              height: `${selectedTaskResource.regionHeight}%`,
+                            }}
+                          />
+                        )}
+                    </div>
                   ) : (
                     <div className="flex min-h-[320px] flex-col items-center justify-center text-zinc-650">
                       <BookOpen className="w-12 h-12 mb-2 opacity-55 animate-pulse" />

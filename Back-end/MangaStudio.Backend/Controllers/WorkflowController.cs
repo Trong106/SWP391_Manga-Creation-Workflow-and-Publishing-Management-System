@@ -186,6 +186,33 @@ public class WorkflowController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// PUT /api/publish-schedules/{id}/cancel — Hủy lịch xuất bản và trả chapter về trạng thái sẵn sàng.
+    /// </summary>
+    [HttpPut("publish-schedules/{id:guid}/cancel")]
+    [Authorize(Roles = "editorial")]
+    public async Task<IActionResult> CancelPublishSchedule(Guid id)
+    {
+        try
+        {
+            var editorialId = GetCurrentUserId();
+            var result = await _workflowService.CancelPublishSchedule(id, editorialId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
+
     // === Payroll ===
 
     /// <summary>
