@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { useAuth } from "@/lib/auth-context"
 import { API_BASE_URL } from "@/lib/api-config"
@@ -18,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { readJsonOrThrow } from "@/lib/http"
 import {
   Dialog,
   DialogContent,
@@ -71,21 +70,11 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-500/20 text-red-400 border-red-500/30",
 }
 
-const PRELIMINARY_PAGE_PATTERN = /\.(png|jpe?g|psd|clip)$/i
-const MAX_PRELIMINARY_PAGE_SIZE = 50 * 1024 * 1024
-
-const getFileSortName = (file: File) => {
-  const fileWithPath = file as File & { webkitRelativePath?: string }
-  return fileWithPath.webkitRelativePath || file.name
-}
-
 export default function SeriesPage() {
   const { user, token, role, logout } = useAuth()
   const [series, setSeries] = useState<Series[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [isCreatingSeries, setIsCreatingSeries] = useState(false)
-  const createSeriesLockRef = useRef(false)
   
   // Creation form states
   const [newTitle, setNewTitle] = useState("")
@@ -118,27 +107,24 @@ export default function SeriesPage() {
         })
         .then((data) => {
           if (data && Array.isArray(data)) {
-            const canViewProposal = role === "mangaka" || role === "editorial"
-            const mapped = data
-              .map((item: any) => ({
-                id: item.seriesId || item.id,
-                title: item.title,
-                titleJp: item.titleJp || "",
-                genre: item.genres?.join(" / ") || "General",
-                genres: item.genres || [],
-                status: item.status?.toLowerCase() || "proposal",
-                chapters: item.chapterCount ?? item.chapters ?? 0,
-                readers: item.readerCount ?? item.readers ?? 0,
-                rating: item.rating ?? 0,
-                ranking: item.ranking ?? null,
-                riskLevel: item.riskLevel || "normal",
-                riskReason: item.riskReason || null,
-                cancellationReason: item.cancellationReason || null,
-                coverImageUrl: item.coverImageUrl,
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt
-              }))
-              .filter((item) => canViewProposal || item.status !== "proposal")
+            const mapped = data.map((item: any) => ({
+              id: item.seriesId || item.id,
+              title: item.title,
+              titleJp: item.titleJp || "",
+              genre: item.genres?.join(" / ") || "General",
+              genres: item.genres || [],
+              status: item.status?.toLowerCase() || "proposal",
+              chapters: item.chapterCount ?? item.chapters ?? 0,
+              readers: item.readerCount ?? item.readers ?? 0,
+              rating: item.rating ?? 0,
+              ranking: item.ranking ?? null,
+              riskLevel: item.riskLevel || "normal",
+              riskReason: item.riskReason || null,
+              cancellationReason: item.cancellationReason || null,
+              coverImageUrl: item.coverImageUrl,
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt
+            }))
             setSeries(mapped)
           }
           setLoading(false)
@@ -156,32 +142,16 @@ export default function SeriesPage() {
   }, [user?.id, token, role])
 
   const handleCreateSeries = async () => {
-    if (createSeriesLockRef.current || isCreatingSeries || !newTitle.trim() || !token) return
+    if (!newTitle.trim() || !token) return
 
-    const orderedPreliminaryPages = [...preliminaryPages].sort((a, b) =>
-      getFileSortName(a).localeCompare(getFileSortName(b), undefined, { numeric: true, sensitivity: "base" }),
-    )
-    const invalidFile = orderedPreliminaryPages.find((file) => !PRELIMINARY_PAGE_PATTERN.test(file.name))
-    if (invalidFile) {
-      alert(`Unsupported manuscript file: ${invalidFile.name}. Use PNG, JPG, JPEG, PSD, or CLIP files.`)
-      return
-    }
-    const oversizedFile = orderedPreliminaryPages.find((file) => file.size > MAX_PRELIMINARY_PAGE_SIZE)
-    if (oversizedFile) {
-      alert(`Manuscript file is too large: ${oversizedFile.name}. Each file must be 50 MB or smaller.`)
-      return
-    }
-
-    createSeriesLockRef.current = true
-    setIsCreatingSeries(true)
     try {
       const formData = new FormData()
-      formData.append("title", newTitle.trim())
+      formData.append("title", newTitle)
       formData.append("titleJp", newTitleJp)
       formData.append("synopsis", newSynopsis)
       if (newGenre) formData.append("genres", newGenre)
       formData.append("chapterTitle", newChapterTitle || "Chapter 001")
-      orderedPreliminaryPages.forEach((file) => formData.append("preliminaryPages", file))
+      preliminaryPages.forEach((file) => formData.append("preliminaryPages", file))
 
       const res = await fetch(`${API_BASE_URL}/api/series/with-manuscript`, {
         method: "POST",
@@ -191,21 +161,23 @@ export default function SeriesPage() {
         body: formData
       })
 
-      await readJsonOrThrow(res, "Error creating series")
-      setNewTitle("")
-      setNewTitleJp("")
-      setNewSynopsis("")
-      setNewGenre("")
-      setNewChapterTitle("Chapter 001")
-      setPreliminaryPages([])
-      setIsCreateOpen(false)
-      fetchSeries()
+      if (res.ok) {
+        // Clear form
+        setNewTitle("")
+        setNewTitleJp("")
+        setNewSynopsis("")
+        setNewGenre("")
+        setNewChapterTitle("Chapter 001")
+        setPreliminaryPages([])
+        setIsCreateOpen(false)
+        fetchSeries()
+      } else {
+        const errorData = await res.json()
+        alert(errorData.message || "Error creating series")
+      }
     } catch (err) {
       console.error(err)
-      alert(err instanceof Error ? err.message : "Server connection error")
-    } finally {
-      createSeriesLockRef.current = false
-      setIsCreatingSeries(false)
+      alert("Server connection error")
     }
   }
 
@@ -360,13 +332,7 @@ export default function SeriesPage() {
               <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-900" onClick={() => setIsCreateOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleCreateSeries}
-                disabled={isCreatingSeries || !newTitle.trim()}
-              >
-                {isCreatingSeries ? "Creating Series..." : "Create Series"}
-              </Button>
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCreateSeries}>Create Series</Button>
             </DialogFooter>
           </DialogContent>
           </Dialog>
@@ -471,12 +437,11 @@ export default function SeriesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
           {series.map((s) => {
             const coverUrl = getFullCoverUrl(s.coverImageUrl)
-            const isCancelled = s.status === "cancelled"
             return (
               <div
                 key={s.id}
                 onClick={() => handleCardClick(s.id)}
-                className={`group cursor-pointer space-y-2.5 transition-all duration-300 ${isCancelled ? "opacity-55 grayscale hover:grayscale-0 hover:opacity-80" : ""}`}
+                className="group cursor-pointer space-y-2.5"
               >
                 {/* Image Container */}
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Upload, ImageIcon, Folder, ChevronRight, Check, Plus, GripVertical, AlertCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -65,7 +65,6 @@ interface UploadHistoryItem {
 
 const PAGE_FILE_PATTERN = /^page_(\d{3,})\.(png|jpe?g|psd|clip)$/i
 const LOCKED_CHAPTER_STATUSES = new Set(["editorial_ready", "scheduled", "published"])
-const PRODUCTION_SERIES_STATUSES = new Set(["active", "ongoing", "hiatus", "completed"])
 
 export default function UploadPage() {
   const { user, token } = useAuth()
@@ -77,7 +76,6 @@ export default function UploadPage() {
   const [newChapterNumber, setNewChapterNumber] = useState("")
   const [newChapterTitle, setNewChapterTitle] = useState("")
   const [isCreatingChapter, setIsCreatingChapter] = useState(false)
-  const createChapterLockRef = useRef(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [chapterPages, setChapterPages] = useState<ChapterPage[]>([])
   const [uploadHistory, setUploadHistory] = useState<UploadHistoryItem[]>([])
@@ -98,14 +96,12 @@ export default function UploadPage() {
       })
         .then((res) => readJsonOrThrow(res, "Failed to fetch series"))
         .then((data) => {
-          const mapped = data
-            .map((item: any) => ({
-              id: item.id,
-              title: item.title,
-              status: String(item.status ?? "active").toLowerCase(),
-              coverImageUrl: item.coverImageUrl,
-            }))
-            .filter((item: any) => PRODUCTION_SERIES_STATUSES.has(item.status))
+          const mapped = data.map((item: any) => ({
+            id: item.id,
+            title: item.title,
+            status: item.status,
+            coverImageUrl: item.coverImageUrl,
+          }))
           setSeriesList(mapped)
         })
         .catch((err) => console.error("Failed to load series:", err))
@@ -207,7 +203,6 @@ export default function UploadPage() {
 
   // Hàm tạo chương mới qua API
   const handleCreateChapter = async () => {
-    if (createChapterLockRef.current || isCreatingChapter) return
     if (!selectedSeries) {
       toast.error("Please select a series first.")
       return
@@ -222,7 +217,6 @@ export default function UploadPage() {
       return
     }
 
-    createChapterLockRef.current = true
     setIsCreatingChapter(true)
     try {
       const response = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
@@ -273,7 +267,6 @@ export default function UploadPage() {
       console.error("Failed to create chapter:", err)
       toast.error(err.message || "An error occurred while creating the chapter.")
     } finally {
-      createChapterLockRef.current = false
       setIsCreatingChapter(false)
     }
   }
@@ -522,7 +515,7 @@ export default function UploadPage() {
                   <Button
                     className="w-full bg-primary text-primary-foreground"
                     onClick={handleCreateChapter}
-                    disabled={isCreatingChapter || !selectedSeries || !newChapterNumber.trim()}
+                    disabled={isCreatingChapter}
                   >
                     {isCreatingChapter ? "Creating..." : "Create Chapter"}
                   </Button>

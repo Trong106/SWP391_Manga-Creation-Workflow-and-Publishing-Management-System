@@ -168,8 +168,6 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-zinc-900 text-zinc-500",
 }
 
-const PRODUCTION_SERIES_STATUSES = new Set(["active", "ongoing", "hiatus", "completed"])
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TaskAssignPage() {
@@ -222,7 +220,7 @@ export default function TaskAssignPage() {
       const res = await fetch(`${API_BASE_URL}/api/series`, { headers: authHeader })
       if (!res.ok) throw new Error("Failed to load series")
       const data: Series[] = await res.json()
-      setSeries(data.filter((item) => PRODUCTION_SERIES_STATUSES.has(String(item.status ?? "").toLowerCase())))
+      setSeries(data)
     } catch (err) {
       toast.error("Failed to load your series.")
     } finally {
@@ -585,7 +583,6 @@ export default function TaskAssignPage() {
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const selectedSeries = series.find(s => s.seriesId === selectedSeriesId)
-  const isSeriesCancelled = selectedSeries?.status?.toLowerCase() === "cancelled"
   const selectedChapter = chapters.find(c => c.chapterId === selectedChapterId)
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
   const selectedPageImageUrl = getFullImageUrl(selectedPage?.currentImageUrl ?? selectedPage?.imageUrl)
@@ -802,8 +799,7 @@ export default function TaskAssignPage() {
                   <DialogTrigger asChild>
                     <Button
                       size="sm"
-                      disabled={isSeriesCancelled}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold btn-magnetic disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold btn-magnetic"
                       id="add-task-btn"
                     >
                       <Plus className="w-4 h-4 mr-1.5" />
@@ -1031,17 +1027,6 @@ export default function TaskAssignPage() {
             </CardHeader>
 
             <CardContent className="space-y-3">
-              {isSeriesCancelled && (
-                <div className="p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-xs text-red-200 flex items-start gap-2.5 mb-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-sm">Series Cancelled (Read-only Mode)</span>
-                    <p className="mt-1 text-red-300">
-                      This series has been cancelled by the Editorial Board. New tasks cannot be assigned, and existing tasks cannot be cancelled or re-tasked.
-                    </p>
-                  </div>
-                </div>
-              )}
               {!selectedPageId ? (
                 <div className="py-10 text-center text-zinc-500 text-sm flex flex-col items-center gap-3">
                   <Layers className="w-10 h-10 text-zinc-700" />
@@ -1142,7 +1127,7 @@ export default function TaskAssignPage() {
                           handleCancelTask(task.taskId)
                         }}
                         id={`cancel-task-btn-${task.taskId}`}
-                        title={isSeriesCancelled ? "Cannot cancel task of a cancelled series" : "Cancel task"}
+                        title="Cancel task"
                       >
                         <X className="w-3.5 h-3.5" />
                       </Button>
@@ -1159,7 +1144,6 @@ export default function TaskAssignPage() {
                           openReTaskDialog(task)
                         }}
                         id={`retask-btn-${task.taskId}`}
-                        title={isSeriesCancelled ? "Cannot re-task of a cancelled series" : ""}
                       >
                         Re-task
                       </Button>
