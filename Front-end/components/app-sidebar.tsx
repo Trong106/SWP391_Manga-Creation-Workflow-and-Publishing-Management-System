@@ -254,19 +254,19 @@ export function AppSidebar() {
               <Link href="/" className="flex items-center gap-2">
                 <Image
                   src="/logo.png"
-                  alt="MangaFlow Logo"
+                  alt="MangaCreation Logo"
                   width={32}
                   height={32}
                   className="rounded-lg object-contain"
                 />
-                <span className="text-lg font-bold">MangaFlow</span>
+                <span className="text-lg font-bold">MangaCreation</span>
               </Link>
             )}
             {collapsed && (
               <Link href="/" className="mx-auto">
                 <Image
                   src="/logo.png"
-                  alt="MangaFlow Logo"
+                  alt="MangaCreation Logo"
                   width={32}
                   height={32}
                   className="rounded-lg object-contain"

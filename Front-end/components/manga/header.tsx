@@ -17,9 +17,9 @@ export function Header() {
       <div className="flex items-center gap-8">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-accent rounded flex items-center justify-center">
-            <span className="font-bold text-accent-foreground text-sm">MF</span>
+            <span className="font-bold text-accent-foreground text-sm">MC</span>
           </div>
-          <span className="text-xl font-bold tracking-tight">MangaFlow</span>
+          <span className="text-xl font-bold tracking-tight">MangaCreation</span>
         </div>
         <nav className="hidden md:flex items-center gap-6">
           <a href="#" className="text-foreground hover:text-accent transition-colors font-medium">Dashboard</a>
