@@ -182,7 +182,7 @@ export default function AuditPage() {
         </Button>
       </div>
 
-      {/* Filters */}
+      
       <Card className="bg-card border-border">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -227,7 +227,7 @@ export default function AuditPage() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
+      
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Total Events", value: "1,247", period: "This month" },
@@ -245,7 +245,7 @@ export default function AuditPage() {
         ))}
       </div>
 
-      {/* Logs */}
+      
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>

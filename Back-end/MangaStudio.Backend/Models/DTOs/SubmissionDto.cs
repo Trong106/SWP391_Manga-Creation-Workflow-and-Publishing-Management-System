@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
-/// <summary>DTO hiển thị thông tin bài nộp của trợ lý.</summary>
+
 public class TaskSubmissionDto
 {
     public Guid SubmissionId { get; set; }
@@ -17,14 +17,14 @@ public class TaskSubmissionDto
     public DateTime SubmittedAt { get; set; }
 }
 
-/// <summary>DTO trợ lý nộp bài (có thể kèm file).</summary>
+
 public class SubmitTaskDto
 {
     public string? Note { get; set; }
-    // File sẽ được nhận qua IFormFile trong controller
+    
 }
 
-/// <summary>DTO Mangaka duyệt bài nộp của trợ lý.</summary>
+
 public class ReviewSubmissionDto
 {
     [Required]
@@ -34,7 +34,7 @@ public class ReviewSubmissionDto
     public string? Note { get; set; }
 }
 
-/// <summary>DTO hiển thị phiên bản trang (PageVersion).</summary>
+
 public class PageVersionDto
 {
     public Guid PageVersionId { get; set; }

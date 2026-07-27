@@ -82,7 +82,7 @@ export default function SubmitWorkPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   
-  // Form states
+  
   const [file, setFile] = useState<File | null>(null)
   const [note, setNote] = useState<string>("")
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -90,14 +90,14 @@ export default function SubmitWorkPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Fetch tasks assigned to the current Assistant
+  
   const fetchTasks = async (preferredTaskId?: string | null) => {
     if (!user?.id || !token) return
     try {
       setLoading(true)
       setError(null)
       
-      // Fetch assistant's authenticated tasks
+      
       const myTasksRes = await fetch(`${API_BASE_URL}/api/tasks/my-tasks`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -106,7 +106,7 @@ export default function SubmitWorkPage() {
       if (!myTasksRes.ok) throw new Error("Failed to load my-tasks")
       const myTasksData = await myTasksRes.json()
 
-      // Fetch all tasks for series title mapping
+      
       const allTasksRes = await fetch(`${API_BASE_URL}/api/data/tasks`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -117,7 +117,7 @@ export default function SubmitWorkPage() {
         allTasksData = await allTasksRes.json()
       }
 
-      // Merge data
+      
       const merged: Task[] = myTasksData.map((mt: any) => {
         const matchingTask = allTasksData.find((at: any) => at.id === mt.taskId)
         return {
@@ -181,7 +181,7 @@ export default function SubmitWorkPage() {
     void fetchTaskResource()
   }, [selectedTaskId, token])
 
-  // Handlers for drag & drop file selection
+  
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -230,7 +230,7 @@ export default function SubmitWorkPage() {
     }
   }
 
-  // Submit task implementation
+  
   const handleSubmitTask = async () => {
     if (!selectedTask) return
     if (!file) {
@@ -259,7 +259,7 @@ export default function SubmitWorkPage() {
 
       toast.success("Work submitted successfully for review!")
       
-      // Reset form states
+      
       setFile(null)
       setNote("")
       setSelectedTaskId("")
@@ -267,7 +267,7 @@ export default function SubmitWorkPage() {
         fileInputRef.current.value = ""
       }
 
-      // Refresh tasks to update status
+      
       fetchTasks()
     } catch (err: any) {
       console.error(err)
@@ -281,7 +281,7 @@ export default function SubmitWorkPage() {
     toast.success("Draft work saved successfully! (Simulated)")
   }
 
-  // Format task type for user display
+  
   const formatTaskType = (type: string) => {
     return type
       .replace("_", " ")
@@ -290,7 +290,7 @@ export default function SubmitWorkPage() {
       .join(" ")
   }
 
-  // Render access denied for non-assistants
+  
   if (role !== "assistant") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4 max-w-md mx-auto">
@@ -332,7 +332,7 @@ export default function SubmitWorkPage() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-10">
-      {/* Top Selector Bar */}
+      
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-card border border-border rounded-xl">
         <div>
           <h2 className="text-sm font-semibold text-zinc-400">Select Task Assignment</h2>
@@ -368,7 +368,7 @@ export default function SubmitWorkPage() {
 
       {selectedTask && (
         <>
-          {/* Task Header Section */}
+          
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-2">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-3">
@@ -500,14 +500,14 @@ export default function SubmitWorkPage() {
             </Card>
           )}
 
-          {/* Main Layout Grid */}
+          
           <div className="grid grid-cols-12 gap-4 xl:gap-5 items-start">
             
-            {/* Left Column: Upload Form */}
+            
             <div className="col-span-12 xl:col-span-8">
               <div className="grid grid-cols-1 gap-6 items-stretch">
                 
-                {/* Specialized Upload Area */}
+                
                 <Card className="bg-card border-border relative overflow-hidden flex flex-col justify-between h-full">
                   <div className="absolute top-0 right-0 p-6 pointer-events-none opacity-5">
                     <FileUp className="w-32 h-32" />
@@ -522,7 +522,7 @@ export default function SubmitWorkPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
-                    {/* Dashed Drag/Drop Box */}
+                    
                     <div
                       onDragOver={e => !isSeriesCancelled && handleDragOver(e)}
                       onDragLeave={() => !isSeriesCancelled && handleDragLeave()}
@@ -553,7 +553,7 @@ export default function SubmitWorkPage() {
                       </p>
                     </div>
 
-                    {/* Uploaded File Queue */}
+                    
                     {file && (
                       <div className="space-y-2 mt-4">
                         <Label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Upload Queue</Label>
@@ -585,7 +585,7 @@ export default function SubmitWorkPage() {
                   </CardContent>
                 </Card>
 
-                {/* Submission Notes */}
+                
                 <Card className="bg-card border-border">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
@@ -630,7 +630,7 @@ export default function SubmitWorkPage() {
               </Card>
             </div>
 
-            {/* Right Column: Workflow & Reviewer */}
+            
             <div className="col-span-12 xl:col-span-4">
               <Card className="bg-card border-border">
                 <CardHeader className="pb-3">
@@ -640,7 +640,7 @@ export default function SubmitWorkPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  {/* Task Reviewer Info */}
+                  
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Reviewer</span>
@@ -664,15 +664,15 @@ export default function SubmitWorkPage() {
 
                   <div className="border-t border-zinc-900/60 my-2"></div>
 
-                  {/* Workflow State Steps */}
+                  
                   <div className="space-y-3">
                     <span className="text-xs text-zinc-400 font-semibold uppercase tracking-wider block">Workflow Status</span>
                     
                     <div className="relative pl-6 space-y-4">
-                      {/* Timeline Line */}
+                      
                       <div className="absolute left-[9px] top-1.5 bottom-1.5 w-0.5 bg-zinc-850"></div>
 
-                      {/* Step 1 */}
+                      
                       <div className="relative flex gap-2">
                         <div className="absolute -left-6 w-5 h-5 rounded-full bg-primary/25 border border-primary/60 flex items-center justify-center z-10">
                           <Check className="w-3 h-3 text-primary" />
@@ -683,7 +683,7 @@ export default function SubmitWorkPage() {
                         </div>
                       </div>
 
-                      {/* Step 2 */}
+                      
                       <div className="relative flex gap-2">
                         <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
                           selectedTask.status === "in_progress" || selectedTask.status === "pending" || selectedTask.status === "revision"
@@ -704,7 +704,7 @@ export default function SubmitWorkPage() {
                         </div>
                       </div>
 
-                      {/* Step 3 */}
+                      
                       <div className="relative flex gap-2">
                         <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
                           selectedTask.status === "submitted"
@@ -721,7 +721,7 @@ export default function SubmitWorkPage() {
                         </div>
                       </div>
 
-                      {/* Step 4 */}
+                      
                       <div className="relative flex gap-2">
                         <div className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center z-10 border ${
                           selectedTask.status === "approved"

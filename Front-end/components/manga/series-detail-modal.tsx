@@ -27,7 +27,7 @@ interface SeriesDetailModalProps {
   seriesId: string | null
   isOpen: boolean
   onClose: () => void
-  onUpdate?: () => void // Callback to refresh parent list
+  onUpdate?: () => void 
 }
 
 export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: SeriesDetailModalProps) {
@@ -53,7 +53,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     setLoading(true)
     setError(null)
     try {
-      // Fetch series details
+      
       const seriesRes = await fetch(`${API_BASE_URL}/api/series/${seriesId}`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -68,7 +68,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
       setSeries(seriesData)
       setEditedSynopsis(seriesData.synopsis || "")
 
-      // Fetch chapters list
+      
       const chaptersRes = await fetch(`${API_BASE_URL}/api/series/${seriesId}/chapters`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -80,7 +80,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
       }
       if (!chaptersRes.ok) throw new Error("Failed to fetch chapters list")
       const chaptersData = await chaptersRes.json()
-      // Sort descending (highest chapter number first)
+      
       const sortedChapters = [...chaptersData].sort((a, b) => b.chapterNumber - a.chapterNumber)
       setChapters(sortedChapters)
     } catch (err: any) {
@@ -192,7 +192,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
     if (!seriesId || !token) return
     setResubmitting(true)
     try {
-      // If the synopsis was edited, save it first
+      
       if (editedSynopsis !== series?.synopsis) {
         const saveSuccess = await handleSaveSynopsis(true)
         if (!saveSuccess) {
@@ -322,16 +322,16 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
           </div>
         ) : series ? (
           <div className="space-y-6">
-            {/* Breadcrumb */}
+            
             <div className="text-xs text-zinc-400 flex items-center gap-1.5">
               <span>Home</span>
               <span>/</span>
               <span className="text-primary font-medium">{series.title}</span>
             </div>
 
-            {/* Top layout: cover image and metadata */}
+            
             <div className="flex flex-col md:flex-row gap-6">
-              {/* Left column: cover image or upload */}
+              
               <div className="w-full md:w-56 shrink-0 relative group">
                 <div className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-zinc-800 border border-zinc-700 flex items-center justify-center">
                   {series.coverImageUrl ? (
@@ -347,7 +347,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                     </div>
                   )}
 
-                  {/* Overlay Upload dành riêng cho Mangaka */}
+                  
                   {role === "mangaka" && (
                     <label
                       htmlFor="cover-upload"
@@ -374,7 +374,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                 )}
               </div>
 
-              {/* Cột phải: Thông tin chi tiết */}
+              
               <div className="flex-1 space-y-4">
                 <div>
                   <h2 className="text-2xl font-bold text-white leading-tight">{series.title}</h2>
@@ -383,7 +383,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   )}
                 </div>
 
-                {/* Metadata List - Xếp dọc và chỉ hiển thị khi có dữ liệu từ backend API */}
+                
                 <div className="flex flex-col gap-2.5 text-sm border-t border-b border-zinc-800/80 py-4">
                   {series.mangakaName && (
                     <div className="flex items-center gap-2">
@@ -424,7 +424,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   )}
                 </div>
 
-                {/* Genres */}
+                
                 <div className="flex flex-wrap gap-1.5">
                   {series.genres?.map((genre: string) => (
                     <Badge key={genre} variant="secondary" className="bg-zinc-800 text-zinc-300 border-none text-[11px] px-2 py-0.5">
@@ -438,7 +438,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
                   )}
                 </div>
 
-                {/* Khối nút hành động */}
+                
                 <div className="flex flex-wrap gap-3 pt-2">
                   {series.status?.toLowerCase() !== "proposal" && (
                     <Button
@@ -531,7 +531,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
               </div>
             )}
 
-            {/* Series synopsis */}
+            
             <div className="space-y-3 border-t border-zinc-800 pt-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-white flex items-center gap-2">
@@ -575,7 +575,7 @@ export function SeriesDetailModal({ seriesId, isOpen, onClose, onUpdate }: Serie
               )}
             </div>
 
-            {/* Danh sách chương */}
+            
             <div className="space-y-3 border-t border-zinc-800 pt-4">
               <h3 className="text-base font-semibold text-white flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-primary" />

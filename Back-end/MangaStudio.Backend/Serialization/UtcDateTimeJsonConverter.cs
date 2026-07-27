@@ -4,10 +4,10 @@ using System.Text.Json.Serialization;
 
 namespace MangaStudio.Backend.Serialization;
 
-/// <summary>
-/// SQL Server datetime2 does not retain DateTime.Kind. All persisted timestamps in
-/// this application are UTC, so restore that contract at the API boundary.
-/// </summary>
+
+
+
+
 public sealed class UtcDateTimeJsonConverter : JsonConverter<DateTime>
 {
     public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

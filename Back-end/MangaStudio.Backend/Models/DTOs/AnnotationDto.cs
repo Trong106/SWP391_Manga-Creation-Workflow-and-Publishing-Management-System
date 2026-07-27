@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
-/// <summary>DTO hiển thị ghi chú annotation trên trang.</summary>
+
 public class AnnotationDto
 {
     public Guid AnnotationId { get; set; }
@@ -21,7 +21,7 @@ public class AnnotationDto
     public DateTime? ResolvedAt { get; set; }
 }
 
-/// <summary>DTO tạo annotation mới trên trang.</summary>
+
 public class CreateAnnotationDto
 {
     [Required(ErrorMessage = "X coordinate is required.")]
@@ -42,7 +42,7 @@ public class CreateAnnotationDto
     public string Body { get; set; } = null!;
 }
 
-/// <summary>DTO hiển thị nhận xét review (PageReview).</summary>
+
 public class PageReviewDto
 {
     public Guid ReviewId { get; set; }
@@ -54,7 +54,7 @@ public class PageReviewDto
     public DateTime CreatedAt { get; set; }
 }
 
-/// <summary>DTO tạo nhận xét review trang.</summary>
+
 public class CreatePageReviewDto
 {
     [Required(ErrorMessage = "Review decision is required.")]

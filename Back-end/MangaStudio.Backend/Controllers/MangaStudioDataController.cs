@@ -31,7 +31,7 @@ public class MangaStudioDataController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
     }
 
-    // GET api/data/series
+    
     [HttpGet("series")]
     [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetSeriesList()
@@ -153,7 +153,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/series-reader-votes
+    
     [HttpGet("series-reader-votes")]
     [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetSeriesReaderVotes()
@@ -194,7 +194,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/dashboard-metrics?role=mangaka&userId=...
+    
     [HttpGet("dashboard-metrics")]
     [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetDashboardMetrics([FromQuery] string role, [FromQuery] Guid userId)
@@ -224,7 +224,7 @@ public class MangaStudioDataController : ControllerBase
                 var pagesUploaded = await _dbContext.MangaPages
                     .CountAsync(p => p.UploadedById == userId);
 
-                // Count total pages across all series owned by mangaka (for target calculation)
+                
                 var totalSeriesPages = await _dbContext.MangaPages
                     .Where(p => p.Chapter.Series.MangakaId == userId)
                     .CountAsync();
@@ -337,7 +337,7 @@ public class MangaStudioDataController : ControllerBase
         }
     }
 
-    // GET api/data/reader-votes
+    
      [HttpGet("reader-votes")]
      [Authorize(Roles = "editorial")]
      public async Task<IActionResult> GetReaderVotes([FromQuery] int? week, [FromQuery] int? year)
@@ -396,7 +396,7 @@ public class MangaStudioDataController : ControllerBase
          return Ok(result);
      }
 
-    // GET api/data/reader-votes/history
+    
     [HttpGet("reader-votes/history")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> GetReaderVoteHistory([FromQuery] int? year)
@@ -495,7 +495,7 @@ public class MangaStudioDataController : ControllerBase
         });
     }
 
-    // POST api/data/reader-votes
+    
     [HttpPost("reader-votes")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> SaveWeeklyVotes([FromBody] SaveVotesDto dto)
@@ -506,7 +506,7 @@ public class MangaStudioDataController : ControllerBase
         if (dto.Votes == null || !dto.Votes.Any())
             return BadRequest("Votes list cannot be empty.");
 
-        // Remove existing votes for this week and year
+        
         var existingVotes = await _dbContext.ReaderVotes
             .Where(v => v.WeekNumber == dto.WeekNumber && v.YearNumber == dto.YearNumber)
             .ToListAsync();
@@ -516,7 +516,7 @@ public class MangaStudioDataController : ControllerBase
             _dbContext.ReaderVotes.RemoveRange(existingVotes);
         }
 
-        // Order input votes by votes descending to assign rank numbers
+        
         var sortedVotes = dto.Votes.OrderByDescending(v => v.Votes).ToList();
 
         var newVotesList = new List<ReaderVote>();
@@ -537,7 +537,7 @@ public class MangaStudioDataController : ControllerBase
 
         await _dbContext.ReaderVotes.AddRangeAsync(newVotesList);
 
-        // Update the corresponding Series rankings in the Series table to stay in sync
+        
         var seriesList = await _dbContext.Series
             .Where(s => s.Status != "proposal")
             .ToListAsync();
@@ -555,7 +555,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(new { message = "Weekly votes saved successfully." });
     }
 
-    // POST api/data/reader-votes/import
+    
     [HttpPost("reader-votes/import")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> ImportReaderVotes(IFormFile file)
@@ -749,7 +749,7 @@ public class MangaStudioDataController : ControllerBase
         return values;
     }
 
-    // GET api/data/publish-schedule
+    
     [HttpGet("publish-schedule")]
     [Authorize(Roles = "tantou,editorial")]
     public async Task<IActionResult> GetPublishSchedule()
@@ -774,7 +774,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/team
+    
     [HttpGet("team")]
     [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetTeam()
@@ -787,7 +787,7 @@ public class MangaStudioDataController : ControllerBase
 
         var assistantIds = assistants.Select(a => a.UserId).ToList();
 
-        // Batch-load task counts to avoid N+1
+        
         var completedTaskCounts = await _dbContext.Tasks
             .Where(t => assistantIds.Contains(t.AssigneeId!.Value) && t.Status == "approved")
             .GroupBy(t => t.AssigneeId!.Value)
@@ -818,7 +818,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/payroll
+    
     [HttpGet("payroll")]
     [Authorize(Roles = "mangaka,assistant")]
     public async Task<IActionResult> GetPayroll()
@@ -888,7 +888,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/tasks
+    
     [HttpGet("tasks")]
     [Authorize(Roles = "mangaka,assistant,tantou,editorial")]
     public async Task<IActionResult> GetTasks()
@@ -938,7 +938,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/review-series
+    
     [HttpGet("review-series")]
     [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetReviewSeriesList()
@@ -989,7 +989,7 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/data/review-pages?chapterId=...
+    
     [HttpGet("review-pages")]
     [Authorize(Roles = "mangaka,tantou")]
     public async Task<IActionResult> GetReviewPages([FromQuery] Guid? chapterId)
@@ -1061,9 +1061,9 @@ public class MangaStudioDataController : ControllerBase
         return Ok(result);
     }
 
-    // ─── Private helpers ────────────────────────────────────────────────────────
+    
 
-    // GET api/data/chapter-review-queue
+    
     [HttpGet("chapter-review-queue")]
     [Authorize(Roles = "tantou")]
     public async Task<IActionResult> GetChapterReviewQueue()

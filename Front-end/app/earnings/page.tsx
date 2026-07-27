@@ -132,7 +132,7 @@ export default function AssistantEarningsPage() {
     )
   }
 
-  // Financial status computations
+  
   const paidRecords = records.filter(r => r.status.toLowerCase() === "paid")
   const pendingRecords = records.filter(r => r.status.toLowerCase() === "pending" || r.status.toLowerCase() === "processing")
 
@@ -154,7 +154,7 @@ export default function AssistantEarningsPage() {
 
   return (
     <div className="space-y-6 text-white">
-      {/* Header */}
+      
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -167,7 +167,7 @@ export default function AssistantEarningsPage() {
         </div>
       </div>
 
-      {/* Earnings Cards */}
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-6">
@@ -240,7 +240,7 @@ export default function AssistantEarningsPage() {
         </Card>
       </div>
 
-      {/* Pending Payments Section */}
+      
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="text-lg font-bold flex items-center gap-2">
@@ -284,7 +284,7 @@ export default function AssistantEarningsPage() {
         </CardContent>
       </Card>
 
-      {/* Payment History Section */}
+      
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-bold">Payment History</CardTitle>

@@ -95,7 +95,7 @@ export default function ProgressPage() {
 
   return (
     <div className="space-y-8">
-      {/* Page Header */}
+      
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-white">
@@ -162,7 +162,7 @@ export default function ProgressPage() {
                         onClick={() => handleCardClick(series.id)}
                         className="group hover:bg-zinc-900/40 transition-colors duration-250 cursor-pointer text-sm"
                       >
-                        {/* Cover image cell */}
+                        
                         <td className="py-4 px-6">
                           {series.coverImageUrl ? (
                             <div className="w-10 h-14 relative rounded-lg overflow-hidden border border-zinc-800 bg-zinc-950 shadow-inner">
@@ -179,7 +179,7 @@ export default function ProgressPage() {
                           )}
                         </td>
 
-                        {/* Series Title cell */}
+                        
                         <td className="py-4 px-6 font-bold text-zinc-200 group-hover:text-[#00dfc0] transition-colors">
                           <div className="flex flex-col gap-0.5">
                             <span className="text-base line-clamp-1">{series.title}</span>
@@ -189,19 +189,19 @@ export default function ProgressPage() {
                           </div>
                         </td>
 
-                        {/* Status cell */}
+                        
                         <td className="py-4 px-6">
                           <Badge variant="outline" className={`text-xs ${statusColors[series.status] || "bg-secondary text-secondary-foreground"}`}>
                             {series.status ? series.status.charAt(0).toUpperCase() + series.status.slice(1) : "Active"}
                           </Badge>
                         </td>
 
-                        {/* Chapters cell */}
+                        
                         <td className="py-4 px-6 font-semibold text-zinc-300">
                           <span className="text-sm">{series.chapters} chapters</span>
                         </td>
 
-                        {/* Development Progress cell */}
+                        
                         <td className="py-4 px-6">
                           <div className="flex flex-col gap-1.5 w-52">
                             <div className="flex items-center justify-between text-xs">
@@ -215,7 +215,7 @@ export default function ProgressPage() {
                           </div>
                         </td>
 
-                        {/* Active Cycle cell */}
+                        
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-1.5 text-xs text-white">
                             <TrendingUp className="w-3.5 h-3.5 text-success" />
@@ -223,7 +223,7 @@ export default function ProgressPage() {
                           </div>
                         </td>
 
-                        {/* Action cell */}
+                        
                         <td className="py-4 px-6 text-right">
                           <Button
                             variant="ghost"
@@ -248,7 +248,7 @@ export default function ProgressPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Reusable Series Detail Modal */}
+      
       {selectedSeriesId && (
         <SeriesDetailModal
           seriesId={selectedSeriesId}

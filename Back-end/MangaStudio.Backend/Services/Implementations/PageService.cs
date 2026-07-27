@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Triển khai nghiệp vụ quản lý ghi chú (annotation) và đánh giá (review) trang.
-/// </summary>
+
+
+
 public class PageService : IPageService
 {
     private readonly AppDbContext _context;
@@ -22,9 +22,9 @@ public class PageService : IPageService
         _context = context;
     }
 
-    /// <summary>
-    /// Lấy chi tiết thông tin trang truyện.
-    /// </summary>
+    
+    
+    
     public async Task<PageDto> GetPageById(Guid pageId)
     {
         var page = await _context.MangaPages
@@ -58,9 +58,9 @@ public class PageService : IPageService
         };
     }
 
-    /// <summary>
-    /// Lấy danh sách ghi chú (annotation) của trang.
-    /// </summary>
+    
+    
+    
     public async Task<List<AnnotationDto>> GetAnnotations(Guid pageId)
     {
         var page = await _context.MangaPages
@@ -93,9 +93,9 @@ public class PageService : IPageService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Tạo ghi chú (annotation) mới trên trang.
-    /// </summary>
+    
+    
+    
     public async Task<AnnotationDto> CreateAnnotation(Guid pageId, Guid createdById, CreateAnnotationDto dto)
     {
         var page = await _context.MangaPages
@@ -156,9 +156,9 @@ public class PageService : IPageService
         };
     }
 
-    /// <summary>
-    /// Giải quyết ghi chú (resolve annotation).
-    /// </summary>
+    
+    
+    
     public async Task<AnnotationDto> ResolveAnnotation(Guid annotationId, Guid userId)
     {
         var annotation = await _context.PageAnnotations
@@ -225,9 +225,9 @@ public class PageService : IPageService
         await _context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Lấy danh sách review của trang.
-    /// </summary>
+    
+    
+    
     public async Task<List<PageReviewDto>> GetPageReviews(Guid pageId)
     {
         return await _context.PageReviews
@@ -296,10 +296,10 @@ public class PageService : IPageService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Đánh giá trang (PageReview).
-    /// Quyết định có thể là: approved, rejected, revision_requested, needs_revision.
-    /// </summary>
+    
+    
+    
+    
     public async Task<PageReviewDto> CreatePageReview(Guid pageId, Guid reviewerId, CreatePageReviewDto dto)
     {
         var page = await _context.MangaPages
@@ -308,7 +308,7 @@ public class PageService : IPageService
             .FirstOrDefaultAsync(p => p.PageId == pageId)
             ?? throw new KeyNotFoundException($"Trang truyện với ID {pageId} không tồn tại.");
 
-        // Check permission: Phải là Mangaka hoặc Tantou của bộ truyện này
+        
         if (page.Chapter.Series.MangakaId != reviewerId)
         {
             throw new UnauthorizedAccessException("Bạn không có quyền đánh giá trang truyện của bộ truyện này.");
@@ -332,12 +332,12 @@ public class PageService : IPageService
 
         _context.PageReviews.Add(review);
 
-        // Cập nhật trạng thái trang và các task tương ứng dựa trên đánh giá
+        
         if (decision == "approved")
         {
             page.Status = "approved";
 
-            // Cập nhật tất cả tasks chưa hoàn thành của trang này thành approved
+            
             var pageTasks = await _context.Tasks.Where(t => t.PageId == pageId).ToListAsync();
             foreach (var task in pageTasks)
             {
@@ -353,7 +353,7 @@ public class PageService : IPageService
         {
             page.Status = "revision";
 
-            // Cập nhật tất cả tasks đang hoạt động hoặc đã nộp thành revision
+            
             var pageTasks = await _context.Tasks.Where(t => t.PageId == pageId).ToListAsync();
             foreach (var task in pageTasks)
             {
@@ -382,9 +382,9 @@ public class PageService : IPageService
         };
     }
 
-    /// <summary>
-    /// Tạo bình luận mới cho trang.
-    /// </summary>
+    
+    
+    
     public async Task<CommentDto> CreatePageComment(Guid pageId, Guid userId, CreateCommentDto dto)
     {
         var page = await _context.MangaPages.FindAsync(pageId)

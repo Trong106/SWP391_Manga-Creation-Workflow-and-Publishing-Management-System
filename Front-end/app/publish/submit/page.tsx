@@ -109,31 +109,31 @@ export default function SubmitToPublishPage() {
     }
   }
 
-  // Navigation and Selection state
+  
   const [activeView, setActiveView] = useState<"select_series" | "submit_publish">("select_series")
   const [seriesList, setSeriesList] = useState<Series[]>([])
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null)
   
-  // Chapter & Page state
+  
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null)
   const [pages, setPages] = useState<Page[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   
-  // Loading states
+  
   const [loadingSeries, setLoadingSeries] = useState(true)
   const [loadingChapters, setLoadingChapters] = useState(false)
   const [loadingPages, setLoadingPages] = useState(false)
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [publishing, setPublishing] = useState(false)
   
-  // Filter & Search states
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedGenre, setSelectedGenre] = useState<string>("All")
 
-  // Fetch Series list
+  
   const fetchSeries = async () => {
     if (!token) return
     try {
@@ -145,7 +145,7 @@ export default function SubmitToPublishPage() {
       })
       if (!res.ok) throw new Error("Failed to load series")
       const data = await res.json()
-      // Filter out proposals, only show active or completed series for publication
+      
       const activeSeries = data.filter((s: any) => s.status === "active" || s.status === "completed")
       setSeriesList(activeSeries)
     } catch (err: any) {
@@ -156,7 +156,7 @@ export default function SubmitToPublishPage() {
     }
   }
 
-  // Fetch chapters for the selected series
+  
   const fetchChapters = async (seriesId: string) => {
     if (!token) return
     try {
@@ -170,13 +170,13 @@ export default function SubmitToPublishPage() {
       const data = await res.json()
       setChapters(data)
       
-      // Auto-select the latest chapter that needs publishing, or the most recent one
+      
       if (data.length > 0) {
         const pendingPublish = data.find((c: Chapter) => isPendingEditorialApproval(c))
         if (pendingPublish) {
           setSelectedChapterId(pendingPublish.chapterId)
         } else {
-          // Sort by chapter number descending and pick the top one
+          
           const sorted = [...data].sort((a: any, b: any) => b.chapterNumber - a.chapterNumber)
           setSelectedChapterId(sorted[0].chapterId)
         }
@@ -192,7 +192,7 @@ export default function SubmitToPublishPage() {
     }
   }
 
-  // Fetch pages for selected chapter
+  
   const fetchPages = async (chapterId: string) => {
     if (!token) return
     try {
@@ -213,7 +213,7 @@ export default function SubmitToPublishPage() {
     }
   }
 
-  // Fetch tasks to extract collaborator profiles
+  
   const fetchTasksAndCollaborators = async () => {
     if (!token) return
     try {
@@ -260,7 +260,7 @@ export default function SubmitToPublishPage() {
     }
   }, [selectedChapterId, chapters, token])
 
-  // Guard Clause for Authorization
+  
   if (role !== "tantou") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] text-center space-y-4 max-w-md mx-auto">
@@ -296,7 +296,7 @@ export default function SubmitToPublishPage() {
     try {
       setPublishing(true)
 
-      // Submit chapter for publishing review — Editorial Board will approve & schedule separately
+      
       const res = await fetch(`${API_BASE_URL}/api/chapters/${selectedChapterId}/submit`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` }
@@ -319,7 +319,7 @@ export default function SubmitToPublishPage() {
     }
   }
 
-  // Formatting helpers
+  
   const formatReaderCount = (val: number) => {
     if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`
     if (val >= 1000) return `${(val / 1000).toFixed(0)}K`
@@ -332,12 +332,12 @@ export default function SubmitToPublishPage() {
     return `${API_BASE_URL}${path}`
   }
 
-  // Get unique genres list across all series
+  
   const genresSet = new Set<string>()
   seriesList.forEach(s => s.genres.forEach(g => genresSet.add(g)))
   const availableGenres = ["All", ...Array.from(genresSet)]
 
-  // Filter series
+  
   const filteredSeries = seriesList.filter(s => {
     const matchesSearch = s.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (s.titleJp && s.titleJp.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -345,13 +345,13 @@ export default function SubmitToPublishPage() {
     return matchesSearch && matchesGenre
   })
 
-  // Calculations for selected chapter
+  
   const totalPageCount = pages.length
   const approvedPageCount = pages.filter(p => p.status.toLowerCase() === "approved").length
   const validationPassPct = totalPageCount > 0 ? Math.round((approvedPageCount / totalPageCount) * 100) : 0
   const isQCVerified = totalPageCount > 0 && approvedPageCount === totalPageCount
 
-  // Collaborators mapping from actual tasks
+  
   const chapterTasks = tasks.filter(t => 
     selectedSeries && 
     t.seriesTitle === selectedSeries.title && 
@@ -369,7 +369,7 @@ export default function SubmitToPublishPage() {
   return (
     <div className="space-y-6 pb-20 max-w-[1600px] mx-auto text-zinc-100">
       
-      {/* ─── VIEW 1: SELECT SERIES ─── */}
+      
       {activeView === "select_series" && (
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -388,7 +388,7 @@ export default function SubmitToPublishPage() {
             </div>
           </div>
 
-          {/* Filter Bar */}
+          
           <div className="bg-zinc-950/40 p-4 rounded-xl border border-zinc-850 flex flex-wrap items-center gap-4">
             <div className="relative flex-1 min-w-[240px]">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -422,7 +422,7 @@ export default function SubmitToPublishPage() {
             </div>
           </div>
 
-          {/* Series Grid */}
+          
           {loadingSeries ? (
             <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -506,11 +506,11 @@ export default function SubmitToPublishPage() {
         </div>
       )}
 
-      {/* ─── VIEW 2: SUBMIT TO PUBLISH DETAIL ─── */}
+      
       {activeView === "submit_publish" && selectedSeries && (
         <div className="space-y-6 animate-in fade-in duration-300">
           
-          {/* Header section */}
+          
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <nav className="flex items-center gap-1.5 text-xs text-zinc-400 mb-1">
@@ -569,7 +569,7 @@ export default function SubmitToPublishPage() {
             </div>
           </div>
 
-          {/* Chapter Selector Dropdown */}
+          
           <div className="bg-zinc-950/40 p-4 rounded-xl border border-zinc-850 flex items-center gap-4">
             <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider shrink-0">Select Chapter:</span>
             {loadingChapters ? (
@@ -601,10 +601,10 @@ export default function SubmitToPublishPage() {
 
           {selectedChapter ? (
             <div className="space-y-6">
-              {/* Bento Grid layout */}
+              
               <div className="grid grid-cols-12 gap-6">
                 
-                {/* Bento Card 1: Chapter Details */}
+                
                 <div className="col-span-12 lg:col-span-8 bg-zinc-950/40 border border-zinc-850 rounded-xl p-5 relative overflow-hidden flex flex-col md:flex-row gap-5">
                   <div className="absolute top-0 right-0 w-32 h-32 opacity-[0.03] pointer-events-none text-primary">
                     <BookOpen className="w-full h-full" />
@@ -674,7 +674,7 @@ export default function SubmitToPublishPage() {
                   </div>
                 </div>
 
-                {/* Bento Card 2: Publication Summary */}
+                
                 <div className="col-span-12 md:col-span-6 lg:col-span-4 bg-zinc-950/40 border border-zinc-850 rounded-xl p-5 flex flex-col justify-between space-y-6">
                   <div className="space-y-4">
                     <h4 className="font-bold text-sm text-zinc-200 uppercase tracking-wider border-l-2 border-primary pl-2.5 flex items-center gap-2">
@@ -726,7 +726,7 @@ export default function SubmitToPublishPage() {
                   </div>
                 </div>
 
-                {/* Bento Card 3: Collaborators */}
+                
                 <div className="col-span-12 md:col-span-6 lg:col-span-12 bg-zinc-950/40 border border-zinc-850 rounded-xl p-5 space-y-4">
                   <h4 className="font-bold text-sm text-zinc-200 uppercase tracking-wider border-l-2 border-primary pl-2.5 flex items-center gap-2">
                     <Users className="w-4 h-4 text-primary" />
@@ -757,7 +757,7 @@ export default function SubmitToPublishPage() {
                   )}
                 </div>
 
-                {/* Manuscript Pages Proof Grid */}
+                
                 <div className="col-span-12 space-y-4">
                   <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
                     <h4 className="font-bold text-sm text-zinc-200 uppercase tracking-wider flex items-center gap-2">
@@ -830,7 +830,7 @@ export default function SubmitToPublishPage() {
 
               </div>
 
-              {/* Fixed Bottom Action Bar */}
+              
               <div className="fixed bottom-0 right-0 w-full lg:w-[calc(100%-16rem)] bg-zinc-950/90 border-t border-zinc-850 py-4 px-6 flex items-center justify-between backdrop-blur-md z-40 transition-all">
                 <div className="flex items-center gap-3">
                   <div className="flex -space-x-2">
@@ -863,7 +863,7 @@ export default function SubmitToPublishPage() {
                     Return to Series
                   </Button>
 
-                  {/* Only show submit controls if chapter not yet submitted/published */}
+                  
                   {selectedChapter.status.toLowerCase() !== "published" &&
                    !isPendingEditorialApproval(selectedChapter) && (
                     <Button
@@ -890,7 +890,7 @@ export default function SubmitToPublishPage() {
                     </Button>
                   )}
 
-                  {/* Pending approval state */}
+                  
                   {isPendingEditorialApproval(selectedChapter) && (
                     <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-950/30 border border-amber-800/40 rounded-lg">
                       <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
@@ -901,7 +901,7 @@ export default function SubmitToPublishPage() {
                     </div>
                   )}
 
-                  {/* Published state */}
+                  
                   {selectedChapter.status.toLowerCase() === "published" && (
                     <div className="flex items-center gap-2 px-5 py-2.5 bg-primary/10 border border-primary/30 rounded-lg">
                       <CheckCircle2 className="w-3.5 h-3.5 text-primary" />

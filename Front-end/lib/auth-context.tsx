@@ -5,7 +5,7 @@ import type { User, UserRole } from "@/lib/types"
 
 import { API_BASE_URL, readJson } from "@/lib/api-config"
 
-// Thông tin tài khoản mẫu
+
 const mockUsers: Record<UserRole, { name: string; email: string; avatar: string; id: string }> = {
   mangaka: {
     id: "11111111-1111-1111-1111-111111111111",
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Khôi phục phiên đăng nhập từ LocalStorage
+  
   useEffect(() => {
     const savedRole = localStorage.getItem("auth_role") as UserRole | null
     const savedToken = localStorage.getItem("auth_token")
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }, [])
 
-  // Hàm gọi API Đăng nhập thật ở Backend
+  
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: true }
       }
 
-      // Try to parse the specific error message from the backend
+      
       try {
         const errorData = await readJson<any>(res)
         if (errorData?.message) {
@@ -121,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Đăng xuất và xóa session
+  
   const logout = () => {
     setToken(null)
     setUser(null)
@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("auth_user")
   }
 
-  // Hỗ trợ đổi nhanh vai trò (Demo Switcher) bằng cách đăng nhập ngầm tài khoản tương ứng
+  
   const setRole = async (newRole: UserRole) => {
     const mockUser = mockUsers[newRole]
     await login(mockUser.email, "123456")

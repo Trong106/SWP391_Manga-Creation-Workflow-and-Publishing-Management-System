@@ -27,7 +27,7 @@ export function ProjectList() {
       .then((res) => readJson<any[]>(res))
       .then((data) => {
         if (Array.isArray(data)) {
-          // Sort by latest update first for the new series list.
+          
           const sorted = [...data].sort(
             (a, b) => parseApiDateTime(b.updatedAtRaw)!.getTime() - parseApiDateTime(a.updatedAtRaw)!.getTime()
           )
@@ -86,7 +86,7 @@ export function ProjectList() {
                   onClick={() => handleCardClick(project.id)}
                   className="group cursor-pointer space-y-2.5"
                 >
-                {/* Image Container */}
+                
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                   {project.coverImageUrl ? (
                     <img
@@ -101,18 +101,18 @@ export function ProjectList() {
                     </div>
                   )}
 
-                  {/* Time Badge top-left */}
+                  
                   <div className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded bg-[#000000]/70 text-white font-medium border border-zinc-800/40 keep-white">
                     {updatedTime}
                   </div>
 
-                  {/* Rating or Bookmark top-right */}
+                  
                   <div className="absolute top-2 right-2 p-1.5 rounded-full bg-[#000000]/60 text-white/90 hover:text-yellow-500 hover:bg-[#000000]/80 transition-colors">
                     <Bookmark className="w-3.5 h-3.5" />
                   </div>
                 </div>
 
-                {/* Info */}
+                
                 <div className="space-y-1">
                   <h4 className="font-semibold text-sm truncate text-zinc-100 group-hover:text-primary transition-colors leading-tight">
                     {project.title}
@@ -131,7 +131,7 @@ export function ProjectList() {
         </div>
       )}
 
-      {/* Series Detail Modal */}
+      
       {selectedSeriesId && (
         <SeriesDetailModal
           seriesId={selectedSeriesId}

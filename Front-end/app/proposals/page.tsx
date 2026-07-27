@@ -107,13 +107,13 @@ export default function ProposalsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Filter and Sort states
+  
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [genreFilter, setGenreFilter] = useState("all")
   const [sortBy, setSortBy] = useState("date_desc")
 
-  // Review Dialog states
+  
   const [selectedProposal, setSelectedProposal] = useState<Proposal | null>(null)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const [reviewFeedback, setReviewFeedback] = useState("")
@@ -259,12 +259,12 @@ export default function ProposalsPage() {
     return `${API_BASE_URL}${path}`
   }
 
-  // Get list of unique genres from actual database records
+  
   const uniqueGenres = Array.from(
     new Set(proposals.flatMap((p) => p.seriesGenres))
   ).filter(Boolean)
 
-  // Filter and sort computation
+  
   const filteredProposals = proposals.filter((p) => {
     const matchesSearch = p.seriesTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.submittedByName.toLowerCase().includes(searchQuery.toLowerCase())
@@ -291,7 +291,7 @@ export default function ProposalsPage() {
     return 0
   })
 
-  // Summary Metrics
+  
   const pendingCount = proposals.filter((p) => p.status.toLowerCase() === "submitted").length
   const approvedCount = proposals.filter((p) => p.status.toLowerCase() === "approved").length
   const rejectedCount = proposals.filter((p) => p.status.toLowerCase() === "rejected").length
@@ -300,7 +300,7 @@ export default function ProposalsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white flex items-center gap-2">
@@ -313,7 +313,7 @@ export default function ProposalsPage() {
         </div>
       </div>
 
-      {/* Database Metrics Stats */}
+      
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-[#1e2022] border-zinc-800">
           <CardContent className="p-4 flex items-center gap-3">
@@ -361,9 +361,9 @@ export default function ProposalsPage() {
         </Card>
       </div>
 
-      {/* Filter and Sort controls */}
+      
       <div className="bg-[#1e2022] border border-zinc-800 rounded-xl p-4 flex flex-wrap items-center gap-4">
-        {/* Search */}
+        
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <Input
@@ -374,14 +374,14 @@ export default function ProposalsPage() {
           />
         </div>
 
-        {/* Filter controls */}
+        
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-1.5 text-xs text-zinc-400 uppercase tracking-wider font-semibold">
             <Filter className="w-3.5 h-3.5" />
             Filters:
           </div>
 
-          {/* Status Select */}
+          
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[150px] bg-zinc-900 border-zinc-800 text-white">
               <SelectValue placeholder="Status: All" />
@@ -394,7 +394,7 @@ export default function ProposalsPage() {
             </SelectContent>
           </Select>
 
-          {/* Genre Select */}
+          
           <Select value={genreFilter} onValueChange={setGenreFilter}>
             <SelectTrigger className="w-[150px] bg-zinc-900 border-zinc-800 text-white">
               <SelectValue placeholder="Genre: All" />
@@ -407,7 +407,7 @@ export default function ProposalsPage() {
             </SelectContent>
           </Select>
 
-          {/* Sort Select */}
+          
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-[180px] bg-zinc-900 border-zinc-800 text-white">
               <SelectValue placeholder="Sort by" />
@@ -423,7 +423,7 @@ export default function ProposalsPage() {
         </div>
       </div>
 
-      {/* Grid List */}
+      
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 border border-zinc-800 rounded-lg bg-[#1e2022]">
           <Loader2 className="w-10 h-10 animate-spin text-[#00dfc0] mb-3" />
@@ -461,7 +461,7 @@ export default function ProposalsPage() {
 
             return (
               <Card key={proposal.proposalId} className="bg-[#1e2022] border-zinc-800 overflow-hidden flex flex-col md:flex-row">
-                {/* Cover Image */}
+                
                 <div className="md:w-56 shrink-0 aspect-[3/4] md:aspect-auto relative bg-zinc-900 border-r border-zinc-800/50 flex items-center justify-center">
                   {proposal.coverImageUrl ? (
                     <img
@@ -483,10 +483,10 @@ export default function ProposalsPage() {
                   )}
                 </div>
 
-                {/* Details Content */}
+                
                 <div className="p-6 flex-1 flex flex-col justify-between">
                   <div className="space-y-4">
-                    {/* Title and Badges */}
+                    
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="text-xl font-bold text-white leading-tight">
@@ -501,7 +501,7 @@ export default function ProposalsPage() {
                       </Badge>
                     </div>
 
-                    {/* Genres */}
+                    
                     <div className="flex flex-wrap gap-1.5">
                       {proposal.seriesGenres.length > 0 ? (
                         proposal.seriesGenres.map((g) => (
@@ -516,12 +516,12 @@ export default function ProposalsPage() {
                       )}
                     </div>
 
-                    {/* Synopsis */}
+                    
                     <p className="text-sm text-zinc-300 leading-relaxed font-normal line-clamp-3">
                       {stripHtml(proposal.seriesSynopsis) || "No synopsis available for this series."}
                     </p>
 
-                    {/* Database Specs Row */}
+                    
                     <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 text-xs text-zinc-400 border-t border-zinc-800/40">
                       <span className="flex items-center gap-1.5">
                         <Users className="w-4 h-4 text-zinc-500" />
@@ -539,7 +539,7 @@ export default function ProposalsPage() {
                       </span>
                     </div>
 
-                    {/* Review Board Panel (If Reviewed) */}
+                    
                     {proposal.reviewedById && (
                       <div className="mt-4 p-4 rounded-lg bg-zinc-900/60 border border-zinc-800/80 space-y-2 text-sm">
                         <div className="flex items-center justify-between text-xs text-zinc-400">
@@ -564,7 +564,7 @@ export default function ProposalsPage() {
                     )}
                   </div>
 
-                  {/* Actions footer */}
+                  
                   {proposal.status.toLowerCase() === "submitted" && (
                     <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-zinc-800/50">
                       <Button
@@ -582,7 +582,7 @@ export default function ProposalsPage() {
         </div>
       )}
 
-      {/* Review Dialog */}
+      
       <Dialog open={isReviewOpen} onOpenChange={(open) => !open && handleCloseReview()}>
         <DialogContent className="bg-[#18181b] text-white border-zinc-800 sm:max-w-[480px]">
           <DialogHeader>
