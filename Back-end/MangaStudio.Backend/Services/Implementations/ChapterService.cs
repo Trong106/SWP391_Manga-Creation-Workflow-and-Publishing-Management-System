@@ -14,9 +14,9 @@ using System.Text.RegularExpressions;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Triển khai các nghiệp vụ quản lý chương truyện.
-/// </summary>
+
+
+
 public class ChapterService : IChapterService
 {
     private readonly AppDbContext _context;
@@ -30,10 +30,10 @@ public class ChapterService : IChapterService
         _storageService = storageService;
     }
 
-    /// <summary>
-    /// Tạo chương mới trong một bộ truyện.
-    /// Business Rule: ChapterNumber phải là duy nhất trong Series.
-    /// </summary>
+    
+    
+    
+    
     public async Task<ChapterDto> CreateChapter(Guid seriesId, Guid mangakaId, CreateChapterDto dto)
     {
         var series = await _context.Series.FindAsync(seriesId)
@@ -83,9 +83,9 @@ public class ChapterService : IChapterService
         }
     }
 
-    /// <summary>
-    /// Lấy thông tin chi tiết một chương truyện.
-    /// </summary>
+    
+    
+    
     public async Task<ChapterDto> GetChapterById(Guid chapterId)
     {
         var chapter = await _context.Chapters
@@ -100,9 +100,9 @@ public class ChapterService : IChapterService
         return MapToDto(chapter);
     }
 
-    /// <summary>
-    /// Cập nhật thông tin chương truyện.
-    /// </summary>
+    
+    
+    
     public async Task<ChapterDto> UpdateChapter(Guid chapterId, Guid mangakaId, UpdateChapterDto dto)
     {
         var chapter = await _context.Chapters
@@ -130,9 +130,9 @@ public class ChapterService : IChapterService
         return await GetChapterById(chapter.ChapterId);
     }
 
-    /// <summary>
-    /// Lấy danh sách trang của chương.
-    /// </summary>
+    
+    
+    
     public async Task<List<PageDto>> GetPagesByChapter(Guid chapterId)
     {
         var pages = await _context.MangaPages
@@ -140,7 +140,7 @@ public class ChapterService : IChapterService
             .Include(p => p.UploadedBy)
             .Include(p => p.PageAnnotations)
                 .ThenInclude(a => a.CreatedBy)
-            .Include(p => p.PageRegions) // used for counting tasks
+            .Include(p => p.PageRegions) 
             .Include(p => p.PageVersions)
             .OrderBy(p => p.PageNumber)
             .ToListAsync();
@@ -177,12 +177,12 @@ public class ChapterService : IChapterService
             .ToList();
     }
 
-    /// <summary>
-    /// Upload nhiều trang cùng lúc dưới dạng ảnh (.PNG, .JPG, .JPEG) hoặc file gốc (.PSD, .CLIP).
-    /// Business Rule:
-    /// - Dung lượng tối đa 50MB/file.
-    /// - Tự động tạo số trang (PageNumber) theo thứ tự tăng dần, thread-safe.
-    /// </summary>
+    
+    
+    
+    
+    
+    
     public async Task<UploadPagesResponseDto> UploadPages(Guid chapterId, List<IFormFile> files, Guid uploadedById)
     {
         if (files == null || files.Count == 0)
@@ -211,7 +211,7 @@ public class ChapterService : IChapterService
         }
 
         var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".psd", ".clip" };
-        var maxFileSize = 50 * 1024 * 1024; // 50 MB
+        var maxFileSize = 50 * 1024 * 1024; 
         var pageNamePattern = new Regex(@"^page_(\d{3,})$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         var orderedFiles = files
             .Select(file => new
@@ -269,7 +269,7 @@ public class ChapterService : IChapterService
 
         var resultDto = new UploadPagesResponseDto();
 
-        // Sử dụng SemaphoreSlim để đảm bảo PageNumber tăng dần thread-safe
+        
         await _uploadLock.WaitAsync();
         try
         {
@@ -290,7 +290,7 @@ public class ChapterService : IChapterService
                     throw new ArgumentException($"Page mới tiếp theo phải bắt đầu từ page_{nextNewPageNumber:D3}.");
                 }
 
-                // Tải hình vẽ trang truyện lên Cloudinary
+                
                 var imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
                 if (page != null)
@@ -389,9 +389,9 @@ public class ChapterService : IChapterService
         return normalizedStatus is "editorial_ready" or "scheduled" or "published";
     }
 
-    /// <summary>
-    /// Xóa một trang khỏi chương truyện.
-    /// </summary>
+    
+    
+    
     public async System.Threading.Tasks.Task DeletePage(Guid pageId, Guid mangakaId)
     {
         var page = await _context.MangaPages
@@ -410,7 +410,7 @@ public class ChapterService : IChapterService
             throw new InvalidOperationException("Cannot delete pages from a cancelled series.");
         }
 
-        // Xóa các dữ liệu liên quan
+        
         var annotations = _context.PageAnnotations.Where(a => a.PageId == pageId);
         _context.PageAnnotations.RemoveRange(annotations);
 
@@ -424,10 +424,10 @@ public class ChapterService : IChapterService
         await _context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Nộp chương truyện để xem xét xuất bản.
-    /// Business Rule: Phải có ít nhất 1 trang mới được nộp.
-    /// </summary>
+    
+    
+    
+    
     public async Task<ChapterDto> SubmitChapterForPublishing(Guid chapterId, Guid mangakaId)
     {
         var chapter = await _context.Chapters
@@ -593,8 +593,8 @@ public class ChapterService : IChapterService
             return;
         }
 
-        // If a page was revised, a Mangaka may create a replacement task for the
-        // same assistant/page/type. Only the latest approved task should be paid.
+        
+        
         var payableTasks = approvedTasks
             .GroupBy(t => new { t.AssigneeId, t.PageId, Type = t.Type.ToLower() })
             .Select(g => g.OrderByDescending(t => t.UpdatedAt).ThenByDescending(t => t.CreatedAt).First())

@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 
-// Định nghĩa danh sách tính năng theo từng vai trò 
+
 const ROLE_INFO: Record<string, { name: string; desc: string; metrics: { title: string; val: string; change: string; icon: string }[] }> = {
   mangaka: {
     name: 'Yuki Tanaka (Mangaka)',
@@ -104,7 +104,7 @@ export default function Dashboard() {
   const [selectedStage, setSelectedStage] = useState<string | null>(null)
   const [tasks, setTasks] = useState<any[]>([])
 
-  // Task creation states
+  
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -119,7 +119,7 @@ export default function Dashboard() {
   const [dueDate, setDueDate] = useState("")
   const [paymentAmount, setPaymentAmount] = useState<string>("0")
 
-  // Options lists
+  
   const [seriesList, setSeriesList] = useState<any[]>([])
   const [chaptersList, setChaptersList] = useState<any[]>([])
   const [pagesList, setPagesList] = useState<any[]>([])
@@ -129,7 +129,7 @@ export default function Dashboard() {
     setTaskTitle("")
     setTaskDescription("")
     
-    // Map stage.id to task type
+    
     let type = "line_art"
     if (initialStageId === "storyboard") type = "line_art"
     if (initialStageId === "penciling") type = "line_art"
@@ -146,7 +146,7 @@ export default function Dashboard() {
     setPaymentAmount("0")
     setFormError(null)
 
-    // Pre-fetch lists
+    
     fetchSeriesList()
     fetchAssistantsList()
 
@@ -279,7 +279,7 @@ export default function Dashboard() {
       })
       .then(() => {
         setIsTaskDialogOpen(false)
-        fetchTasks() // Refresh task counts and details!
+        fetchTasks() 
       })
       .catch((err) => {
         console.error("Error creating task:", err)
@@ -307,7 +307,7 @@ export default function Dashboard() {
     fetchTasks()
   }, [token])
 
-  // Fetch metrics
+  
   useEffect(() => {
     if (role && user?.id && authHeader) {
       fetch(`${API_BASE_URL}/api/data/dashboard-metrics?role=${role}&userId=${user.id}`, { headers: authHeader })
@@ -330,7 +330,7 @@ export default function Dashboard() {
     return count.toLocaleString()
   }
 
-  // Fetch top series by the latest weekly reader vote survey
+  
   const fetchTopSeries = () => {
     if (!authHeader) return
 
@@ -351,14 +351,14 @@ export default function Dashboard() {
     fetchTopSeries()
   }, [token])
 
-  // Auto-scroll effect for the top series row.
+  
   useEffect(() => {
     if (topSeries.length === 0) return
     const el = scrollRef.current
     if (!el) return
 
     const interval = setInterval(() => {
-      const cardWidth = 160 + 16 // card width: 160px + gap: 16px
+      const cardWidth = 160 + 16 
       if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 10) {
         el.scrollTo({ left: 0, behavior: "smooth" })
       } else {
@@ -392,7 +392,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-w-0 max-w-full space-y-8 overflow-hidden">
-      {/* Header */}
+      
       <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -404,7 +404,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Production Pipeline Filter Button */}
+        
         <div className="relative shrink-0">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -458,7 +458,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top series row */}
+      
       <div className="min-w-0 space-y-3 overflow-hidden">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           🔥 Top Series
@@ -475,12 +475,12 @@ export default function Dashboard() {
                 onClick={() => handleCardClick(project.id)}
                 className="w-40 shrink-0 group cursor-pointer space-y-2 relative"
               >
-                {/* Ranking tag */}
+                
                 <div className="absolute top-2 left-2 z-10 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-black shadow-lg">
                   Top {idx + 1}
                 </div>
 
-                {/* Cover container */}
+                
                 <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                   {project.coverImageUrl ? (
                     <img
@@ -495,13 +495,13 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* Bookmark tag */}
+                  
                   <div className="absolute top-2 right-2 p-1.5 rounded-full bg-[#000000]/60 text-white/90 hover:text-yellow-500 hover:bg-[#000000]/80 transition-colors">
                     <Bookmark className="w-3 h-3" />
                   </div>
                 </div>
 
-                {/* Text info */}
+                
                 <div className="space-y-0.5">
                   <h4 className="font-semibold text-sm truncate text-zinc-100 group-hover:text-primary transition-colors leading-tight">
                     {project.title}
@@ -523,12 +523,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* New series row */}
+      
       <div className="border-t border-zinc-800/80 pt-6">
         <NewMangaGrid />
       </div>
 
-      {/* Metrics Section */}
+      
       <div className="border-t border-zinc-800/80 pt-6 space-y-4">
         <h3 className="text-lg font-semibold text-white">Studio Performance Indicators</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -538,12 +538,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Activity Logs */}
+      
       <div className="border-t border-zinc-800/80 pt-6">
         <RecentActivity />
       </div>
 
-      {/* Reusable Series Detail Modal */}
+      
       {selectedSeriesId && (
         <SeriesDetailModal
           seriesId={selectedSeriesId}
@@ -556,13 +556,13 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Side Drawer for Pipeline Tasks */}
+      
       <div
         className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[450px] bg-[#121214] border-l border-zinc-850 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
           isDrawerOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Drawer Header */}
+        
         <div className="flex items-center justify-between p-5 border-b border-zinc-800/60 shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="text-xl">
@@ -596,7 +596,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Drawer Content */}
+        
         <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin">
           {tasks.filter(t => getStageIdFromTaskType(t.type) === selectedStage).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-zinc-500 text-center">
@@ -617,7 +617,7 @@ export default function Dashboard() {
             tasks
               .filter(t => getStageIdFromTaskType(t.type) === selectedStage)
               .map((t) => {
-                // Priority mapping
+                
                 let priority: "low" | "medium" | "high" = "medium"
                 if (t.status === "revision" || t.status === "rejected") {
                   priority = "high"
@@ -631,7 +631,7 @@ export default function Dashboard() {
                   high: "bg-red-500/15 text-red-400 border-red-500/10",
                 }
 
-                // Progress mapping
+                
                 const progressMap: Record<string, number> = {
                   pending: 10,
                   in_progress: 50,
@@ -642,7 +642,7 @@ export default function Dashboard() {
                 }
                 const progress = progressMap[t.status.toLowerCase()] || 0
 
-                // Format date
+                
                 const formatDueDate = (dateStr?: string) => {
                   if (!dateStr || dateStr === "TBD") return "TBD"
                   try {
@@ -704,7 +704,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Drawer Backdrop */}
+      
       {isDrawerOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
@@ -712,7 +712,7 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Task Creation Dialog */}
+      
       <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
         <DialogContent className="max-w-md bg-zinc-900 border-zinc-800 text-white">
           <DialogHeader>

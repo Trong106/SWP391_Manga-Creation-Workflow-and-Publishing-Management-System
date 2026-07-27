@@ -6,33 +6,33 @@ using MangaStudio.Backend.Services.Interfaces;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Dịch vụ triển khai các nghiệp vụ liên quan đến vai trò Mangaka (Tác giả).
-/// </summary>
+
+
+
 public class MangakaService : IMangakaService
 {
     private readonly AppDbContext _context;
     private readonly IStorageService _storageService;
 
-    // Dependency Injection: Nhận database context của ứng dụng và storage service
+    
     public MangakaService(AppDbContext context, IStorageService storageService)
     {
         _context = context;
         _storageService = storageService;
     }
 
-    /// <summary>
-    /// Lấy thống kê dữ liệu trang Dashboard bao gồm: Tổng số Series và tổng số trợ lý.
-    /// </summary>
-    /// <param name="mangakaId">ID định danh Mangaka.</param>
-    /// <returns>DashboardStatsDto chứa tổng số Series và số trợ lý.</returns>
+    
+    
+    
+    
+    
     public async Task<DashboardStatsDto> GetDashboardStats(Guid mangakaId)
     {
-        // Đếm số lượng bộ truyện (Series) thuộc quyền sở hữu của Mangaka này
+        
         int totalSeries = await _context.Series
             .CountAsync(x => x.MangakaId == mangakaId);
 
-        // Đếm số trợ lý phân biệt đã nhận task từ Mangaka này
+        
         int totalAssistants = await _context.Tasks
             .Where(t => t.AssignerId == mangakaId && t.AssigneeId != null)
             .Select(t => t.AssigneeId!.Value)
@@ -46,11 +46,11 @@ public class MangakaService : IMangakaService
         };
     }
 
-    /// <summary>
-    /// Lấy danh sách các bộ truyện (Series) do Mangaka này sáng tác.
-    /// </summary>
-    /// <param name="mangakaId">ID định danh Mangaka.</param>
-    /// <returns>Danh sách bộ truyện dạng MangaSeriesDto.</returns>
+    
+    
+    
+    
+    
     public async Task<List<MangaSeriesDto>> GetSeries(Guid mangakaId)
     {
         return await _context.Series
@@ -59,19 +59,19 @@ public class MangakaService : IMangakaService
             {
                 Id = x.SeriesId,
                 Title = x.Title,
-                Description = x.Synopsis, // Synopsis ánh xạ thành Description của DTO
+                Description = x.Synopsis, 
                 CoverImageUrl = x.CoverImageUrl,
                 Status = x.Status
             })
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Tải hình vẽ trang truyện lên server và lưu thông tin vào database.
-    /// </summary>
-    /// <param name="chapterId">ID Chapter truyện chứa trang vẽ này.</param>
-    /// <param name="file">Tệp ảnh vẽ tải lên từ máy khách.</param>
-    /// <returns>Đường dẫn URL của trang vẽ đã upload.</returns>
+    
+    
+    
+    
+    
+    
     public async Task<string> UploadPage(Guid chapterId, IFormFile file, Guid uploadedById, int? pageNumber = null)
     {
         var chapter = await _context.Chapters
@@ -83,27 +83,27 @@ public class MangakaService : IMangakaService
             throw new InvalidOperationException("Cannot upload pages for a cancelled series.");
         }
 
-        // 1. Tải hình vẽ trang truyện lên Cloudinary
+        
         string imageUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Pages");
 
         MangaPage? mangaPage = null;
 
         if (pageNumber.HasValue)
         {
-            // Kiểm tra xem trang với số trang đó đã tồn tại trong chapter chưa
+            
             mangaPage = await _context.MangaPages
                 .FirstOrDefaultAsync(p => p.ChapterId == chapterId && p.PageNumber == pageNumber.Value);
         }
 
         if (mangaPage != null)
         {
-            // Nếu đã tồn tại, cập nhật CurrentImageUrl và thông tin liên quan
+            
             mangaPage.CurrentImageUrl = imageUrl;
             mangaPage.UploadedAt = DateTime.UtcNow;
             mangaPage.UploadedById = uploadedById;
-            mangaPage.Status = "pending"; // Đặt về pending để review lại bản thảo mới
+            mangaPage.Status = "pending"; 
 
-            // Lấy VersionNumber lớn nhất hiện tại của trang này và tạo một PageVersion mới
+            
             var maxVer = await _context.PageVersions
                 .Where(v => v.PageId == mangaPage.PageId)
                 .Select(v => (int?)v.VersionNumber)
@@ -127,7 +127,7 @@ public class MangakaService : IMangakaService
         }
         else
         {
-            // Nếu chưa tồn tại (hoặc không truyền pageNumber), tạo trang mới
+            
             int targetPageNumber;
             if (pageNumber.HasValue)
             {
@@ -135,7 +135,7 @@ public class MangakaService : IMangakaService
             }
             else
             {
-                // Tự động tìm số trang tiếp theo
+                
                 int maxPageNumber = await _context.MangaPages
                     .Where(p => p.ChapterId == chapterId)
                     .Select(p => (int?)p.PageNumber)

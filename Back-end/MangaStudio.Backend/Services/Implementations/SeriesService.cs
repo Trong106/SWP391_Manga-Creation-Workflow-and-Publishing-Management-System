@@ -11,9 +11,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Triển khai các nghiệp vụ quản lý bộ truyện (Series).
-/// </summary>
+
+
+
 public class SeriesService : ISeriesService
 {
     private readonly AppDbContext _context;
@@ -24,9 +24,9 @@ public class SeriesService : ISeriesService
         _context = context;
     }
 
-    /// <summary>
-    /// Lấy danh sách bộ truyện do Mangaka này sở hữu.
-    /// </summary>
+    
+    
+    
     public async Task<List<SeriesDto>> GetSeriesByMangaka(Guid mangakaId)
     {
         var list = await _context.Series
@@ -65,9 +65,9 @@ public class SeriesService : ISeriesService
         return list.Select(s => MapToDto(s)).ToList();
     }
 
-    /// <summary>
-    /// Lấy chi tiết một bộ truyện theo ID.
-    /// </summary>
+    
+    
+    
     public async Task<SeriesDto> GetSeriesById(Guid seriesId, Guid requestUserId)
     {
         var series = await _context.Series
@@ -82,10 +82,10 @@ public class SeriesService : ISeriesService
         return MapToDto(series);
     }
 
-    /// <summary>
-    /// Tạo bộ truyện mới. Đồng thời tự động tạo SeriesProposal với trạng thái 'submitted'.
-    /// Business Rule: Status mặc định khi tạo mới là 'proposal'.
-    /// </summary>
+    
+    
+    
+    
     public async Task<SeriesDto> CreateSeries(Guid mangakaId, CreateSeriesDto dto)
     {
         var normalizedTitle = dto.Title.Trim();
@@ -109,7 +109,7 @@ public class SeriesService : ISeriesService
                 Title = normalizedTitle,
                 TitleJp = dto.TitleJp,
                 Synopsis = dto.Synopsis,
-                Status = "proposal", // BR-Series
+                Status = "proposal", 
                 MangakaId = mangakaId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -129,7 +129,7 @@ public class SeriesService : ISeriesService
 
             _context.Series.Add(series);
 
-            // Tạo đề xuất series trong database
+            
             var proposal = new SeriesProposal
             {
                 ProposalId = Guid.NewGuid(),
@@ -142,12 +142,12 @@ public class SeriesService : ISeriesService
 
             _context.SeriesProposals.Add(proposal);
 
-            // Lấy ra duy nhất 1 người thuộc ban biên tập (Editorial Board) đang hoạt động
+            
             var editorialUser = await _context.Users
                 .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);
 
-            // Chỉ gửi thông báo đích danh cho 1 người biên tập này thay vì gửi diện rộng
+            
             if (editorialUser != null)
             {
                 _context.Notifications.Add(new Notification
@@ -173,10 +173,10 @@ public class SeriesService : ISeriesService
         }
     }
 
-    /// <summary>
-    /// Cập nhật thông tin bộ truyện.
-    /// Business Rule: Chỉ Mangaka sở hữu series mới được sửa.
-    /// </summary>
+    
+    
+    
+    
     public async Task<SeriesDto> UpdateSeries(Guid seriesId, Guid mangakaId, UpdateSeriesDto dto)
     {
         var series = await _context.Series
@@ -281,9 +281,9 @@ public class SeriesService : ISeriesService
         return MapToDto(series);
     }
 
-    /// <summary>
-    /// Lấy danh sách chương của bộ truyện.
-    /// </summary>
+    
+    
+    
     public async Task<List<ChapterDto>> GetChaptersBySeries(Guid seriesId, Guid requestUserId)
     {
         return await _context.Chapters
@@ -340,7 +340,7 @@ public class SeriesService : ISeriesService
 
     public async Task<SeriesRankingContainerDto> GetSeriesRanking(string? genre, string? sortBy, string? timeframe)
     {
-        // Compute total metrics
+        
         int totalSeriesRanked = await _context.Series.CountAsync(s => s.Status != "proposal");
         long totalReaderVotes = await _context.ReaderVotes.SumAsync(rv => rv.Votes);
         long totalViews = await _context.Series.SumAsync(s => (long)s.ReaderCount);
@@ -351,7 +351,7 @@ public class SeriesService : ISeriesService
             .FirstOrDefaultAsync();
         string topTrending = topSeries?.Title ?? "None";
 
-        // Query series sorted by ReaderCount descending
+        
         var query = _context.Series
             .Where(s => s.Status != "proposal")
             .Include(s => s.SeriesGenres)
@@ -367,7 +367,7 @@ public class SeriesService : ISeriesService
 
         var list = await query.ToListAsync();
 
-        // Map to rankings (assign ranks sequentially based on sorted ReaderCount order)
+        
         var rankings = list.Select((s, index) =>
         {
             int rank = index + 1;
@@ -402,7 +402,7 @@ public class SeriesService : ISeriesService
             };
         }).ToList();
 
-        // Sort rankings
+        
         if (!string.IsNullOrEmpty(sortBy))
         {
             if (sortBy.Contains("score", StringComparison.OrdinalIgnoreCase))
@@ -494,7 +494,7 @@ public class SeriesService : ISeriesService
             throw new InvalidOperationException("Chỉ có thể gửi lại đề xuất khi bộ truyện đang ở trạng thái Proposal.");
         }
 
-        // Tạo đề xuất mới
+        
         var proposal = new SeriesProposal
         {
             ProposalId = Guid.NewGuid(),
@@ -508,7 +508,7 @@ public class SeriesService : ISeriesService
 
         series.UpdatedAt = DateTime.UtcNow;
 
-        // Gửi thông báo đến ban biên tập
+        
         var editorialUser = await _context.Users
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Role.Code == "editorial" && u.IsActive);

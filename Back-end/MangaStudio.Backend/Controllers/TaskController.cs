@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Controllers;
 
-/// <summary>
-/// Controller quản lý công việc (Tasks) giao cho trợ lý.
-/// </summary>
+
+
+
 [ApiController]
 [Route("api")]
 [Authorize]
@@ -31,9 +31,9 @@ public class TaskController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
     }
 
-    /// <summary>
-    /// GET /api/assistants — Lấy danh sách tất cả trợ lý đang hoạt động.
-    /// </summary>
+    
+    
+    
     [HttpGet("assistants")]
     public async Task<IActionResult> GetAllAssistants()
     {
@@ -48,9 +48,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/pages/{pageId}/tasks — Lấy danh sách công việc của một trang truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("pages/{pageId:guid}/tasks")]
     public async Task<IActionResult> GetTasksByPage(Guid pageId)
     {
@@ -65,9 +65,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/pages/{pageId}/tasks — Tạo công việc mới giao cho trợ lý liên kết với một trang.
-    /// </summary>
+    
+    
+    
     [HttpPost("pages/{pageId:guid}/tasks")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> CreateTask(Guid pageId, [FromBody] CreateTaskDto dto)
@@ -101,9 +101,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/tasks/my-tasks — Trợ lý xem danh sách các công việc được giao của mình.
-    /// </summary>
+    
+    
+    
     [HttpGet("tasks/my-tasks")]
     [Authorize(Roles = "assistant")]
     public async Task<IActionResult> GetMyTasks()
@@ -120,9 +120,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/tasks/{id:guid}/resources — Lấy link ảnh và thông tin tài nguyên của Task.
-    /// </summary>
+    
+    
+    
     [HttpGet("tasks/{id:guid}/resources")]
     [Authorize(Roles = "assistant,mangaka")]
     public async Task<IActionResult> GetTaskResource(Guid id)
@@ -142,9 +142,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/tasks/{id}/start — Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).
-    /// </summary>
+    
+    
+    
     [HttpPost("tasks/{id:guid}/start")]
     [Authorize(Roles = "assistant")]
     public async Task<IActionResult> StartTask(Guid id)
@@ -198,9 +198,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/tasks/{id} — Cập nhật thông tin công việc.
-    /// </summary>
+    
+    
+    
     [HttpPut("tasks/{id:guid}")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateTaskDto dto)
@@ -267,9 +267,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/tasks/{id}/submit — Trợ lý nộp bài làm kèm file (upload).
-    /// </summary>
+    
+    
+    
     [HttpPost("tasks/{id:guid}/submit")]
     [Authorize(Roles = "assistant")]
     public async Task<IActionResult> SubmitTask(Guid id, [FromForm] string? note, IFormFile? file)
@@ -298,9 +298,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/tasks/{id}/submissions — Lấy danh sách bài nộp của một công việc.
-    /// </summary>
+    
+    
+    
     [HttpGet("tasks/{id:guid}/submissions")]
     public async Task<IActionResult> GetSubmissions(Guid id)
     {
@@ -315,9 +315,9 @@ public class TaskController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/submissions/{id}/review — Mangaka duyệt hoặc từ chối bài nộp của trợ lý.
-    /// </summary>
+    
+    
+    
     [HttpPut("submissions/{id:guid}/review")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> ReviewSubmission(Guid id, [FromBody] ReviewSubmissionDto dto)

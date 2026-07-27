@@ -36,7 +36,7 @@ const pendingPayments = [
 export function AssistantEarnings() {
   return (
     <div className="space-y-6">
-      {/* Earnings Overview */}
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-6">
@@ -109,7 +109,7 @@ export function AssistantEarnings() {
         </Card>
       </div>
 
-      {/* Pending Payments */}
+      
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export function AssistantEarnings() {
         </CardContent>
       </Card>
 
-      {/* Payment History */}
+      
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payment History</CardTitle>

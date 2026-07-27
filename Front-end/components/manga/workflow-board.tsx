@@ -133,7 +133,7 @@ export function WorkflowBoard() {
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"table" | "board">("table")
 
-  // Dialog & form fields state
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -148,7 +148,7 @@ export function WorkflowBoard() {
   const [dueDate, setDueDate] = useState("")
   const [paymentAmount, setPaymentAmount] = useState<string>("0")
 
-  // Options lists
+  
   const [seriesList, setSeriesList] = useState<any[]>([])
   const [chaptersList, setChaptersList] = useState<any[]>([])
   const [pagesList, setPagesList] = useState<any[]>([])
@@ -240,7 +240,7 @@ export function WorkflowBoard() {
     setPaymentAmount("0")
     setFormError(null)
 
-    // Pre-fetch lists
+    
     fetchSeriesList()
     fetchAssistantsList()
 
@@ -417,7 +417,7 @@ export function WorkflowBoard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* View Mode Toggle Buttons */}
+          
           <div className="flex items-center gap-1 border border-zinc-800 bg-zinc-950 p-1 rounded-lg mr-2 h-9 text-xs">
             <Button
               size="sm"
@@ -493,17 +493,17 @@ export function WorkflowBoard() {
                         key={task.id}
                         className="group hover:bg-zinc-900/40 transition-colors duration-250 text-sm"
                       >
-                        {/* Title */}
+                        
                         <td className="py-4 px-6 font-semibold text-zinc-200">
                           {task.title}
                         </td>
 
-                        {/* Manga / Chapter */}
+                        
                         <td className="py-4 px-6 text-zinc-400">
                           {task.chapter}
                         </td>
 
-                        {/* Stage */}
+                        
                         <td className="py-4 px-6">
                           <span className="flex items-center gap-1.5 font-semibold text-zinc-300">
                             <span className={`w-2 h-2 rounded-full ${col.color}`} />
@@ -511,21 +511,21 @@ export function WorkflowBoard() {
                           </span>
                         </td>
 
-                        {/* Priority */}
+                        
                         <td className="py-4 px-6 text-center">
                           <Badge className={`${priorityColors[task.priority]} capitalize`}>
                             {task.priority}
                           </Badge>
                         </td>
 
-                        {/* Status */}
+                        
                         <td className="py-4 px-6">
                           <Badge variant="outline" className={`text-[11px] font-medium ${statusStyles[status] || "border-zinc-700 bg-zinc-900/70 text-zinc-300"}`}>
                             {statusLabels[status] || task.status}
                           </Badge>
                         </td>
 
-                        {/* Progress */}
+                        
                         <td className="py-4 px-6">
                           {task.progress !== undefined ? (
                             <div className="flex items-center gap-3 w-36">
@@ -537,7 +537,7 @@ export function WorkflowBoard() {
                           )}
                         </td>
 
-                        {/* Assignee */}
+                        
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2">
                             <Avatar className="w-6 h-6 border border-zinc-800">
@@ -550,7 +550,7 @@ export function WorkflowBoard() {
                           </div>
                         </td>
 
-                        {/* Due Date */}
+                        
                         <td className="py-4 px-6 text-zinc-400">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5" />
@@ -649,7 +649,7 @@ export function WorkflowBoard() {
         </div>
       )}
 
-      {/* Task Creation Modal */}
+      
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-md bg-zinc-900 border-zinc-800 text-white">
           <DialogHeader>

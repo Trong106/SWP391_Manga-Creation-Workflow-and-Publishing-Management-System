@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Controllers;
 
-/// <summary>
-/// Controller quản lý chương truyện: chi tiết, trang, upload và nộp chương.
-/// </summary>
+
+
+
 [ApiController]
 [Route("api/chapters")]
 [Authorize]
@@ -32,9 +32,9 @@ public class ChapterController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
     }
 
-    /// <summary>
-    /// GET /api/chapters/{id} — Xem chi tiết chương truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetChapterById(Guid id)
     {
@@ -53,9 +53,9 @@ public class ChapterController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/chapters/{id} — Cập nhật thông tin chương.
-    /// </summary>
+    
+    
+    
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> UpdateChapter(Guid id, [FromBody] UpdateChapterDto dto)
@@ -81,9 +81,9 @@ public class ChapterController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/chapters/{id}/pages — Lấy danh sách các trang thuộc chương truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}/pages")]
     public async Task<IActionResult> GetPages(Guid id)
     {
@@ -116,9 +116,9 @@ public class ChapterController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/chapters/{id}/upload-pages — Tải lên nhiều trang truyện.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/upload-pages")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> UploadPages(Guid id, [FromForm] List<IFormFile> files)
@@ -151,9 +151,9 @@ public class ChapterController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// DELETE /api/chapters/pages/{pageId} — Xóa một trang truyện.
-    /// </summary>
+    
+    
+    
     [HttpDelete("pages/{pageId:guid}")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> DeletePage(Guid pageId)
@@ -178,9 +178,9 @@ public class ChapterController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/chapters/{id}/submit — Nộp chương truyện để xem xét xuất bản.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/submit")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> SubmitChapter(Guid id)
@@ -209,9 +209,9 @@ public class ChapterController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/chapters/{id}/tantou-review -- Tantou review noi dung ca chapter.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/tantou-review")]
     [Authorize(Roles = "tantou")]
     public async Task<IActionResult> ReviewChapter(Guid id, [FromBody] ReviewChapterDto dto)

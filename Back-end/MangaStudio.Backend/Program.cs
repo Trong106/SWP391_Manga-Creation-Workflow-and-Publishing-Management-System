@@ -12,14 +12,14 @@ using MangaStudio.Backend.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Đăng ký Controllers
+
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
     options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeJsonConverter());
 });
 
-// Cấu hình CORS để cho phép Frontend gọi API
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -30,15 +30,15 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Cấu hình Swagger Explorer
+
 builder.Services.AddEndpointsApiExplorer();
 
-// Cấu hình Swagger có hỗ trợ nút "Authorize" để test JWT Token trực tiếp trên giao diện Swagger UI
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Manga Studio API", Version = "v1" });
     
-    // Khai báo cơ chế Authorization sử dụng Bearer Token
+    
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "Nhập JWT Token của bạn dưới dạng: Bearer {chuỗi_token_của_bạn}",
@@ -64,7 +64,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Đăng ký DbContext kết nối tới Database SQL Server
+
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseSqlServer(
@@ -72,7 +72,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     );
 });
 
-// Cấu hình JWT Authentication
+
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "MangaStudioWorkflowSuperSecretKey12345!";
 var key = Encoding.UTF8.GetBytes(jwtKey);
 
@@ -83,7 +83,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // Tắt kiểm tra HTTPS để phát triển ở local dễ dàng
+    options.RequireHttpsMetadata = false; 
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -94,11 +94,11 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidAudience = builder.Configuration["Jwt:Audience"] ?? "MangaStudio.Frontend",
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero // Tránh độ lệch múi giờ gây trễ hạn token
+        ClockSkew = TimeSpan.Zero 
     };
 });
 
-// Đăng ký các Service xử lý nghiệp vụ (Dependency Injection)
+
 builder.Services.AddScoped<IMangakaService, MangakaService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISeriesService, SeriesService>();
@@ -125,11 +125,11 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-// Sử dụng Swagger trong môi trường phát triển
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Chỉ chuyển hướng HTTPS khi không ở môi trường Development để chạy thử local dễ dàng
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
@@ -150,10 +150,10 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/uploads"
 });
 
-// Kích hoạt CORS (Đặt trước Authentication/Authorization)
+
 app.UseCors("AllowAll");
 
-// Kích hoạt middleware xác thực (Authentication) - PHẢI ĐẶT TRƯỚC UseAuthorization
+
 app.UseAuthentication();
 app.UseAuthorization();
 

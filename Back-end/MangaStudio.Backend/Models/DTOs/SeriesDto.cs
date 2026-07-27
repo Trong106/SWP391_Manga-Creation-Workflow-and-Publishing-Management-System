@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
-/// <summary>DTO trả về thông tin bộ truyện.</summary>
+
 public class SeriesDto
 {
     public Guid SeriesId { get; set; }
@@ -41,7 +41,7 @@ public class EditorialSeriesDecisionDto
     public string? Reason { get; set; }
 }
 
-/// <summary>DTO tạo bộ truyện mới.</summary>
+
 public class CreateSeriesDto
 {
     [Required(ErrorMessage = "Series title is required.")]
@@ -75,7 +75,7 @@ public class CreateSeriesWithManuscriptDto
     public List<IFormFile> PreliminaryPages { get; set; } = new();
 }
 
-/// <summary>DTO cập nhật bộ truyện.</summary>
+
 public class UpdateSeriesDto
 {
     [StringLength(255)]

@@ -123,7 +123,7 @@ const statusColors = {
 export function AssistantTasks() {
   const { token } = useAuth()
   
-  // State for Resource Modal
+  
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
   const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   const [loadingResource, setLoadingResource] = useState(false)
@@ -329,7 +329,7 @@ export function AssistantTasks() {
         </CardContent>
       </Card>
 
-      {/* Confirmation and Preview Modal */}
+      
       <Dialog open={isResourceModalOpen} onOpenChange={setIsResourceModalOpen}>
         <DialogContent className="flex max-h-[92vh] w-[min(92vw,860px)] max-w-none flex-col overflow-hidden bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl p-0 animate-in fade-in zoom-in-95 duration-200">
           <DialogHeader className="shrink-0 space-y-1.5 border-b border-zinc-800/50 p-5 pb-3">

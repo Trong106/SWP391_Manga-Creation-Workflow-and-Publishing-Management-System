@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Controllers;
 
-/// <summary>
-/// Controller quản lý trang truyện: xem chi tiết, annotation và review.
-/// </summary>
+
+
+
 [ApiController]
 [Route("api/pages")]
 [Authorize]
@@ -31,9 +31,9 @@ public class PageController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
     }
 
-    /// <summary>
-    /// GET /api/pages/{id} — Lấy thông tin chi tiết trang truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetPageById(Guid id)
     {
@@ -56,9 +56,9 @@ public class PageController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/pages/{id}/annotations — Lấy danh sách ghi chú (annotations) của trang.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}/annotations")]
     public async Task<IActionResult> GetAnnotations(Guid id)
     {
@@ -73,9 +73,9 @@ public class PageController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/pages/{id}/annotations — Tạo ghi chú (annotation) mới trên trang.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/annotations")]
     public async Task<IActionResult> CreateAnnotation(Guid id, [FromBody] CreateAnnotationDto dto)
     {
@@ -100,9 +100,9 @@ public class PageController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/pages/annotations/{id}/resolve — Đánh dấu ghi chú là đã giải quyết.
-    /// </summary>
+    
+    
+    
     [HttpPut("annotations/{id:guid}/resolve")]
     public async Task<IActionResult> ResolveAnnotation(Guid id)
     {
@@ -149,9 +149,9 @@ public class PageController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/pages/{id}/reviews — Lấy danh sách nhận xét review của trang.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}/reviews")]
     public async Task<IActionResult> GetPageReviews(Guid id)
     {
@@ -184,9 +184,9 @@ public class PageController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/pages/{id}/reviews — Thêm nhận xét review cho trang (chỉ dành cho Tantou hoặc Mangaka).
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/reviews")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> CreatePageReview(Guid id, [FromBody] CreatePageReviewDto dto)
@@ -212,9 +212,9 @@ public class PageController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/pages/{id}/comments — Thêm bình luận mới cho trang.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/comments")]
     public async Task<IActionResult> CreatePageComment(Guid id, [FromBody] CreateCommentDto dto)
     {

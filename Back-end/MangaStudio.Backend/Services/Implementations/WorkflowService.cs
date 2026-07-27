@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Triển khai nghiệp vụ quản lý đề xuất series, lịch xuất bản và bảng lương.
-/// </summary>
+
+
+
 public class WorkflowService : IWorkflowService
 {
     private readonly AppDbContext _context;
@@ -22,11 +22,11 @@ public class WorkflowService : IWorkflowService
         _context = context;
     }
 
-    // === Series Proposals ===
+    
 
     private async System.Threading.Tasks.Task CleanUpApprovedSeriesProposals()
     {
-        // Tìm toàn bộ các đề xuất bị từ chối (rejected) có cùng Tên truyện và cùng Mangaka với một đề xuất đã được đồng ý (approved)
+        
         var rejectedProposals = await _context.SeriesProposals
             .Include(p => p.Series)
             .Where(rp => rp.Status == "rejected" &&
@@ -49,11 +49,11 @@ public class WorkflowService : IWorkflowService
                 _context.ProposalBoardVotes.RemoveRange(rejectedBoardVotes);
             }
 
-            // 1. Xóa các đề xuất con trước
+            
             _context.SeriesProposals.RemoveRange(rejectedProposals);
             await _context.SaveChangesAsync();
 
-            // 2. Xóa các thể loại liên kết
+            
             var rejectedGenres = await _context.SeriesGenres
                 .Where(g => rejectedSeriesIds.Contains(g.SeriesId))
                 .ToListAsync();
@@ -63,7 +63,7 @@ public class WorkflowService : IWorkflowService
                 _context.SeriesGenres.RemoveRange(rejectedGenres);
             }
 
-            // 3. Xóa các bản ghi truyện cha
+            
             if (rejectedSeries.Any())
             {
                 _context.Series.RemoveRange(rejectedSeries);
@@ -73,9 +73,9 @@ public class WorkflowService : IWorkflowService
         }
     }
 
-    /// <summary>
-    /// Lấy danh sách đề xuất chờ duyệt (status = 'submitted').
-    /// </summary>
+    
+    
+    
     public async Task<List<ProposalDto>> GetPendingProposals()
     {
         await CleanUpApprovedSeriesProposals();
@@ -91,9 +91,9 @@ public class WorkflowService : IWorkflowService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Lấy danh sách đề xuất của một Mangaka.
-    /// </summary>
+    
+    
+    
     public async Task<List<ProposalDto>> GetProposalsByMangaka(Guid mangakaId)
     {
         await CleanUpApprovedSeriesProposals();
@@ -110,13 +110,13 @@ public class WorkflowService : IWorkflowService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Editorial Board ghi nhận biên bản vote để phê duyệt hoặc từ chối đề xuất series.
-    /// Business Rule:
-    /// - Người đại diện nhập số thành viên hội đồng, số phiếu, ngưỡng duyệt.
-    /// - Nếu phiếu đồng ý đạt ngưỡng -> Series.Status = 'active' và gán TantouId cho Series.
-    /// - Cập nhật thông tin người ghi nhận, thời gian duyệt và biên bản vote.
-    /// </summary>
+    
+    
+    
+    
+    
+    
+    
     public async Task<ProposalDto> ReviewProposal(Guid proposalId, Guid reviewerId, ReviewProposalDto dto)
     {
         var proposal = await _context.SeriesProposals
@@ -178,10 +178,10 @@ public class WorkflowService : IWorkflowService
                 .FirstOrDefaultAsync(u => u.UserId == dto.TantouId.Value && u.Role.Code == "tantou" && u.IsActive)
                 ?? throw new InvalidOperationException("Tantou Editor duoc chon khong hop le hoac da bi vo hieu hoa.");
 
-            proposal.Series.Status = "active"; // BR-Proposal
+            proposal.Series.Status = "active"; 
             proposal.Series.TantouId = tantou.UserId;
 
-            // Xóa các đề xuất bị từ chối (rejected) cũ của bộ truyện này (trùng tên và trùng Mangaka)
+            
             var title = proposal.Series.Title;
             var mangakaId = proposal.SubmittedById;
 
@@ -204,11 +204,11 @@ public class WorkflowService : IWorkflowService
                     _context.ProposalBoardVotes.RemoveRange(rejectedBoardVotes);
                 }
 
-                // Delete the proposals (child records) first
+                
                 _context.SeriesProposals.RemoveRange(oldRejectedProposals);
                 await _context.SaveChangesAsync();
 
-                // Now delete genres and series
+                
                 var rejectedGenres = await _context.SeriesGenres
                     .Where(g => rejectedSeriesIds.Contains(g.SeriesId))
                     .ToListAsync();
@@ -228,12 +228,12 @@ public class WorkflowService : IWorkflowService
         }
         else if (decision == "rejected")
         {
-            proposal.Series.Status = "proposal"; // Revert/Keep proposal
+            proposal.Series.Status = "proposal"; 
         }
 
         proposal.Series.UpdatedAt = DateTime.UtcNow;
 
-        // Create notification for Mangaka
+        
         var notificationTitle = decision == "approved" ? "Series Proposal Approved!" : "Series Proposal Rejected";
         var notificationMessage = decision == "approved"
             ? $"Your series proposal '{proposal.Series.Title}' has been approved by board vote ({dto.ApproveVotes}/{dto.BoardSize} approve). Tantou Editor has been assigned."
@@ -253,7 +253,7 @@ public class WorkflowService : IWorkflowService
 
         await _context.SaveChangesAsync();
 
-        // Load reviewer details
+        
         var reviewedBy = await _context.Users.FindAsync(reviewerId);
         proposal.ReviewedBy = reviewedBy;
         boardVote.RecordedBy = reviewedBy!;
@@ -278,11 +278,11 @@ public class WorkflowService : IWorkflowService
             .ToListAsync();
     }
 
-    // === Publish Schedule ===
+    
 
-    /// <summary>
-    /// Lấy tất cả lịch xuất bản (có thể lọc theo series).
-    /// </summary>
+    
+    
+    
     public async Task<List<PublishScheduleDto>> GetPublishSchedules(Guid? seriesId = null)
     {
         await PublishDueSchedules();
@@ -304,9 +304,9 @@ public class WorkflowService : IWorkflowService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Tạo lịch xuất bản cho một chương truyện.
-    /// </summary>
+    
+    
+    
     public async Task<PublishScheduleDto> CreatePublishSchedule(Guid chapterId, Guid createdById, CreatePublishScheduleDto dto)
     {
         var scheduledUtc = dto.ScheduledDate.Kind switch
@@ -331,7 +331,7 @@ public class WorkflowService : IWorkflowService
             throw new InvalidOperationException("Chi chapter da duoc Tantou approve moi duoc len lich xuat ban.");
         }
 
-        // Tạo lịch xuất bản với status mặc định là 'scheduled'
+        
         var schedule = new PublishSchedule
         {
             PublishScheduleId = Guid.NewGuid(),
@@ -349,9 +349,9 @@ public class WorkflowService : IWorkflowService
         return await GetPublishScheduleById(schedule.PublishScheduleId);
     }
 
-    /// <summary>
-    /// Tantou phê duyệt lịch xuất bản.
-    /// </summary>
+    
+    
+    
     public async Task<PublishScheduleDto> ApprovePublishSchedule(Guid scheduleId, Guid editorialId)
     {
         var schedule = await _context.PublishSchedules
@@ -450,11 +450,11 @@ public class WorkflowService : IWorkflowService
         });
     }
 
-    // === Payroll ===
+    
 
-    /// <summary>
-    /// Lấy danh sách bảng lương trợ lý. Mangaka xem được tất cả, trợ lý xem của chính mình.
-    /// </summary>
+    
+    
+    
     public async Task<List<PayrollDto>> GetPayrollRecords(Guid? assistantId = null, Guid? mangakaId = null)
     {
         var query = _context.PayrollRecords
@@ -597,10 +597,10 @@ public class WorkflowService : IWorkflowService
             || string.Equals(status, "rejected", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Mangaka đánh dấu đã thanh toán lương cho trợ lý.
-    /// Business Rule: Chỉ thanh toán khi status là 'pending'.
-    /// </summary>
+    
+    
+    
+    
     public async Task<PayrollDto> MarkPayrollAsPaid(Guid payrollRecordId, Guid mangakaId)
     {
         var record = await _context.PayrollRecords
@@ -673,7 +673,7 @@ public class WorkflowService : IWorkflowService
             ReviewedById = p.ReviewedById,
             ReviewedByName = p.ReviewedBy?.FullName,
             Status = p.Status,
-            Feedback = p.ReviewNote, // mapped from ReviewNote in DB
+            Feedback = p.ReviewNote, 
             SubmittedAt = p.SubmittedAt,
             ReviewedAt = p.ReviewedAt,
             CoverImageUrl = p.Series?.CoverImageUrl,
@@ -720,7 +720,7 @@ public class WorkflowService : IWorkflowService
         };
     }
 
-    // === Notifications ===
+    
 
     public async Task<List<NotificationDto>> GetNotifications(Guid userId)
     {

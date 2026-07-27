@@ -45,7 +45,7 @@ export function RoleBasedStats() {
   const { role, user, token } = useAuth()
   const [apiStats, setApiStats] = useState<{ totalSeries: number; totalAssistants: number } | null>(null)
 
-  // Load real author dashboard statistics from the database with JWT authentication.
+  
   useEffect(() => {
     if (role === "mangaka" && user?.id && token) {
       fetch(`${API_BASE_URL}/api/mangaka/dashboard-stats/${user.id}`, {
@@ -65,7 +65,7 @@ export function RoleBasedStats() {
 
   let stats = statsMap[role]
 
-  // When the mangaka API data is available, replace demo values with SQL Server values.
+  
   if (role === "mangaka" && apiStats) {
     stats = mangakaStats.map((s) => {
       if (s.title === "Active Series") {

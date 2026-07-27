@@ -53,11 +53,11 @@ export default function ReviewPage() {
 function MangakaReviewPage() {
   const { token } = useAuth()
   
-  // Navigation & selection state
+  
   const [activeSeriesId, setActiveSeriesId] = useState<string | null>(null)
   const [activeSeriesTitle, setActiveSeriesTitle] = useState("")
   
-  // Data states
+  
   const [reviewSeries, setReviewSeries] = useState<any[]>([])
   const [loadingQueue, setLoadingQueue] = useState(true)
   
@@ -65,11 +65,11 @@ function MangakaReviewPage() {
   const [loadingPages, setLoadingPages] = useState(false)
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   
-  // Chapter filter inside selected series
+  
   const [chapters, setChapters] = useState<string[]>([])
   const [selectedChapter, setSelectedChapter] = useState<string>("all")
   
-  // Interaction states
+  
   const [annotationMode, setAnnotationMode] = useState(false)
   const [comment, setComment] = useState("")
   const [bulkApproving, setBulkApproving] = useState(false)
@@ -83,7 +83,7 @@ function MangakaReviewPage() {
     window.dispatchEvent(new Event("mangaflow:badges-refresh"))
   }
 
-  // Fetch the Review Series queue (Screen 1)
+  
   const fetchQueue = () => {
     if (!token) return
 
@@ -110,7 +110,7 @@ function MangakaReviewPage() {
     fetchQueue()
   }, [token])
 
-  // Fetch pages when a series is selected (Screen 2)
+  
   useEffect(() => {
     if (activeSeriesId && token) {
       setLoadingPages(true)
@@ -122,12 +122,12 @@ function MangakaReviewPage() {
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
-            // Lọc các trang thuộc series đang chọn
+            
             const seriesPages = data.filter((p: any) => p.seriesId === activeSeriesId)
             setPages(seriesPages)
             setCurrentPageIndex(0)
 
-            // Lấy danh sách chapter phân biệt để lọc
+            
             const uniqueChapters = Array.from(new Set(seriesPages.map((p: any) => p.chapterNumber.toString())))
             setChapters(uniqueChapters)
             setSelectedChapter("all")
@@ -141,7 +141,7 @@ function MangakaReviewPage() {
     }
   }, [activeSeriesId, token])
 
-  // Filter pages by chapter dropdown
+  
   const displayedPages = selectedChapter === "all"
     ? pages
     : pages.filter((p) => p.chapterNumber.toString() === selectedChapter)
@@ -155,7 +155,7 @@ function MangakaReviewPage() {
   }
 
 
-  // Handle page approval
+  
   const handleApprovePage = async () => {
     if (!activePage || !token) return
     try {
@@ -169,7 +169,7 @@ function MangakaReviewPage() {
       })
       if (res.ok) {
         toast.success("Page approved successfully!")
-        // Refresh pages
+        
         const updated = pages.filter((p) => p.id !== activePage.id)
         setPages(updated)
         setCurrentPageIndex((current) => Math.min(current, Math.max(updated.length - 1, 0)))
@@ -222,7 +222,7 @@ function MangakaReviewPage() {
     }
   }
 
-  // Handle request revision
+  
   const handleRequestRevision = async () => {
     if (!activePage || !token) return
     try {
@@ -384,7 +384,7 @@ function MangakaReviewPage() {
     }
   }
 
-  // Handle posting comments
+  
   const handlePostComment = async () => {
     if (!activePage || !comment.trim() || !token) return
     try {
@@ -437,7 +437,7 @@ function MangakaReviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* SCREEN 1: Review Queue List */}
+      
       {!activeSeriesId ? (
         <div className="space-y-6">
           <div>
@@ -468,7 +468,7 @@ function MangakaReviewPage() {
                     }}
                     className="group cursor-pointer space-y-2.5"
                   >
-                    {/* Image Cover */}
+                    
                     <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                       {s.coverImageUrl ? (
                         <img
@@ -483,14 +483,14 @@ function MangakaReviewPage() {
                         </div>
                       )}
 
-                      {/* Time Badge top-left */}
+                      
                       <div className="absolute top-2 left-2 text-[10px] px-2 py-0.5 rounded bg-amber-500 text-black font-bold flex items-center gap-1 shadow-lg">
                         <Clock className="w-3 h-3" />
                         {relativeTime}
                       </div>
                     </div>
 
-                    {/* Text info */}
+                    
                     <div className="space-y-0.5">
                       <h4 className="font-semibold text-sm truncate text-zinc-100 group-hover:text-primary transition-colors leading-tight">
                         {s.title}
@@ -506,7 +506,7 @@ function MangakaReviewPage() {
           )}
         </div>
       ) : (
-        /* SCREEN 2: Main Annotation Viewer */
+        
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Button
@@ -529,9 +529,9 @@ function MangakaReviewPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Cột trái: Manga Viewer */}
+            
             <div className="lg:col-span-3 space-y-4">
-              {/* Toolbar */}
+              
               <Card className="bg-zinc-900 border-zinc-800 text-white">
                 <CardContent className="p-4 flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-3">
@@ -637,7 +637,7 @@ function MangakaReviewPage() {
                 </CardContent>
               </Card>
 
-              {/* Main Image View */}
+              
               <Card className="bg-zinc-900 border-zinc-800 text-white">
                 <CardContent className="p-6">
                   {loadingPages ? (
@@ -681,7 +681,7 @@ function MangakaReviewPage() {
                         </div>
                       )}
 
-                      {/* Render annotations overlay */}
+                      
                       {activePage?.annotations?.map((ann: any, index: number) => {
                         const isBox = Boolean(ann.width && ann.height)
                         return (
@@ -744,7 +744,7 @@ function MangakaReviewPage() {
                     </div>
                   )}
 
-                  {/* Navigation controls */}
+                  
                   {displayedPages.length > 0 && (
                     <div className="flex items-center justify-between mt-4">
                       <Button
@@ -775,7 +775,7 @@ function MangakaReviewPage() {
                 </CardContent>
               </Card>
 
-              {/* Approval Buttons */}
+              
               {activePage && (
                 <Card className="bg-zinc-900 border-zinc-800 text-white">
                   <CardContent className="p-4 flex items-center justify-between flex-wrap gap-4">
@@ -809,9 +809,9 @@ function MangakaReviewPage() {
               )}
             </div>
 
-            {/* Right column: thumbnails and comments */}
+            
             <div className="space-y-6">
-              {/* Grid Thumbnail trang */}
+              
               <Card className="bg-zinc-900 border-zinc-800 text-white">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold text-zinc-300">Page Overview</CardTitle>
@@ -841,7 +841,7 @@ function MangakaReviewPage() {
                 </CardContent>
               </Card>
 
-              {/* Comments Section */}
+              
               <Card className="bg-zinc-900 border-zinc-800 text-white">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
@@ -850,7 +850,7 @@ function MangakaReviewPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Chat feed */}
+                  
                   <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
                     {activePage?.comments?.map((c: any) => (
                       <div key={c.id} className="p-3 bg-zinc-950/50 rounded-lg border border-zinc-850 text-xs">
@@ -872,7 +872,7 @@ function MangakaReviewPage() {
                     )}
                   </div>
 
-                  {/* Input form */}
+                  
                   {activePage && (
                     <div className="space-y-2 pt-2 border-t border-zinc-850">
                       <Textarea

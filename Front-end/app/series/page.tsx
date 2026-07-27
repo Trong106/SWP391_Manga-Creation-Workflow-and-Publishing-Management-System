@@ -76,7 +76,7 @@ export default function SeriesPage() {
   const [loading, setLoading] = useState(true)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   
-  // Creation form states
+  
   const [newTitle, setNewTitle] = useState("")
   const [newTitleJp, setNewTitleJp] = useState("")
   const [newGenre, setNewGenre] = useState("")
@@ -162,7 +162,7 @@ export default function SeriesPage() {
       })
 
       if (res.ok) {
-        // Clear form
+        
         setNewTitle("")
         setNewTitleJp("")
         setNewSynopsis("")
@@ -198,7 +198,7 @@ export default function SeriesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 text-white">
@@ -339,7 +339,7 @@ export default function SeriesPage() {
         )}
       </div>
 
-      {/* Stats */}
+      
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-card border-border">
           <CardContent className="p-4">
@@ -428,7 +428,7 @@ export default function SeriesPage() {
         </div>
       )}
 
-      {/* Series Grid in Manga Card Layout */}
+      
       {loading ? (
         <div className="text-center py-12 text-zinc-400">Loading series list from database...</div>
       ) : series.length === 0 ? (
@@ -443,7 +443,7 @@ export default function SeriesPage() {
                 onClick={() => handleCardClick(s.id)}
                 className="group cursor-pointer space-y-2.5"
               >
-                {/* Image Container */}
+                
                 <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-zinc-800 bg-[#202023] flex items-center justify-center">
                   {s.coverImageUrl ? (
                     <img
@@ -458,7 +458,7 @@ export default function SeriesPage() {
                     </div>
                   )}
 
-                  {/* Bookmark tag */}
+                  
                   <div className="absolute top-2 right-2 p-1.5 rounded-full bg-[#000000]/60 text-white/90 hover:text-yellow-500 hover:bg-[#000000]/80 transition-colors">
                     <Bookmark className="w-3.5 h-3.5" />
                   </div>
@@ -469,7 +469,7 @@ export default function SeriesPage() {
                   )}
                 </div>
 
-                {/* Text Info */}
+                
                 <div className="space-y-1">
                   <h4 className="font-semibold text-sm truncate text-zinc-100 group-hover:text-primary transition-colors leading-tight">
                     {s.title}
@@ -487,7 +487,7 @@ export default function SeriesPage() {
         </div>
       )}
 
-      {/* Reusable Series Detail Modal */}
+      
       {selectedSeriesId && (
         <SeriesDetailModal
           seriesId={selectedSeriesId}

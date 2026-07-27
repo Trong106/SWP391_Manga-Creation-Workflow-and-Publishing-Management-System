@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
-/// <summary>DTO hiển thị đề xuất bộ truyện.</summary>
+
 public class ProposalDto
 {
     public Guid ProposalId { get; set; }
@@ -42,7 +42,7 @@ public class ProposalBoardVoteDto
     public DateTime RecordedAt { get; set; }
 }
 
-/// <summary>DTO ghi nhận biên bản vote của Editorial Board cho đề xuất bộ truyện.</summary>
+
 public class ReviewProposalDto
 {
     [Range(1, 30, ErrorMessage = "Board size must be between 1 and 30.")]
@@ -85,7 +85,7 @@ public class UserOptionDto
     public string Role { get; set; } = null!;
 }
 
-/// <summary>DTO hiển thị lịch xuất bản.</summary>
+
 public class PublishScheduleDto
 {
     public Guid ScheduleId { get; set; }
@@ -106,14 +106,14 @@ public class PublishScheduleDto
     public string? ChapterStatus { get; set; }
 }
 
-/// <summary>DTO tạo lịch xuất bản.</summary>
+
 public class CreatePublishScheduleDto
 {
     [Required(ErrorMessage = "Scheduled date is required.")]
     public DateTime ScheduledDate { get; set; }
 }
 
-/// <summary>DTO hiển thị thông tin bảng lương trợ lý.</summary>
+
 public class PayrollDto
 {
     public Guid PayrollRecordId { get; set; }
@@ -138,7 +138,7 @@ public class PayrollDto
     public DateTime CreatedAt { get; set; }
 }
 
-/// <summary>DTO hiển thị thông báo.</summary>
+
 public class AssistantPayrollMonthDto
 {
     public string Month { get; set; } = null!;

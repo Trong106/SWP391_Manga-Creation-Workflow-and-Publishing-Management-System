@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
-/// <summary>DTO hiển thị thông tin công việc (task).</summary>
+
 public class TaskDto
 {
     public Guid TaskId { get; set; }
@@ -36,7 +36,7 @@ public class TaskDto
     public DateTime UpdatedAt { get; set; }
 }
 
-/// <summary>DTO tạo công việc mới giao cho trợ lý.</summary>
+
 public class CreateTaskDto
 {
     [Required(ErrorMessage = "Task title is required.")]
@@ -62,7 +62,7 @@ public class CreateTaskDto
     public decimal PaymentAmount { get; set; }
 }
 
-/// <summary>DTO cập nhật công việc.</summary>
+
 public class UpdateTaskDto
 {
     [MaxLength(255)]
@@ -108,7 +108,7 @@ public class CreateTaskRegionDto
     public decimal Height { get; set; }
 }
 
-/// <summary>DTO hiển thị thông tin trợ lý.</summary>
+
 public class AssistantDto
 {
     public Guid AssistantId { get; set; }
@@ -118,7 +118,7 @@ public class AssistantDto
     public decimal Rating { get; set; }
 }
 
-/// <summary>DTO hiển thị tài nguyên của một công việc.</summary>
+
 public class TaskResourceDto
 {
     public Guid TaskId { get; set; }

@@ -49,11 +49,11 @@ interface NavItem {
   title: string
   href: string
   icon: React.ElementType
-  badgeKey?: string   // dynamic badge key
+  badgeKey?: string   
   roles: UserRole[]
 }
 
-// Badge keys map to fetched counts from API
+
 const navItems: NavItem[] = [
   {
     title: "Dashboard",
@@ -158,7 +158,7 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { user, role, setRole, logout, token } = useAuth()
 
-  // Dynamic badge counts from real API data
+  
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
 
   const fetchBadgeCounts = useCallback(async () => {
@@ -168,7 +168,7 @@ export function AppSidebar() {
 
     try {
       if (role === "assistant") {
-        // Fetch assistant's pending + in_progress tasks
+        
         const res = await fetch(`${API_BASE_URL}/api/tasks/my-tasks`, { headers: authHeader })
         if (res.ok) {
           const tasks: any[] = await res.json()
@@ -180,7 +180,7 @@ export function AppSidebar() {
       }
 
       if (role === "mangaka") {
-        // Fetch pages in review status
+        
         const res = await fetch(`${API_BASE_URL}/api/data/review-pages`, { headers: authHeader })
         if (res.ok) {
           const pages: any[] = await res.json()
@@ -197,7 +197,7 @@ export function AppSidebar() {
       }
 
       if (role === "editorial") {
-        // Fetch pending series proposals
+        
         const [proposalsRes, publishRes] = await Promise.all([
           fetch(`${API_BASE_URL}/api/proposals`, { headers: authHeader }),
           fetch(`${API_BASE_URL}/api/publish-schedules`, { headers: authHeader }),
@@ -220,7 +220,7 @@ export function AppSidebar() {
         }
       }
     } catch (err) {
-      // Silently fail — badges are informational only
+      
     }
   }, [token, user?.id, role])
 
@@ -248,7 +248,7 @@ export function AppSidebar() {
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Header */}
+          
           <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
             {!collapsed && (
               <Link href="/" className="flex items-center gap-2">
@@ -287,7 +287,7 @@ export function AppSidebar() {
             </Button>
           </div>
 
-          {/* Navigation */}
+          
           <nav className="flex-1 overflow-y-auto p-2">
             <ul className="space-y-1">
               {filteredNavItems.map((item) => {
@@ -342,7 +342,7 @@ export function AppSidebar() {
             </ul>
           </nav>
 
-          {/* Footer */}
+          
           <div className="p-4 border-t border-sidebar-border">
             {!collapsed ? (
               <div className="flex items-center gap-3">
