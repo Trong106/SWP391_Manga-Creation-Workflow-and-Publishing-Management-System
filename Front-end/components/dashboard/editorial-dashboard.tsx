@@ -95,7 +95,7 @@ const stripHtml = (html: string | null) => {
 export function EditorialDashboard() {
   return (
     <div className="space-y-6">
-      {/* Proposals Section */}
+      
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -152,7 +152,7 @@ export function EditorialDashboard() {
         </CardContent>
       </Card>
 
-      {/* Pending Publish Approvals */}
+      
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -200,7 +200,7 @@ export function EditorialDashboard() {
         </CardContent>
       </Card>
 
-      {/* Series Ranking */}
+      
       <Card className="bg-card border-border">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">

@@ -10,9 +10,9 @@ using MangaStudio.Backend.Services.Interfaces;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Lớp triển khai của IStorageService kết nối và upload file lên Cloudinary.
-/// </summary>
+
+
+
 public class CloudinaryService : IStorageService
 {
     private readonly Cloudinary _cloudinary;
@@ -30,7 +30,7 @@ public class CloudinaryService : IStorageService
 
         var account = new Account(cloudName, apiKey, apiSecret);
         _cloudinary = new Cloudinary(account);
-        _cloudinary.Api.Secure = true; // Sử dụng giao thức HTTPS
+        _cloudinary.Api.Secure = true; 
     }
 
     public async Task<string> UploadFileAsync(IFormFile file, string folderName)
@@ -45,7 +45,7 @@ public class CloudinaryService : IStorageService
 
         using var stream = file.OpenReadStream();
         
-        // Phân biệt luồng upload: nếu là các định dạng ảnh thông thường (bao gồm cả .psd)
+        
         if (allowedImageExtensions.Contains(ext))
         {
             var uploadParams = new ImageUploadParams
@@ -63,7 +63,7 @@ public class CloudinaryService : IStorageService
 
             return uploadResult.SecureUrl.ToString();
         }
-        else // Đối với các định dạng tệp thô khác (như .clip của Clip Studio Paint)
+        else 
         {
             var uploadParams = new RawUploadParams
             {

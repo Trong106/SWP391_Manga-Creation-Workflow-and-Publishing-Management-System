@@ -46,7 +46,7 @@ export default function ChapterReaderPage() {
       setLoading(true)
       setError(null)
       try {
-        // 1. Fetch chapter detail
+        
         const chapterRes = await fetch(`${API_BASE_URL}/api/chapters/${id}`, {
           headers: {
             "Authorization": `Bearer ${token}`
@@ -59,18 +59,18 @@ export default function ChapterReaderPage() {
         const chapterData = await readJsonOrThrow(chapterRes, "Failed to fetch chapter details.")
         setChapter(chapterData)
 
-        // 2. Fetch pages list
+        
         const pagesRes = await fetch(`${API_BASE_URL}/api/chapters/${id}/pages`, {
           headers: {
             "Authorization": `Bearer ${token}`
           }
         })
         const pagesData = await readJsonOrThrow(pagesRes, "Failed to fetch manga pages.")
-        // Sort pages ascending by page number
+        
         const sortedPages = [...pagesData].sort((a, b) => a.pageNumber - b.pageNumber)
         setPages(sortedPages)
 
-        // 3. Fetch all chapters in the series to enable navigation
+        
         if (chapterData.seriesId) {
           const allChaptersRes = await fetch(`${API_BASE_URL}/api/series/${chapterData.seriesId}/chapters`, {
             headers: {
@@ -79,7 +79,7 @@ export default function ChapterReaderPage() {
           })
           if (allChaptersRes.ok) {
             const chaptersList = await readJsonOrThrow(allChaptersRes, "Failed to fetch chapter list.")
-            // Sort ascending by chapterNumber (e.g. Chapter 1, 2, 3...)
+            
             const sortedChapters = [...chaptersList].sort((a, b) => a.chapterNumber - b.chapterNumber)
             setAllChapters(sortedChapters)
           }
@@ -104,7 +104,7 @@ export default function ChapterReaderPage() {
   const getOpenAnnotations = (page: any): PageAnnotation[] =>
     (page.annotations || []).filter((annotation: PageAnnotation) => annotation.status?.toLowerCase() === "open")
 
-  // Find current chapter index
+  
   const currentIndex = allChapters.findIndex((c) => c.chapterId === id)
   const prevChapter = currentIndex > 0 ? allChapters[currentIndex - 1] : null
   const nextChapter = currentIndex < allChapters.length - 1 && currentIndex !== -1 ? allChapters[currentIndex + 1] : null
@@ -155,10 +155,10 @@ export default function ChapterReaderPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0C0D] text-white flex flex-col">
-      {/* Sticky Header Navigation */}
+      
       <header className="sticky top-0 z-50 w-full bg-[#121416]/95 backdrop-blur-md border-b border-[#1A1D1F] py-3 px-4 md:px-6 shadow-md transition-all">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Back & Title */}
+          
           <div className="flex items-center gap-3 shrink-0">
             <Button
               variant="ghost"
@@ -178,7 +178,7 @@ export default function ChapterReaderPage() {
             </div>
           </div>
 
-          {/* Quick Select & Navigation */}
+          
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -237,7 +237,7 @@ export default function ChapterReaderPage() {
         </div>
       </header>
 
-      {/* Manga Pages Container */}
+      
       <main className="flex-1 w-full flex flex-col items-center py-4 bg-[#0B0C0D]">
         {pages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-32 px-4 text-center">

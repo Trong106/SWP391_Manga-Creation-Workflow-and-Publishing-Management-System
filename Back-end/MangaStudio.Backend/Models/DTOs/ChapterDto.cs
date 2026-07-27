@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MangaStudio.Backend.Models.DTOs;
 
-/// <summary>DTO trả về thông tin chương truyện.</summary>
+
 public class ChapterDto
 {
     public Guid ChapterId { get; set; }
@@ -23,7 +23,7 @@ public class ChapterDto
     public DateTime UpdatedAt { get; set; }
 }
 
-/// <summary>DTO tạo chương mới.</summary>
+
 public class CreateChapterDto
 {
     [Required(ErrorMessage = "Chapter number is required.")]
@@ -36,7 +36,7 @@ public class CreateChapterDto
     public DateTime? DueDate { get; set; }
 }
 
-/// <summary>DTO cập nhật thông tin chương.</summary>
+
 public class UpdateChapterDto
 {
     [StringLength(255)]

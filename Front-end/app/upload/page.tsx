@@ -86,7 +86,7 @@ export default function UploadPage() {
   const [pendingOverwriteFiles, setPendingOverwriteFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
-  // Lấy danh sách bộ truyện thật từ database (gửi kèm JWT Token để xác thực)
+  
   useEffect(() => {
     if (user?.id && token) {
       fetch(`${API_BASE_URL}/api/mangaka/series?mangakaId=${user.id}`, {
@@ -108,7 +108,7 @@ export default function UploadPage() {
     }
   }, [user?.id, token])
 
-  // Lấy danh sách chương của bộ truyện được chọn
+  
   useEffect(() => {
     if (selectedSeries && token) {
       fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
@@ -201,7 +201,7 @@ export default function UploadPage() {
     void loadChapterPages(selectedChapterId)
   }, [selectedChapterId, loadChapterPages])
 
-  // Hàm tạo chương mới qua API
+  
   const handleCreateChapter = async () => {
     if (!selectedSeries) {
       toast.error("Please select a series first.")
@@ -239,7 +239,7 @@ export default function UploadPage() {
       const createdChapter = await readJsonOrThrow(response, "Failed to create the chapter.")
       toast.success(`Chapter ${createdChapter.chapterNumber} was created successfully.`)
       
-      // Refresh list of chapters and auto select the new one
+      
       const updatedRes = await fetch(`${API_BASE_URL}/api/series/${selectedSeries}/chapters`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -271,7 +271,7 @@ export default function UploadPage() {
     }
   }
 
-  // Validate and upload the complete ordered batch in one request.
+  
   const handleFiles = async (files: File[], allowOverwrite = false) => {
     if (!selectedChapterId) {
       toast.error("Please select or create a chapter before uploading pages.")
@@ -381,7 +381,7 @@ export default function UploadPage() {
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
-    // Only reset if leaving the dropzone itself, not a child element
+    
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsDragging(false)
     }
@@ -430,9 +430,9 @@ export default function UploadPage() {
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0 overflow-y-auto lg:overflow-hidden">
-        {/* Column 1: Selection & Upload zone */}
+        
         <div className="flex flex-col gap-4 min-h-0 lg:overflow-y-auto lg:pr-1">
-          {/* Series Selection */}
+          
           <Card className="bg-card border-border flex-none">
             <CardHeader>
               <CardTitle>Select Series & Chapter</CardTitle>
@@ -565,7 +565,7 @@ export default function UploadPage() {
             </Card>
           )}
 
-          {/* Upload Zone */}
+          
           <Card className="bg-card border-border flex-none">
             <CardHeader>
               <CardTitle>Upload Files</CardTitle>
@@ -654,7 +654,7 @@ export default function UploadPage() {
             </CardContent>
           </Card>
 
-          {/* Uploaded history */}
+          
           {selectedChapterId && (
             <Card className="bg-card border-border flex-none">
               <CardHeader>
@@ -712,7 +712,7 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* Column 2: Review (middle column, page image previews) */}
+        
         <div className="flex flex-col min-h-0 lg:overflow-hidden">
           <Card className="bg-card border-border flex flex-col h-full min-h-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 flex-none">
@@ -761,7 +761,7 @@ export default function UploadPage() {
           </Card>
         </div>
 
-        {/* Column 3: Sidebar (Upload Summary & Tips) */}
+        
         <div className="flex flex-col gap-4 min-h-0 lg:overflow-y-auto lg:pr-1">
           <Card className="bg-card border-border flex-none">
             <CardHeader>

@@ -12,9 +12,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Services.Implementations;
 
-/// <summary>
-/// Triển khai nghiệp vụ quản lý công việc (Tasks) giao cho trợ lý.
-/// </summary>
+
+
+
 public class TaskService : ITaskService
 {
     private readonly AppDbContext _context;
@@ -26,9 +26,9 @@ public class TaskService : ITaskService
         _storageService = storageService;
     }
 
-    /// <summary>
-    /// Tạo công việc mới giao cho trợ lý.
-    /// </summary>
+    
+    
+    
     public async Task<TaskDto> CreateTask(Guid pageId, Guid assignerId, CreateTaskDto dto)
     {
         var page = await _context.MangaPages
@@ -120,7 +120,7 @@ public class TaskService : ITaskService
             UpdatedAt = DateTime.UtcNow
         };
 
-        // Update page status to assigned if needed
+        
         if (page.Status == "pending" || page.Status == "revision")
         {
             page.Status = "assigned";
@@ -185,9 +185,9 @@ public class TaskService : ITaskService
         };
     }
 
-    /// <summary>
-    /// Lấy danh sách công việc của một trang truyện.
-    /// </summary>
+    
+    
+    
     public async Task<List<TaskDto>> GetTasksByPage(Guid pageId)
     {
         return await _context.Tasks
@@ -203,9 +203,9 @@ public class TaskService : ITaskService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Lấy danh sách công việc của trợ lý đang đăng nhập.
-    /// </summary>
+    
+    
+    
     public async Task<List<TaskDto>> GetMyTasks(Guid assistantId)
     {
         return await _context.Tasks
@@ -221,9 +221,9 @@ public class TaskService : ITaskService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Cập nhật thông tin công việc.
-    /// </summary>
+    
+    
+    
     public async Task<TaskDto> UpdateTask(Guid taskId, Guid mangakaId, UpdateTaskDto dto)
     {
         var task = await _context.Tasks
@@ -335,9 +335,9 @@ public class TaskService : ITaskService
         return await GetTaskById(task.TaskId);
     }
 
-    /// <summary>
-    /// Trợ lý nộp bài làm kèm file đính kèm.
-    /// </summary>
+    
+    
+    
     public async Task<TaskSubmissionDto> SubmitTask(Guid taskId, Guid assistantId, string? note, IFormFile? file)
     {
         var task = await _context.Tasks
@@ -370,7 +370,7 @@ public class TaskService : ITaskService
                 throw new ArgumentException("Kích thước file tối đa 50MB.");
             }
 
-            // Tải file lên Cloudinary
+            
             var fileUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Submissions");
 
             var maxVer = await _context.PageVersions
@@ -394,13 +394,13 @@ public class TaskService : ITaskService
 
             _context.PageVersions.Add(pageVersion);
 
-            // Cập nhật CurrentImageUrl của MangaPage
+            
             task.Page.CurrentImageUrl = fileUrl;
             task.Page.UploadedAt = DateTime.UtcNow;
             task.Page.UploadedById = assistantId;
         }
 
-        // Cập nhật trạng thái
+        
         task.Status = "submitted";
         task.Page.Status = "submitted";
         task.UpdatedAt = DateTime.UtcNow;
@@ -422,9 +422,9 @@ public class TaskService : ITaskService
         return await GetSubmissionById(submission.SubmissionId);
     }
 
-    /// <summary>
-    /// Lấy danh sách bài nộp của một công việc.
-    /// </summary>
+    
+    
+    
     public async Task<List<TaskSubmissionDto>> GetSubmissions(Guid taskId)
     {
         return await _context.TaskSubmissions
@@ -449,9 +449,9 @@ public class TaskService : ITaskService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Mangaka phê duyệt hoặc từ chối bài nộp của trợ lý.
-    /// </summary>
+    
+    
+    
     public async Task<TaskSubmissionDto> ReviewSubmission(Guid submissionId, Guid reviewerId, ReviewSubmissionDto dto)
     {
         var submission = await _context.TaskSubmissions
@@ -640,9 +640,9 @@ public class TaskService : ITaskService
         };
     }
 
-    /// <summary>
-    /// Trợ lý bắt đầu thực hiện công việc (chuyển sang in_progress).
-    /// </summary>
+    
+    
+    
     public async Task<TaskDto> StartTask(Guid taskId, Guid assistantId)
     {
         var task = await _context.Tasks
@@ -688,9 +688,9 @@ public class TaskService : ITaskService
         return MapTaskToDto(task);
     }
 
-    /// <summary>
-    /// Lấy thông tin tài nguyên (ảnh trang gốc) của công việc.
-    /// </summary>
+    
+    
+    
     public async Task<TaskResourceDto?> GetTaskResource(Guid taskId)
     {
         var task = await _context.Tasks

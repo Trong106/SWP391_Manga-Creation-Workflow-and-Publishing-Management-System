@@ -11,9 +11,9 @@ using Microsoft.AspNetCore.Http;
 
 namespace MangaStudio.Backend.Controllers;
 
-/// <summary>
-/// Controller quản lý bộ truyện (Series) và chương (Chapter) bên trong nó.
-/// </summary>
+
+
+
 [ApiController]
 [Route("api/series")]
 [Authorize]
@@ -37,9 +37,9 @@ public class SeriesController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
     }
 
-    /// <summary>
-    /// GET /api/series — Lấy catalog bộ truyện cho mọi role đã đăng nhập.
-    /// </summary>
+    
+    
+    
     [HttpGet]
     public async Task<IActionResult> GetMySeries()
     {
@@ -59,9 +59,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/series/{id} — Xem chi tiết bộ truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetSeriesById(Guid id)
     {
@@ -87,9 +87,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/series — Tạo bộ truyện mới.
-    /// </summary>
+    
+    
+    
     [HttpPost]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> CreateSeries([FromBody] CreateSeriesDto dto)
@@ -111,9 +111,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/series/with-manuscript — Tạo proposal và lưu bản thảo sơ bộ thành Chapter 1.
-    /// </summary>
+    
+    
+    
     [HttpPost("with-manuscript")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> CreateSeriesWithManuscript([FromForm] CreateSeriesWithManuscriptDto dto)
@@ -167,9 +167,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/series/{id} — Cập nhật thông tin bộ truyện.
-    /// </summary>
+    
+    
+    
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> UpdateSeries(Guid id, [FromBody] UpdateSeriesDto dto)
@@ -195,9 +195,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/series/{id}/editorial-decision - Editorial Board huy, dua vao theo doi, hoac kich hoat lai series.
-    /// </summary>
+    
+    
+    
     [HttpPut("{id:guid}/editorial-decision")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> ApplyEditorialDecision(Guid id, [FromBody] EditorialSeriesDecisionDto dto)
@@ -223,9 +223,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/series/{id}/resubmit - Mangaka gui lai de xuat sau khi bi tu choi.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/resubmit")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> ResubmitSeries(Guid id)
@@ -250,9 +250,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/series/{id}/chapters — Lấy danh sách chương của bộ truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("{id:guid}/chapters")]
     public async Task<IActionResult> GetChapters(Guid id)
     {
@@ -268,9 +268,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/series/{id}/chapters — Tạo chương mới trong bộ truyện.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/chapters")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> CreateChapter(Guid id, [FromBody] CreateChapterDto dto)
@@ -300,9 +300,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/series/{id}/upload-cover — Tải lên ảnh bìa cho bộ truyện.
-    /// </summary>
+    
+    
+    
     [HttpPost("{id:guid}/upload-cover")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> UploadCover(Guid id, IFormFile file)
@@ -316,10 +316,10 @@ public class SeriesController : ControllerBase
         {
             var mangakaId = GetCurrentUserId();
             
-            // Tải file lên Cloudinary
+            
             string coverUrl = await _storageService.UploadFileAsync(file, "MangaStudio/Covers");
 
-            // Cập nhật CoverImageUrl thông qua service
+            
             var dto = new UpdateSeriesDto { CoverImageUrl = coverUrl };
             var result = await _seriesService.UpdateSeries(id, mangakaId, dto);
 
@@ -339,9 +339,9 @@ public class SeriesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/series/ranking — Lấy bảng xếp hạng bộ truyện.
-    /// </summary>
+    
+    
+    
     [HttpGet("ranking")]
     public async Task<IActionResult> GetSeriesRanking([FromQuery] string? genre, [FromQuery] string? sortBy, [FromQuery] string? timeframe)
     {

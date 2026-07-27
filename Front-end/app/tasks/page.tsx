@@ -116,7 +116,7 @@ export default function AssistantTasksPage() {
   const [sortBy, setSortBy] = useState<string>("dueDate")
   const [startingTaskId, setStartingTaskId] = useState<string | null>(null)
 
-  // State for Resource Modal
+  
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false)
   const [selectedTaskResource, setSelectedTaskResource] = useState<TaskResource | null>(null)
   const [loadingResource, setLoadingResource] = useState(false)
@@ -124,7 +124,7 @@ export default function AssistantTasksPage() {
   const [askingTaskId, setAskingTaskId] = useState<string | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null)
 
-  // Ask Clarification states
+  
   const [isAskDialogOpen, setIsAskDialogOpen] = useState(false)
   const [askMessage, setAskMessage] = useState("")
   const [taskToAsk, setTaskToAsk] = useState<Task | null>(null)
@@ -270,7 +270,7 @@ export default function AssistantTasksPage() {
     }
   }
 
-  // Guard Clause for Authorization
+  
   if (role !== "assistant") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4 max-w-md mx-auto">
@@ -296,8 +296,8 @@ export default function AssistantTasksPage() {
     )
   }
 
-  // Dynamic calculations from real database objects (no fake data)
-  // Extract all unique series names and their stats for the Selection Dashboard
+  
+  
   const allSeriesGroups: Record<string, { 
     approved: number; 
     pending: number; 
@@ -351,7 +351,7 @@ export default function AssistantTasksPage() {
     ? tasks.filter(t => (t.seriesTitle || "Uncategorized") === selectedSeries)
     : tasks
 
-  // Active Progress by Series
+  
   const seriesGroups: Record<string, { approved: number; total: number }> = {}
   displayedTasks.forEach(t => {
     const sTitle = t.seriesTitle || "Uncategorized"
@@ -374,20 +374,20 @@ export default function AssistantTasksPage() {
     }
   })
 
-  // Recent Milestones: show completed or submitted tasks sorted by updatedAt
+  
   const milestones = [...displayedTasks]
     .filter(t => t.status.toLowerCase() === "approved" || t.status.toLowerCase() === "submitted" || t.status.toLowerCase() === "revision")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 3)
 
-  // Filtering
+  
   const filteredTasks = displayedTasks.filter(t => {
     if (activeFilter === "all") return true
     if (activeFilter === "todo") return t.status.toLowerCase() === "pending"
     return t.status.toLowerCase() === activeFilter.toLowerCase()
   })
 
-  // Sorting
+  
   const sortedTasks = [...filteredTasks].sort((a, b) => {
     if (sortBy === "dueDate") {
       if (!a.dueDate) return 1
@@ -506,7 +506,7 @@ export default function AssistantTasksPage() {
                           : "hover:bg-zinc-900/40"
                       }`}
                     >
-                      {/* Cover image cell */}
+                      
                       <td className="py-4 px-6">
                         {series.coverImageUrl ? (
                           <div className={`w-10 h-14 relative rounded-lg overflow-hidden border bg-zinc-950 shadow-inner ${
@@ -527,7 +527,7 @@ export default function AssistantTasksPage() {
                         )}
                       </td>
 
-                      {/* Series Title cell */}
+                      
                       <td className={`py-4 px-6 font-bold transition-colors ${
                         hasRevision
                           ? "text-red-100 group-hover:text-red-200"
@@ -545,7 +545,7 @@ export default function AssistantTasksPage() {
                         </div>
                       </td>
 
-                      {/* Progress bar cell */}
+                      
                       <td className="py-4 px-6">
                         <div className="flex flex-col gap-1.5">
                           <div className="flex justify-between text-xs font-semibold text-zinc-400">
@@ -560,7 +560,7 @@ export default function AssistantTasksPage() {
                         </div>
                       </td>
 
-                      {/* Counts cells */}
+                      
                       <td className="py-4 px-6 text-center font-semibold text-zinc-400 font-mono">
                         {series.stats.pending > 0 ? (
                           <span className="text-zinc-300 bg-zinc-900/60 border border-zinc-850 px-2 py-0.5 rounded text-xs">
@@ -607,7 +607,7 @@ export default function AssistantTasksPage() {
                         </span>
                       </td>
 
-                      {/* Action cell */}
+                      
                       <td className="py-4 px-6 text-right">
                         <button className={`inline-flex items-center gap-1 text-xs font-bold group-hover:underline transition-all ${
                           hasRevision ? "text-red-300 hover:text-red-200" : "text-primary"
@@ -625,7 +625,7 @@ export default function AssistantTasksPage() {
         )
       ) : (
         <div className="space-y-4">
-          {/* Gmail-Style Tabs */}
+          
           <div className="flex border-b border-zinc-850 bg-zinc-950/20 px-2 overflow-x-auto">
             {[
               { id: "all", label: "All Tasks", icon: ListTodo },
@@ -654,7 +654,7 @@ export default function AssistantTasksPage() {
             })}
           </div>
 
-          {/* Gmail-Style Action Bar */}
+          
           <div className="flex items-center justify-between py-2 px-4 bg-zinc-950/20 border border-zinc-850 rounded-xl text-xs text-zinc-400">
             <div className="flex items-center gap-4">
               <span className="font-semibold text-zinc-300">
@@ -697,15 +697,15 @@ export default function AssistantTasksPage() {
                     key={task.taskId}
                     className="group/row flex items-center justify-between py-3.5 px-4 hover:bg-zinc-900/35 transition-colors duration-150 text-xs"
                   >
-                    {/* Left: Status/TaskType Badge, Page Info */}
+                    
                     <div className="flex items-center gap-3 shrink-0">
                       {activeFilter === "all" ? (
-                        /* Status Badge when showing all */
+                        
                         <Badge variant="secondary" className={`text-[9px] uppercase font-extrabold tracking-wider px-1.5 py-0.5 rounded ${getStatusBadgeClass(task.status)}`}>
                           {task.status.replace("_", " ")}
                         </Badge>
                       ) : (
-                        /* Task Type Badge with Icon when status is pre-filtered */
+                        
                         (() => {
                           const TypeIcon = getTaskTypeIcon(task.type)
                           return (
@@ -717,13 +717,13 @@ export default function AssistantTasksPage() {
                         })()
                       )}
 
-                      {/* Page Info */}
+                      
                       <span className="text-zinc-500 font-mono text-[10px] min-w-[55px]">
                         P. #{task.pageNumber}
                       </span>
                     </div>
 
-                    {/* Middle: Title & Description snippet */}
+                    
                     <div className="flex-1 min-w-0 mx-4 flex items-baseline gap-2">
                       <span className={`text-zinc-200 truncate font-semibold text-[13px] ${isCompleted ? "line-through text-zinc-500" : ""}`}>
                         {task.title}
@@ -733,24 +733,24 @@ export default function AssistantTasksPage() {
                       </span>
                     </div>
 
-                    {/* Right: Chapter, Payout, Date & Quick Hover Actions */}
+                    
                     <div className="flex items-center gap-4 shrink-0 ml-auto justify-end">
-                      {/* Chapter Info */}
+                      
                       <span className="text-[10px] text-zinc-500 font-mono">
                         Ch. {task.chapterNumber}
                       </span>
 
-                      {/* Payout */}
+                      
                       <span className="text-primary font-bold font-mono text-xs min-w-[65px] text-right">
                         ${task.paymentAmount.toFixed(2)}
                       </span>
 
-                      {/* Date (visible when not hovered) */}
+                      
                       <span className="text-xs text-zinc-500 font-semibold w-[90px] text-right group-hover/row:hidden">
                         {formatDueDate(task.dueDate)}
                       </span>
 
-                      {/* Actions (visible on hover) */}
+                      
                       <div className="hidden group-hover/row:flex items-center gap-1.5 min-w-[90px] justify-end">
                         {s !== "cancelled" && (
                           <Button
@@ -821,7 +821,7 @@ export default function AssistantTasksPage() {
         </div>
       )}
 
-      {/* Confirmation and Preview Modal */}
+      
       <Dialog open={isResourceModalOpen} onOpenChange={setIsResourceModalOpen}>
         <DialogContent className="flex max-h-[92vh] w-[min(92vw,860px)] max-w-none flex-col overflow-hidden bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl p-0 animate-in fade-in zoom-in-95 duration-200">
           <DialogHeader className="shrink-0 space-y-1.5 border-b border-zinc-800/50 p-5 pb-3">
@@ -938,7 +938,7 @@ export default function AssistantTasksPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Ask Clarification Dialog */}
+      
       <Dialog open={isAskDialogOpen} onOpenChange={setIsAskDialogOpen}>
         <DialogContent className="max-w-md bg-zinc-950/95 border border-zinc-800 text-white backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <DialogHeader className="space-y-1.5 pb-2">

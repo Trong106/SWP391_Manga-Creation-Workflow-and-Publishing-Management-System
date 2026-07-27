@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+
 
 interface Series {
   seriesId: string
@@ -168,7 +168,7 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-zinc-900 text-zinc-500",
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+
 
 export default function TaskAssignPage() {
   const { token, role } = useAuth()
@@ -212,7 +212,7 @@ export default function TaskAssignPage() {
 
   const authHeader = { Authorization: `Bearer ${token}` }
 
-  // ── Load series for the current mangaka ──────────────────────────────────
+  
   const loadSeries = useCallback(async () => {
     if (!token) return
     try {
@@ -228,7 +228,7 @@ export default function TaskAssignPage() {
     }
   }, [token])
 
-  // ── Load chapters when series changes ────────────────────────────────────
+  
   const loadChapters = useCallback(async (seriesId: string) => {
     if (!token || !seriesId) return
     try {
@@ -249,7 +249,7 @@ export default function TaskAssignPage() {
     }
   }, [token])
 
-  // ── Load pages when chapter changes ──────────────────────────────────────
+  
   const loadPages = useCallback(async (chapterId: string) => {
     if (!token || !chapterId) return
     try {
@@ -268,7 +268,7 @@ export default function TaskAssignPage() {
     }
   }, [token])
 
-  // ── Load tasks for selected page ──────────────────────────────────────────
+  
   const loadPageTasks = useCallback(async (pageId: string) => {
     if (!token || !pageId) return
     try {
@@ -284,14 +284,14 @@ export default function TaskAssignPage() {
     }
   }, [token])
 
-  // ── Load assistants ───────────────────────────────────────────────────────
+  
   const loadAssistants = useCallback(async () => {
     if (!token) return
     try {
       const res = await fetch(`${API_BASE_URL}/api/assistants`, { headers: authHeader })
       if (!res.ok) throw new Error("Failed to load assistants")
       const data = await res.json()
-      // Map the assistant data from either API endpoint format
+      
       const mapped: Assistant[] = (Array.isArray(data) ? data : []).map((a: any) => ({
         id: a.assistantId ?? a.id,
         name: a.fullName ?? a.name,
@@ -304,12 +304,12 @@ export default function TaskAssignPage() {
       }))
       setAssistants(mapped)
     } catch (err) {
-      // Non-critical - assistants list just won't show
+      
       console.error("Failed to load assistants:", err)
     }
   }, [token])
 
-  // ── Effects ───────────────────────────────────────────────────────────────
+  
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     setQuerySeriesId(params.get("seriesId") ?? "")
@@ -346,7 +346,7 @@ export default function TaskAssignPage() {
     if (!isDialogOpen) setFormError(null)
   }, [isDialogOpen])
 
-  // ── Create task ───────────────────────────────────────────────────────────
+  
   const getTodayInputDate = () => {
     const now = new Date()
     const month = `${now.getMonth() + 1}`.padStart(2, "0")
@@ -501,7 +501,7 @@ export default function TaskAssignPage() {
     }
   }
 
-  // ── Delete (cancel) task ─────────────────────────────────────────────────
+  
   const handleCancelTask = async (taskId: string) => {
     if (!token) return
     try {
@@ -568,7 +568,7 @@ export default function TaskAssignPage() {
     setFormError(null)
   }
 
-  // ── Guard: only mangaka ───────────────────────────────────────────────────
+  
   if (role !== "mangaka") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4 text-center max-w-md mx-auto">
@@ -581,7 +581,7 @@ export default function TaskAssignPage() {
     )
   }
 
-  // ── Computed ──────────────────────────────────────────────────────────────
+  
   const selectedSeries = series.find(s => s.seriesId === selectedSeriesId)
   const selectedChapter = chapters.find(c => c.chapterId === selectedChapterId)
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
@@ -599,10 +599,10 @@ export default function TaskAssignPage() {
   const requiredTaskTypes = ["line_art", "background", "lettering"]
   const requiredTaskCount = requiredTaskTypes.filter(type => pageTasks.some(task => task.type === type)).length
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
-      {/* Page Header */}
+      
       <div className="mb-2 stagger-item">
         <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3" id="task-assign-heading">
           <Layers className="w-8 h-8 text-primary" />
@@ -614,10 +614,10 @@ export default function TaskAssignPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ── Left: Selection + Task List ────────────────────────────────── */}
+        
         <div className="lg:col-span-2 space-y-5">
 
-          {/* Series / Chapter / Page Selector */}
+          
           <Card className="bg-card border-border stagger-item">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -636,7 +636,7 @@ export default function TaskAssignPage() {
                 <p className="text-zinc-500 text-sm py-4">No series found. Create a series first.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Series */}
+                  
                   <div className="space-y-1.5">
                     <Label className="text-xs text-zinc-400 uppercase font-semibold tracking-wider">Series</Label>
                     <Select value={selectedSeriesId} onValueChange={setSelectedSeriesId}>
@@ -653,7 +653,7 @@ export default function TaskAssignPage() {
                     </Select>
                   </div>
 
-                  {/* Chapter */}
+                  
                   <div className="space-y-1.5">
                     <Label className="text-xs text-zinc-400 uppercase font-semibold tracking-wider">Chapter</Label>
                     {loadingChapters ? (
@@ -676,7 +676,7 @@ export default function TaskAssignPage() {
                     )}
                   </div>
 
-                  {/* Page */}
+                  
                   <div className="space-y-1.5">
                     <Label className="text-xs text-zinc-400 uppercase font-semibold tracking-wider">Page</Label>
                     {loadingPages ? (
@@ -762,7 +762,7 @@ export default function TaskAssignPage() {
             </Card>
           )}
 
-          {/* Task List for Selected Page */}
+          
           <Card className="bg-card border-border stagger-item">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
@@ -783,7 +783,7 @@ export default function TaskAssignPage() {
                 </CardDescription>
               </div>
 
-              {/* Add Task Button */}
+              
               {selectedPageId && isSelectedPageApproved ? (
                 <Button
                   size="sm"
@@ -907,7 +907,7 @@ export default function TaskAssignPage() {
                         )}
                       </div>
 
-                      {/* Title */}
+                      
                       <div className="space-y-1.5">
                         <Label className="text-sm text-zinc-300">Task Title <span className="text-red-400">*</span></Label>
                         <Input
@@ -919,7 +919,7 @@ export default function TaskAssignPage() {
                         />
                       </div>
 
-                      {/* Description */}
+                      
                       <div className="space-y-1.5">
                         <Label className="text-sm text-zinc-300">Description</Label>
                         <Textarea
@@ -932,7 +932,7 @@ export default function TaskAssignPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        {/* Type */}
+                        
                         <div className="space-y-1.5">
                           <Label className="text-sm text-zinc-300">Task Type <span className="text-red-400">*</span></Label>
                           <Select value={form.type} onValueChange={v => updateForm({ type: v })}>
@@ -949,7 +949,7 @@ export default function TaskAssignPage() {
                           </Select>
                         </div>
 
-                        {/* Assignee */}
+                        
                         <div className="space-y-1.5">
                           <Label className="text-sm text-zinc-300">Assign To <span className="text-red-400">*</span></Label>
                           <Select value={form.assigneeId || undefined} onValueChange={v => updateForm({ assigneeId: v })}>
@@ -974,7 +974,7 @@ export default function TaskAssignPage() {
                       </div>
 
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {/* Default payment */}
+                        
                         <div className="space-y-1.5">
                           <Label className="text-sm text-zinc-300">Default Task Payment</Label>
                           <div className="flex h-11 items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 font-mono font-bold text-primary">
@@ -982,7 +982,7 @@ export default function TaskAssignPage() {
                           </div>
                         </div>
 
-                        {/* Due Date */}
+                        
                         <div className="space-y-1.5">
                           <Label className="text-sm text-zinc-300">Due Date <span className="text-red-400">*</span></Label>
                           <Input
@@ -1066,12 +1066,12 @@ export default function TaskAssignPage() {
                     className="flex cursor-pointer flex-col gap-3 rounded-xl border border-zinc-900/60 bg-zinc-950/50 p-4 transition-colors hover:border-primary/35 hover:bg-zinc-900/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:flex-row sm:items-center group"
                     title="Click to review this task region"
                   >
-                    {/* Type badge */}
+                    
                     <Badge className={`text-[10px] uppercase font-bold tracking-wider shrink-0 border ${typeColors[task.type] ?? "bg-zinc-800 text-zinc-300"}`}>
                       {task.type.replace("_", " ")}
                     </Badge>
 
-                    {/* Task info */}
+                    
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-white truncate group-hover:text-primary transition-colors">{task.title}</p>
                       {task.description && (
@@ -1079,13 +1079,13 @@ export default function TaskAssignPage() {
                       )}
                     </div>
 
-                    {/* Total pay */}
+                    
                     <div className="flex items-center gap-1.5 shrink-0 text-primary font-mono font-bold text-sm">
                       <DollarSign className="w-3.5 h-3.5" />
                       {task.paymentAmount.toFixed(2)}
                     </div>
 
-                    {/* Due date */}
+                    
                     {task.dueDate && (
                       <div className="flex items-center gap-1.5 shrink-0 text-zinc-400 text-xs">
                         <Clock className="w-3 h-3" />
@@ -1093,7 +1093,7 @@ export default function TaskAssignPage() {
                       </div>
                     )}
 
-                    {/* Assignee */}
+                    
                     {task.assigneeName && task.assigneeId ? (
                       <div className="flex items-center gap-2 shrink-0">
                         <Avatar className="w-6 h-6">
@@ -1106,7 +1106,7 @@ export default function TaskAssignPage() {
                       <span className="text-xs text-zinc-500">No assistant</span>
                     )}
 
-                    {/* Status */}
+                    
                     <Badge className={`text-[9px] uppercase font-bold shrink-0 ${statusColors[task.status] ?? "bg-zinc-800 text-zinc-300"}`}>
                       {task.status.replace("_", " ")}
                     </Badge>
@@ -1115,7 +1115,7 @@ export default function TaskAssignPage() {
                       <Eye className="h-3.5 w-3.5" />
                     </div>
 
-                    {/* Cancel (only for pending) */}
+                    
                     {task.status === "pending" && (
                       <Button
                         variant="ghost"
@@ -1290,7 +1290,7 @@ export default function TaskAssignPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Fixed Price Table */}
+          
           <Card className="bg-card border-border stagger-item">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -1314,10 +1314,10 @@ export default function TaskAssignPage() {
           </Card>
         </div>
 
-        {/* ── Right: Summary + Assistants ────────────────────────────────── */}
+        
         <div className="space-y-5">
 
-          {/* Assignment Summary */}
+          
           <Card className="bg-card border-border overflow-hidden stagger-item">
             <div className="h-1 bg-primary w-full" />
             <CardHeader className="pb-3">
@@ -1339,7 +1339,7 @@ export default function TaskAssignPage() {
                 <span className="text-zinc-400">Optional Types</span>
                 <span className="font-bold text-yellow-400">{selectedPageId ? pageTasks.filter(t => t.type === "coloring" || t.type === "effects").length : "Coloring / Effects"}</span>
               </div>
-              {/* Visual progress bar */}
+              
               {pageTasks.length > 0 && (
                 <div className="mt-1 progress-animated">
                   <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
@@ -1357,7 +1357,7 @@ export default function TaskAssignPage() {
             </CardContent>
           </Card>
 
-          {/* Available Assistants */}
+          
           <Card className="bg-card border-border stagger-item">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">

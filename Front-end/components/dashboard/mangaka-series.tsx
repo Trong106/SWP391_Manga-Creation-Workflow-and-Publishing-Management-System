@@ -28,7 +28,7 @@ export function MangakaSeries() {
   const [seriesList, setSeriesList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Gọi API lấy danh sách truyện thật từ SQL Server database (gửi kèm JWT Token để xác thực)
+  
   useEffect(() => {
     if (user?.id && token) {
       fetch(`${API_BASE_URL}/api/mangaka/series?mangakaId=${user.id}`, {
@@ -38,7 +38,7 @@ export function MangakaSeries() {
       })
         .then((res) => res.json())
         .then((data) => {
-          // Ánh xạ dữ liệu thật từ database lên giao diện UI hiện có
+          
           const mapped = data.map((item: any) => {
             const isDragon = item.title.toLowerCase().includes("dragon")
             return {
@@ -46,7 +46,7 @@ export function MangakaSeries() {
               title: item.title,
               genre: isDragon ? ["Action", "Fantasy"] : ["Romance", "Mystery"],
               status: isDragon ? "active" : "proposal",
-              chapters: isDragon ? 45 : 1, // Chapter 45 Dragon Hunters và Chapter 1 Night Bloom trong DB
+              chapters: isDragon ? 45 : 1, 
               ranking: isDragon ? 3 : 6,
               rankChange: isDragon ? 2 : 0,
               progress: isDragon ? 78 : 0,
@@ -90,14 +90,14 @@ export function MangakaSeries() {
                 key={series.id}
                 className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors"
               >
-                {/* Cover placeholder */}
+                
                 <div
                   className={`w-16 h-20 rounded-lg bg-gradient-to-br ${series.coverColor} flex items-center justify-center`}
                 >
                   <span className="text-2xl font-bold text-white/90">{series.title[0]}</span>
                 </div>
 
-                {/* Info */}
+                
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="font-semibold truncate">{series.title}</h4>
@@ -136,7 +136,7 @@ export function MangakaSeries() {
                   )}
                 </div>
 
-                {/* Actions */}
+                
                 <div className="flex items-center gap-2">
                   <Button variant="ghost" size="icon">
                     <Eye className="w-4 h-4" />

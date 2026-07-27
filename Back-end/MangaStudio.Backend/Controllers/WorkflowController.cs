@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace MangaStudio.Backend.Controllers;
 
-/// <summary>
-/// Controller quản lý đề xuất series, lịch xuất bản và bảng lương.
-/// </summary>
+
+
+
 [ApiController]
 [Route("api")]
 [Authorize]
@@ -30,11 +30,11 @@ public class WorkflowController : ControllerBase
         return Guid.TryParse(userIdClaim, out var userId) ? userId : Guid.Empty;
     }
 
-    // === Series Proposals ===
+    
 
-    /// <summary>
-    /// GET /api/proposals — Tantou xem danh sách đề xuất chờ duyệt.
-    /// </summary>
+    
+    
+    
     [HttpGet("proposals")]
     [Authorize(Roles = "tantou,editorial")]
     public async Task<IActionResult> GetPendingProposals()
@@ -50,9 +50,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/proposals/my-proposals — Mangaka xem danh sách đề xuất của mình.
-    /// </summary>
+    
+    
+    
     [HttpGet("proposals/my-proposals")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> GetMyProposals()
@@ -69,9 +69,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/proposals/{id}/review — Editorial Board ghi nhận biên bản vote cho đề xuất series.
-    /// </summary>
+    
+    
+    
     [HttpPut("proposals/{id:guid}/review")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> ReviewProposal(Guid id, [FromBody] ReviewProposalDto dto)
@@ -116,11 +116,11 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    // === Publish Schedule ===
+    
 
-    /// <summary>
-    /// GET /api/publish-schedules — Lấy danh sách lịch xuất bản (có thể lọc theo seriesId).
-    /// </summary>
+    
+    
+    
     [HttpGet("publish-schedules")]
     public async Task<IActionResult> GetPublishSchedules([FromQuery] Guid? seriesId)
     {
@@ -135,9 +135,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/chapters/{id}/schedule — Tạo lịch xuất bản cho một chương truyện.
-    /// </summary>
+    
+    
+    
     [HttpPost("chapters/{id:guid}/schedule")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> CreatePublishSchedule(Guid id, [FromBody] CreatePublishScheduleDto dto)
@@ -163,9 +163,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/publish-schedules/{id}/approve — Tantou phê duyệt lịch xuất bản.
-    /// </summary>
+    
+    
+    
     [HttpPut("publish-schedules/{id:guid}/approve")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> ApprovePublishSchedule(Guid id)
@@ -186,9 +186,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/publish-schedules/{id}/cancel — Hủy lịch xuất bản và trả chapter về trạng thái sẵn sàng.
-    /// </summary>
+    
+    
+    
     [HttpPut("publish-schedules/{id:guid}/cancel")]
     [Authorize(Roles = "editorial")]
     public async Task<IActionResult> CancelPublishSchedule(Guid id)
@@ -213,11 +213,11 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    // === Payroll ===
+    
 
-    /// <summary>
-    /// GET /api/payroll — Mangaka xem toàn bộ bảng lương trợ lý.
-    /// </summary>
+    
+    
+    
     [HttpGet("payroll")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> GetPayrollRecords()
@@ -234,9 +234,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/payroll/my-payroll — Trợ lý xem bảng lương của mình.
-    /// </summary>
+    
+    
+    
     [HttpGet("payroll/my-payroll")]
     [Authorize(Roles = "assistant")]
     public async Task<IActionResult> GetMyPayroll()
@@ -269,9 +269,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/payroll/{id}/pay — Mangaka đánh dấu đã thanh toán lương cho trợ lý.
-    /// </summary>
+    
+    
+    
     [HttpPut("payroll/{id:guid}/pay")]
     [Authorize(Roles = "mangaka")]
     public async Task<IActionResult> MarkPayrollAsPaid(Guid id)
@@ -296,11 +296,11 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    // === Notifications ===
+    
 
-    /// <summary>
-    /// GET /api/notifications — Lấy danh sách thông báo của người dùng đang đăng nhập.
-    /// </summary>
+    
+    
+    
     [HttpGet("notifications")]
     public async Task<IActionResult> GetMyNotifications()
     {
@@ -316,9 +316,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/notifications/{id}/read — Đánh dấu một thông báo đã đọc.
-    /// </summary>
+    
+    
+    
     [HttpPut("notifications/{id:guid}/read")]
     public async Task<IActionResult> MarkAsRead(Guid id)
     {
@@ -335,9 +335,9 @@ public class WorkflowController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/notifications/read-all — Đánh dấu tất cả thông báo của người dùng đã đọc.
-    /// </summary>
+    
+    
+    
     [HttpPut("notifications/read-all")]
     public async Task<IActionResult> MarkAllAsRead()
     {
