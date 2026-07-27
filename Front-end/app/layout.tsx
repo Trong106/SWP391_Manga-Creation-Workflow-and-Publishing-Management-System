@@ -11,7 +11,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'MangaFlow - Studio Workflow Management',
+  title: 'MangaCreation - Studio Workflow Management',
   description: 'Professional manga production workflow management system for mangaka, assistants, and editors',
   generator: 'v0.app',
   icons: {

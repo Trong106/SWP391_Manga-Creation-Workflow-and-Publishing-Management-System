@@ -534,7 +534,7 @@ export default function SubmitToPublishPage() {
                 Submit to Publish
               </h2>
               <p className="text-zinc-400 text-sm mt-1 ml-12">
-                Final manuscript verification for production deployment on MangaFlow.
+                Final manuscript verification for production deployment on MangaCreation.
               </p>
             </div>
 
