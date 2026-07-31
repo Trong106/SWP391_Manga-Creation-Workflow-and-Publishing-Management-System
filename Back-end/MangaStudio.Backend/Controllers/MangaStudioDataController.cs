@@ -38,6 +38,7 @@ public class MangaStudioDataController : ControllerBase
     {
         var series = await _dbContext.Series
             .AsNoTracking()
+            .AsSplitQuery()
             .Where(s => s.Status != "proposal")
             .Select(s => new
             {
