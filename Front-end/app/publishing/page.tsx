@@ -168,7 +168,9 @@ function formatCalendarRange(start: Date, end: Date) {
   return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} - ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
 }
 
-function canCancelScheduleItem(item: PublishingItem) {
+function canCancelScheduleItem(
+  item: PublishingItem,
+): item is Extract<PublishingItem, { kind: "schedule" }> {
   if (item.kind !== "schedule") return false
   const status = normalizeStatus(item.publishStatus)
   if (status === "cancelled") return false

@@ -32,7 +32,6 @@ import {
   Loader2
 } from "lucide-react"
 import { toast } from "sonner"
-import { Toaster } from "@/components/ui/sonner"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 
 interface Task {
@@ -47,6 +46,7 @@ interface Task {
   pageNumber: number
   chapterTitle: string
   seriesTitle: string
+  seriesStatus?: string | null
   assignerName: string
 }
 
@@ -132,6 +132,7 @@ export default function SubmitWorkPage() {
           pageNumber: mt.pageNumber,
           chapterTitle: mt.chapterTitle || `Chapter ${matchingTask?.chapterNumber || ""}`,
           seriesTitle: matchingTask?.seriesTitle || "Neo-Tokyo Chronicles",
+          seriesStatus: mt.seriesStatus ?? matchingTask?.seriesStatus ?? null,
           assignerName: mt.assignerName || "Yuki Tanaka"
         }
       }).filter((task: Task) => ["pending", "in_progress", "revision"].includes(task.status))
@@ -158,6 +159,7 @@ export default function SubmitWorkPage() {
   }, [user?.id, token, taskIdParam])
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId)
+  const isSeriesCancelled = selectedTask?.seriesStatus?.toLowerCase() === "cancelled"
 
   useEffect(() => {
     const fetchTaskResource = async () => {
@@ -608,26 +610,6 @@ export default function SubmitWorkPage() {
                   </CardContent>
                 </Card>
               </div>
-              <Card className="mt-6 bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
-                    <FileCode className="w-5 h-5 text-primary" />
-                    Submission Notes
-                  </CardTitle>
-                  <CardDescription className="text-zinc-400 text-xs">
-                    Add optional context for the Mangaka before sending this page for review.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Textarea 
-                    id="submit-notes"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="Add details about changes, drawing choices, or issues that need Mangaka's review..."
-                    className="bg-zinc-950/60 border-zinc-850 text-white placeholder-zinc-650 focus-visible:ring-primary min-h-[120px] resize-none text-sm"
-                  />
-                </CardContent>
-              </Card>
             </div>
 
             
@@ -746,7 +728,6 @@ export default function SubmitWorkPage() {
           </div>
         </>
       )}
-      <Toaster />
     </div>
   )
 }
