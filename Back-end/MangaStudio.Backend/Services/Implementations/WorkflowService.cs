@@ -3,6 +3,7 @@ using MangaStudio.Backend.Data;
 using MangaStudio.Backend.Models.DTOs;
 using MangaStudio.Backend.Models.Entities;
 using MangaStudio.Backend.Services.Interfaces;
+using MangaStudio.Backend.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -521,12 +522,25 @@ public class WorkflowService : IWorkflowService
             .Where(s => s.SubmittedById == assistantId)
             .ToListAsync();
 
-        var latestMonthlySubmissions = submissions
-            .GroupBy(s => new { s.TaskId, s.SubmittedAt.Year, s.SubmittedAt.Month })
-            .Select(g => g.OrderByDescending(s => s.SubmittedAt).First())
+        var submissionsInVietnamTime = submissions
+            .Select(s => new
+            {
+                Submission = s,
+                SubmittedAtVietnam = VietnamTime.FromUtc(s.SubmittedAt)
+            })
             .ToList();
 
-        var taskIds = latestMonthlySubmissions.Select(s => s.TaskId).Distinct().ToList();
+        var latestMonthlySubmissions = submissionsInVietnamTime
+            .GroupBy(x => new
+            {
+                x.Submission.TaskId,
+                x.SubmittedAtVietnam.Year,
+                x.SubmittedAtVietnam.Month
+            })
+            .Select(g => g.OrderByDescending(x => x.Submission.SubmittedAt).First())
+            .ToList();
+
+        var taskIds = latestMonthlySubmissions.Select(x => x.Submission.TaskId).Distinct().ToList();
         var payrollRecords = await _context.PayrollRecords
             .Where(p =>
                 p.AssistantId == assistantId &&
@@ -544,13 +558,14 @@ public class WorkflowService : IWorkflowService
                 g => g.OrderByDescending(p => p.CreatedAt).First());
 
         return latestMonthlySubmissions
-            .GroupBy(s => new { s.SubmittedAt.Year, s.SubmittedAt.Month })
+            .GroupBy(x => new { x.SubmittedAtVietnam.Year, x.SubmittedAtVietnam.Month })
             .Select(g =>
             {
                 var tasks = g
-                    .OrderByDescending(s => s.SubmittedAt)
-                    .Select(s =>
+                    .OrderByDescending(x => x.Submission.SubmittedAt)
+                    .Select(x =>
                     {
+                        var s = x.Submission;
                         payableByTask.TryGetValue(s.TaskId, out var payroll);
                         var status = payroll != null
                             ? "Approved"
