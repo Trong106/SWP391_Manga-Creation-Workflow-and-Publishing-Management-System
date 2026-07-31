@@ -220,7 +220,8 @@ export default function TaskAssignPage() {
       const res = await fetch(`${API_BASE_URL}/api/series`, { headers: authHeader })
       if (!res.ok) throw new Error("Failed to load series")
       const data: Series[] = await res.json()
-      setSeries(data)
+      const activeSeries = data.filter(s => s.status && s.status.toLowerCase() !== "proposal")
+      setSeries(activeSeries)
     } catch (err) {
       toast.error("Failed to load your series.")
     } finally {

@@ -963,11 +963,11 @@ function EditorialPublishing() {
                           variant="outline"
                           title="Cancel schedule"
                           aria-label={`Cancel schedule for ${item.seriesTitle} chapter ${item.chapterNumber}`}
-                          onClick={() => cancelSchedule(item.scheduleId)}
-                          disabled={cancellingId === item.scheduleId}
+                          onClick={() => cancelSchedule((item as any).scheduleId)}
+                          disabled={cancellingId === (item as any).scheduleId}
                           className="h-9 w-9 shrink-0 rounded-full border-red-900/60 bg-red-950/20 p-0 text-red-300 hover:bg-red-950/40 hover:text-red-200"
                         >
-                          {cancellingId === item.scheduleId ? (
+                          {cancellingId === (item as any).scheduleId ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <XCircle className="h-4 w-4" />

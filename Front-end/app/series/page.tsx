@@ -14,7 +14,9 @@ import {
   AlertCircle,
   Folder,
   Upload,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -75,6 +77,7 @@ export default function SeriesPage() {
   const [series, setSeries] = useState<Series[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   
   const [newTitle, setNewTitle] = useState("")
@@ -144,6 +147,7 @@ export default function SeriesPage() {
   const handleCreateSeries = async () => {
     if (!newTitle.trim() || !token) return
 
+    setIsSubmitting(true)
     try {
       const formData = new FormData()
       formData.append("title", newTitle)
@@ -162,7 +166,7 @@ export default function SeriesPage() {
       })
 
       if (res.ok) {
-        
+        toast.success("Series proposal created successfully!")
         setNewTitle("")
         setNewTitleJp("")
         setNewSynopsis("")
@@ -173,11 +177,13 @@ export default function SeriesPage() {
         fetchSeries()
       } else {
         const errorData = await res.json()
-        alert(errorData.message || "Error creating series")
+        toast.error(errorData.message || "Error creating series")
       }
     } catch (err) {
       console.error(err)
-      alert("Server connection error")
+      toast.error("Server connection error")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -210,14 +216,20 @@ export default function SeriesPage() {
           </p>
         </div>
         {role === "mangaka" && (
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <Dialog open={isCreateOpen} onOpenChange={(open) => {
+            if (!isSubmitting) setIsCreateOpen(open)
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 New Series
               </Button>
             </DialogTrigger>
-          <DialogContent className="w-[calc(100vw-2rem)] max-w-none sm:max-w-[1100px] bg-[#18181b] text-white border-zinc-800 max-h-[92vh] overflow-y-auto">
+          <DialogContent 
+            className="w-[calc(100vw-2rem)] max-w-none sm:max-w-[1100px] bg-[#18181b] text-white border-zinc-800 max-h-[92vh] overflow-y-auto"
+            onPointerDownOutside={(e) => { if (isSubmitting) e.preventDefault() }}
+            onEscapeKeyDown={(e) => { if (isSubmitting) e.preventDefault() }}
+          >
             <DialogHeader>
               <DialogTitle>Create New Series</DialogTitle>
               <DialogDescription className="text-zinc-400">
@@ -230,6 +242,7 @@ export default function SeriesPage() {
                 <Input
                   id="title"
                   value={newTitle}
+                  disabled={isSubmitting}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Enter series title"
                   className="bg-zinc-900 border-zinc-800 text-white"
@@ -240,6 +253,7 @@ export default function SeriesPage() {
                 <Input
                   id="titleJp"
                   value={newTitleJp}
+                  disabled={isSubmitting}
                   onChange={(e) => setNewTitleJp(e.target.value)}
                   placeholder="Japanese title"
                   className="bg-zinc-900 border-zinc-800 text-white"
@@ -247,7 +261,7 @@ export default function SeriesPage() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="genre" className="text-zinc-300">Genre</Label>
-                <Select value={newGenre} onValueChange={setNewGenre}>
+                <Select value={newGenre} onValueChange={setNewGenre} disabled={isSubmitting}>
                   <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
                     <SelectValue placeholder="Select genre" />
                   </SelectTrigger>
@@ -270,7 +284,7 @@ export default function SeriesPage() {
                     Long-form synopsis supported, including manuscripts over 2,000 words.
                   </p>
                 </div>
-                <SynopsisRichTextEditor value={newSynopsis} onChange={setNewSynopsis} />
+                <SynopsisRichTextEditor value={newSynopsis} onChange={setNewSynopsis} disabled={isSubmitting} />
               </div>
               <div className="grid gap-3 rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
                 <div>
@@ -282,6 +296,7 @@ export default function SeriesPage() {
                 <Input
                   id="chapterTitle"
                   value={newChapterTitle}
+                  disabled={isSubmitting}
                   onChange={(e) => setNewChapterTitle(e.target.value)}
                   placeholder="Chapter 001"
                   className="bg-zinc-900 border-zinc-800 text-white"
@@ -290,6 +305,7 @@ export default function SeriesPage() {
                   id="preliminaryPages"
                   type="file"
                   multiple
+                  disabled={isSubmitting}
                   accept=".png,.jpg,.jpeg,.psd,.clip"
                   className="hidden"
                   onChange={(event) => setPreliminaryPages(Array.from(event.target.files || []))}
@@ -298,6 +314,7 @@ export default function SeriesPage() {
                   id="preliminaryPagesFolder"
                   type="file"
                   multiple
+                  disabled={isSubmitting}
                   accept=".png,.jpg,.jpeg,.psd,.clip"
                   className="hidden"
                   {...{ webkitdirectory: "", directory: "" }}
@@ -307,6 +324,7 @@ export default function SeriesPage() {
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={isSubmitting}
                     className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
                     onClick={() => document.getElementById("preliminaryPages")?.click()}
                   >
@@ -316,6 +334,7 @@ export default function SeriesPage() {
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={isSubmitting}
                     className="border-zinc-800 text-zinc-300 hover:bg-zinc-900"
                     onClick={() => document.getElementById("preliminaryPagesFolder")?.click()}
                   >
@@ -329,10 +348,28 @@ export default function SeriesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-900" onClick={() => setIsCreateOpen(false)}>
+              <Button 
+                variant="outline" 
+                className="border-zinc-800 text-zinc-300 hover:bg-zinc-900" 
+                onClick={() => setIsCreateOpen(false)}
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCreateSeries}>Create Series</Button>
+              <Button 
+                className="bg-primary text-primary-foreground hover:bg-primary/90 min-w-[120px]" 
+                onClick={handleCreateSeries}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Series"
+                )}
+              </Button>
             </DialogFooter>
           </DialogContent>
           </Dialog>

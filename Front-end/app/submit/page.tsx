@@ -48,6 +48,7 @@ interface Task {
   seriesTitle: string
   seriesStatus?: string | null
   assignerName: string
+  seriesStatus?: string | null
 }
 
 interface RevisionAnnotation {
