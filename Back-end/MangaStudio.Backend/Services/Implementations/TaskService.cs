@@ -342,6 +342,8 @@ public class TaskService : ITaskService
     {
         var task = await _context.Tasks
             .Include(t => t.Page)
+                .ThenInclude(p => p.Chapter)
+                    .ThenInclude(c => c.Series)
             .FirstOrDefaultAsync(t => t.TaskId == taskId)
             ?? throw new KeyNotFoundException($"Công việc với ID {taskId} không tồn tại.");
 
@@ -350,7 +352,7 @@ public class TaskService : ITaskService
             throw new UnauthorizedAccessException("Bạn không phải người được giao việc này.");
         }
 
-        if (task.Page.Chapter.Series.Status == "cancelled")
+        if (string.Equals(task.Page.Chapter.Series.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Cannot submit work for a cancelled series.");
         }
