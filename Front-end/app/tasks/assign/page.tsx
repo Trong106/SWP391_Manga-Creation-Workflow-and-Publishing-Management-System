@@ -584,6 +584,7 @@ export default function TaskAssignPage() {
 
   
   const selectedSeries = series.find(s => s.seriesId === selectedSeriesId)
+  const isSeriesCancelled = selectedSeries?.status?.toLowerCase() === "cancelled"
   const selectedChapter = chapters.find(c => c.chapterId === selectedChapterId)
   const selectedPage = pages.find(p => p.pageId === selectedPageId)
   const selectedPageImageUrl = getFullImageUrl(selectedPage?.currentImageUrl ?? selectedPage?.imageUrl)
