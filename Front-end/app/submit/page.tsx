@@ -48,6 +48,7 @@ interface Task {
   chapterTitle: string
   seriesTitle: string
   assignerName: string
+  seriesStatus?: string | null
 }
 
 interface RevisionAnnotation {
@@ -132,7 +133,8 @@ export default function SubmitWorkPage() {
           pageNumber: mt.pageNumber,
           chapterTitle: mt.chapterTitle || `Chapter ${matchingTask?.chapterNumber || ""}`,
           seriesTitle: matchingTask?.seriesTitle || "Neo-Tokyo Chronicles",
-          assignerName: mt.assignerName || "Yuki Tanaka"
+          assignerName: mt.assignerName || "Yuki Tanaka",
+          seriesStatus: mt.seriesStatus
         }
       }).filter((task: Task) => ["pending", "in_progress", "revision"].includes(task.status))
 
@@ -158,6 +160,7 @@ export default function SubmitWorkPage() {
   }, [user?.id, token, taskIdParam])
 
   const selectedTask = tasks.find(t => t.id === selectedTaskId)
+  const isSeriesCancelled = selectedTask?.seriesStatus?.toLowerCase() === "cancelled"
 
   useEffect(() => {
     const fetchTaskResource = async () => {
