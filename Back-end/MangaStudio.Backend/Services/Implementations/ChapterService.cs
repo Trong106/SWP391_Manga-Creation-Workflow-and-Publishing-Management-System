@@ -4,6 +4,7 @@ using MangaStudio.Backend.Data;
 using MangaStudio.Backend.Models.DTOs;
 using MangaStudio.Backend.Models.Entities;
 using MangaStudio.Backend.Services.Interfaces;
+using MangaStudio.Backend.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -607,7 +608,7 @@ public class ChapterService : IChapterService
             .ToListAsync();
 
         var existingSet = existingPayrollTaskIds.ToHashSet();
-        var periodDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var periodDate = VietnamTime.Today;
 
         foreach (var task in payableTasks.Where(t => !existingSet.Contains(t.TaskId)))
         {
